@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>ルナオルタ v38</title>
+<title>ルナオルタ v40</title>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
 <style>
 :root{--bg:#f4efe5;--panel:#fffdf8;--ink:#24211d;--muted:#776f64;--line:#d8d0c3;--accent:#24211d;--gold:#a77a28;--danger:#9b2c2c;--ok:#276749;--setup:#efe2c6;--skill:#dce9ef;--attack:#edd7d2;--spell:#eadff2;--shadow:0 10px 30px rgba(44,34,24,.08)}
@@ -834,7 +834,7 @@
           <button id="goBattle" class="home-card"><div class="home-icon">♟</div><h2>バトル</h2><p>CPU戦またはルームマッチを選び、使用するデッキを決めて対戦します。</p></button>
           <button id="goDecks" class="home-card"><div class="home-icon">▦</div><h2>デッキ作成</h2><p>保存済みデッキの編集、新規作成、名前の変更ができます。</p></button>
         </div>
-        <div class="version">v39 / ログ効果確認・非公開情報整理・リーダー表示調整</div>
+        <div class="version">v40 / 通信切断・ホスト復帰対応</div>
       </div>
     </section>
 
@@ -878,7 +878,7 @@
         </div>
         <div style="display:flex;gap:7px;margin-top:10px"><button id="startOnline" class="btn gold hidden">対戦開始</button><button id="leaveRoom" class="btn danger">ルームを退出</button></div>
       </div>
-      <div class="panel"><b>遊び方</b><ul class="connection-help small"><li>2人ともこのHTMLをChromeやEdgeで開きます。</li><li>片方がルームを作り、もう片方が番号を入力します。</li><li>対戦中、相手には手札の枚数だけが表示されます。</li><li>通信にはインターネット接続が必要です。切断時の途中復帰はこの試作版では未対応です。</li></ul></div>
+      <div class="panel"><b>遊び方</b><ul class="connection-help small"><li>2人ともこのHTMLをChromeやEdgeで開きます。</li><li>片方がルームを作り、もう片方が番号を入力します。</li><li>対戦中、相手には手札の枚数だけが表示されます。</li><li>通信にはインターネット接続が必要です。対戦中に通信が切れた場合は自動再接続を試み、ホストはページ再読み込み後も対戦状態を復元できます。</li></ul></div>
     </section>
 
     <section id="deckScreen" class="screen">
