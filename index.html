@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>ルナオルタ v27</title>
+<title>ルナオルタ v30</title>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
 <style>
 :root{--bg:#f4efe5;--panel:#fffdf8;--ink:#24211d;--muted:#776f64;--line:#d8d0c3;--accent:#24211d;--gold:#a77a28;--danger:#9b2c2c;--ok:#276749;--setup:#efe2c6;--skill:#dce9ef;--attack:#edd7d2;--spell:#eadff2;--shadow:0 10px 30px rgba(44,34,24,.08)}
@@ -278,6 +278,84 @@
   #homeScreen .home-card p{font-size:7px;line-height:1.2}
   #homeScreen .version{font-size:6.5px;margin-top:3px}
 }
+
+/* v28: selected-card dismissal, readable-at-a-glance card text, explicit HP/hand limits */
+#battleScreen .hand .card:not(.expanded) .text{
+  opacity:.62 !important;
+  pointer-events:none;
+  display:block !important;
+  font-size:7px;
+  line-height:1.12;
+  max-height:4.5em;
+  overflow:hidden;
+  margin-top:2px;
+}
+#battleScreen .hand .card:not(.expanded) .card-actions{
+  opacity:0 !important;
+  pointer-events:none;
+}
+#battleScreen .hand .card.expanded .text{
+  opacity:1 !important;
+  max-height:none;
+}
+#battleScreen .hpbar-text{
+  letter-spacing:.02em;
+  white-space:nowrap;
+}
+
+/* v29: hand spreads as widely as possible, then overlaps progressively near the 10-card cap */
+@media(max-width:760px){
+  #battleScreen .hand{
+    --hand-card-w:110px;
+    --hand-step:70px;
+    width:100%;
+    max-width:100%;
+    padding-left:8px;
+    padding-right:8px;
+    justify-content:flex-start;
+  }
+  #battleScreen .hand .card{
+    flex:0 0 var(--hand-card-w) !important;
+    width:var(--hand-card-w) !important;
+    margin-left:calc(var(--hand-step) - var(--hand-card-w)) !important;
+  }
+  #battleScreen .hand .card:first-child{
+    margin-left:0 !important;
+  }
+
+  /* Keep the most useful identifying information in the exposed left strip. */
+  #battleScreen .hand .card .head{
+    display:block;
+    padding-left:0 !important;
+    min-height:52px;
+  }
+  #battleScreen .hand .card .cost{
+    left:0;
+    top:0;
+  }
+  #battleScreen .hand .card .cname{
+    padding-top:23px;
+    padding-left:0;
+    padding-right:2px;
+    font-size:8.6px;
+    line-height:1.02;
+    max-height:2.08em;
+    overflow:hidden;
+    overflow-wrap:anywhere;
+  }
+  #battleScreen .hand .card .type{
+    font-size:6.5px;
+    line-height:1;
+    margin-top:2px;
+  }
+
+  /* A selected card still rises above the fan and becomes fully readable. */
+  #battleScreen .hand .card.expanded{
+    width:max(132px,var(--hand-card-w)) !important;
+    flex-basis:max(132px,var(--hand-card-w)) !important;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -297,7 +375,7 @@
           <button id="goBattle" class="home-card"><div class="home-icon">♟</div><h2>バトル</h2><p>CPU戦またはルームマッチを選び、使用するデッキを決めて対戦します。</p></button>
           <button id="goDecks" class="home-card"><div class="home-icon">▦</div><h2>デッキ作成</h2><p>保存済みデッキの編集、新規作成、名前の変更ができます。</p></button>
         </div>
-        <div class="version">v27 / 横画面UI復元・2キャラ対応・デッキはこのブラウザに保存されます</div>
+        <div class="version">v30 / マサムネ調整・手札可変展開・2キャラ対応</div>
       </div>
     </section>
 
@@ -371,7 +449,7 @@
             <div id="oppLeaderUnit" class="leader-unit opponent">
               <div class="leader-nameplate" id="oppName">相手</div>
               <div class="leader-portrait"><div id="oppDamageLayer" class="damage-layer"></div><img id="oppLeaderImg" class="leader-img hidden" alt="相手リーダー"><div id="oppLeaderFallback" class="leader-fallback hidden">マサムネ</div></div>
-              <div class="hpbar"><div id="oppHpFill" class="hpbar-fill"></div><div class="hpbar-text">HP&nbsp;<span id="oppHp">100</span>/100</div></div>
+              <div class="hpbar"><div id="oppHpFill" class="hpbar-fill"></div><div class="hpbar-text">HP&nbsp;<span id="oppHp">100</span>&nbsp;/&nbsp;<span id="oppMaxHp">100</span></div></div>
               <div class="leader-meta">⚡ <span id="oppEnergy">0</span>/<span id="oppMaxEnergy">0</span> ・ 山札 <span id="oppDeckN">0</span> ・ 手札 <span id="oppHandN">0</span> ・ 捨て札 <span id="oppDiscardN">0</span><div id="oppHandBacks" class="opponent-hand"></div></div>
             </div>
             <div id="playedStage" class="played-stage hidden"></div>
@@ -379,7 +457,7 @@
             <div id="myLeaderUnit" class="leader-unit self">
               <div class="leader-nameplate" id="myName">あなた</div>
               <div class="leader-portrait"><div id="myDamageLayer" class="damage-layer"></div><img id="myLeaderImg" class="leader-img hidden" alt="自分のリーダー"><div id="myLeaderFallback" class="leader-fallback hidden">マサムネ</div></div>
-              <div class="hpbar"><div id="myHpFill" class="hpbar-fill"></div><div class="hpbar-text">HP&nbsp;<span id="myHp">100</span>/100</div></div>
+              <div class="hpbar"><div id="myHpFill" class="hpbar-fill"></div><div class="hpbar-text">HP&nbsp;<span id="myHp">100</span>&nbsp;/&nbsp;<span id="myMaxHp">100</span></div></div>
               <div class="leader-meta">⚡ <span id="myEnergy">0</span>/<span id="myMaxEnergy">0</span></div>
             </div>
             <div class="battle-controls"><div class="battle-turnline"><div id="turnLabel" class="turn-badge">-</div><div id="winner" class="winner"></div></div><div class="status"><div><div class="small">山札 <span id="myDeckN">0</span> / 捨て札 <span id="myDiscardN">0</span> / 廃棄 <span id="myExhaustN">0</span></div></div><div class="hp"></div></div><div class="battle-actions"><button id="movePersonal" class="btn">独自枠→共有へ</button><button id="endTurn" class="btn primary">ターン終了</button><button id="openLog" class="btn">ログ</button><button id="concede" class="btn danger">降参</button></div></div>
@@ -437,7 +515,7 @@ const KENSHI_CARD_DEFS=[
  {id:'k1',name:'紅蓮一文字',type:'attack',cost:6,text:'33ダメージを与える。',pool:'kenshi'},
  {id:'k2',name:'神算鬼謀',type:'setup',cost:6,text:'このカードが場にある限り、自分の手札のカードのコストを1下げる。',pool:'kenshi'},
  {id:'k3',name:'戦化粧',type:'skill',cost:1,text:'カードを1枚引く。その後、手札のカード1枚は「保留」を得る。',pool:'kenshi'},
- {id:'k4',name:'不動要塞',type:'setup',cost:5,text:'自分のリーダーが受けるダメージを合計30まで肩代わりする。残量が0になったら捨て札へ。',pool:'kenshi'},
+ {id:'k4',name:'不動要塞',type:'setup',cost:5,text:'自分のリーダーが受けるダメージを合計20まで肩代わりする。残量が0になったら捨て札へ。',pool:'kenshi'},
  {id:'k5',name:'気炎万丈',type:'skill',cost:3,text:'自分の最大エナジーを1増やす（最大6）。',pool:'kenshi'},
  {id:'k6',name:'袈裟斬り',type:'attack',cost:3,text:'20ダメージを与える。',pool:'kenshi'},
  {id:'k7',name:'正眼の構え',type:'spell',cost:1,text:'《刹那の踏み込み》を手札に加える。',pool:'kenshi'},
@@ -453,7 +531,7 @@ const KENSHI_CARD_DEFS=[
  {id:'k17',name:'束の間の休息',type:'spell',cost:3,text:'自分のリーダーを10回復する。',pool:'kenshi'},
  {id:'k18',name:'剣戟の残響',type:'setup',cost:3,text:'自分が元コスト4以上のカードを使ったターンの終了時、カードを1枚引く。',pool:'kenshi'},
  {id:'k19',name:'取捨選択',type:'skill',cost:1,text:'カードを2枚引く。その後、手札の中で最もコストが低いカード1枚を捨てる。',pool:'kenshi'},
- {id:'k20',name:'二刀流',type:'attack',cost:4,text:'20ダメージを与える。自分の手札にコスト5以上のカードがある場合、さらに10ダメージ。',pool:'kenshi'},
+ {id:'k20',name:'二刀流',type:'attack',cost:4,text:'20ダメージを与える。自分の手札にコスト5以上のカードがある場合、さらに5ダメージ。',pool:'kenshi'},
  {id:'k21',name:'剣気',type:'attack',cost:1,text:'自分の手札にあるコスト4以上のカードの枚数×3ダメージを与える。',pool:'kenshi'}
 ];
 const KENSHI_TOKEN_DEFS=[
@@ -562,17 +640,17 @@ function leaveRoom(reset=true){try{conn?.close()}catch(e){}try{peer?.destroy()}c
 $('startOnline').onclick=()=>{if(roomRole!=='host'||!guestInfo)return;const h=getDeck($('hostDeck').value);if(!h||!validCounts(h.counts,h.character)||!validCounts(guestInfo.deck?.counts,guestInfo.deck?.character||'giovanni'))return alert('どちらかのデッキが40枚ではありません。');matchMode='online';startGame({name:cleanName('hostName'),character:h.character,counts:h.counts},{name:guestInfo.name,character:guestInfo.deck.character||'giovanni',counts:guestInfo.deck.counts})};
 $('startCpu').onclick=()=>{const d=getDeck($('cpuDeck').value);if(!d||!validCounts(d.counts,d.character))return alert('40枚のデッキを選択してください。');leaveRoom(false);roomRole='host';localPid='p1';matchMode='cpu';startGame({name:cleanName('cpuName'),character:d.character,counts:d.counts},{name:'CPU ジョバンニ',character:'giovanni',counts:{...DEFAULT_DECKS.giovanni}})};
 
-function makeCard(id){return{...DEF[id],uid:uidSeq++,knifeBonus:id==='knife'?0:undefined,damageBonus:0,costMod:0,retain:false,generatedExhaust:false,fortressHp:id==='k4'?30:undefined}}
+function makeCard(id){return{...DEF[id],uid:uidSeq++,knifeBonus:id==='knife'?0:undefined,damageBonus:0,costMod:0,retain:false,generatedExhaust:false,fortressHp:id==='k4'?20:undefined}}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function buildDeck(counts){const a=[];CARD_DEFS.forEach(c=>{for(let i=0;i<(counts[c.id]||0);i++)a.push(makeCard(c.id))});return shuffle(a)}
-function makePlayer(pid,info){return{pid,name:info.name,character:info.character||inferCharacter(info.counts),hp:100,maxEnergy:0,energy:0,drawPile:buildDeck(info.counts),discard:[],exhaust:[],hand:[],personal:null,turnSkillDraws:0,attackDouble:false,keepUid:null,turnNo:0,usedHeavyThisTurn:false,endEffectsDone:false}}
+function makePlayer(pid,info){return{pid,name:info.name,character:info.character||inferCharacter(info.counts),hp:100,maxHp:100,maxEnergy:0,energy:0,drawPile:buildDeck(info.counts),discard:[],exhaust:[],hand:[],personal:null,turnSkillDraws:0,attackDouble:false,keepUid:null,turnNo:0,usedHeavyThisTurn:false,endEffectsDone:false}}
 function startGame(p1,p2){uidSeq=1;actionSeq=1;lastShownAction=0;lastShownDamage=0;lastShownDraw=0;game={players:{p1:makePlayer('p1',p1),p2:makePlayer('p2',p2)},shared:[],current:Math.random()<.5?'p1':'p2',over:false,winner:null,log:[],pending:null,lastAction:null,damageEvents:[],damageSeq:0,drawEvents:[],drawSeq:0};addLog(`=== 対戦開始：${game.players[game.current].name}が先攻 ===`);startTurn(game.current);broadcastState()}
 function other(pid){return pid==='p1'?'p2':'p1'}
 function addLog(s){game.log.push(s);if(game.log.length>180)game.log.shift()}
 function activeSetups(pid){const p=game.players[pid],a=[];if(p.personal)a.push(p.personal);game.shared.forEach(x=>{if(x.owner===pid)a.push(x.card)});return a}
 function hasSetup(pid,id){return activeSetups(pid).some(c=>c.id===id)}
 function removeSetup(pid,card,to='discard'){const p=game.players[pid];if(p.personal?.uid===card.uid)p.personal=null;else{const i=game.shared.findIndex(x=>x.owner===pid&&x.card.uid===card.uid);if(i>=0)game.shared.splice(i,1)}p[to].push(card)}
-function heal(pid,amount,label='回復'){const p=game.players[pid],before=p.hp;p.hp=Math.min(100,p.hp+amount);addLog(`${p.name}：${label}で${p.hp-before}回復（HP ${p.hp}）`)}
+function heal(pid,amount,label='回復'){const p=game.players[pid],before=p.hp;p.hp=Math.min(p.maxHp||100,p.hp+amount);addLog(`${p.name}：${label}で${p.hp-before}回復（HP ${p.hp}）`)}
 function resetHandCost(c){if(c)c.costMod=0}
 function sendDiscard(p,c){resetHandCost(c);p.discard.push(c)}
 function addToHand(pid,card){const p=game.players[pid];if(p.hand.length<10){p.hand.push(card);return true}p.discard.push(card);addLog(`${p.name}：手札上限のため《${card.name}》は捨て札へ。`);return false}
@@ -586,14 +664,14 @@ function removeHand(pid,uid){const p=game.players[pid],i=p.hand.findIndex(x=>x.u
 function discardFromHandByEffect(pid,c,source='カード効果'){const p=game.players[pid];resetHandCost(c);p.discard.push(c);if(c.id==='j21'&&!game.over){damage(pid,modifiedDamage(pid,c,6),`《${c.name}》の捨て札効果`);if(!game.over)addLog(`${p.name}：《${c.name}》が${source}で手札から捨てられ、6ダメージ効果が発動。`)}if(c.id==='j24'&&!game.over){const n=drawCards(pid,1,true);addLog(`${p.name}：《${c.name}》が${source}で手札から捨てられ、${n}枚ドロー。`)}if(c.id==='j27'&&!game.over){addToHand(pid,makeCard('knife'));addLog(`${p.name}：《${c.name}》が${source}で手札から捨てられ、ナイフ1枚を手札に加える。`)}}
 function discardAllHandByEffect(pid,source='カード効果'){const p=game.players[pid],cards=p.hand.splice(0);cards.forEach(c=>discardFromHandByEffect(pid,c,source))}
 function modifiedDamage(pid,c,base){let x=base+(c.damageBonus||0);if(cardCost(pid,c)===0&&hasSetup(pid,'j11'))x+=3;if(c.cost>=4&&hasSetup(pid,'k13'))x+=5;if(game.players[pid].attackDouble)x*=2;return x}
-function damage(pid,amount,label){if(game.over)return;const qid=other(pid),q=game.players[qid],p=game.players[pid];let dmg=amount;if(hasSetup(qid,'k8')){dmg=0;addLog(`${q.name}：《明鏡止水》でダメージを無効化。`)}else{const parry=activeSetups(qid).find(c=>c.id==='j16');if(parry){dmg=Math.ceil(dmg/2);removeSetup(qid,parry);addLog(`${q.name}：《紳士の受け流し》で半減。`)}if(hasSetup(qid,'j17'))dmg=Math.ceil(dmg/2);const guard=activeSetups(qid).find(c=>c.id==='guard');if(guard){dmg=Math.max(0,dmg-5);removeSetup(qid,guard,guard.generatedExhaust?'exhaust':'discard');addLog(`${q.name}：《防御》で5軽減。`)}if(hasSetup(qid,'j26')){dmg=Math.max(0,dmg-1);addLog(`${q.name}：《仕立ての良いコート》で1軽減。`)}if(hasSetup(qid,'k15')){dmg=Math.max(0,dmg-3);addLog(`${q.name}：《泰然自若》で3軽減。`)}const fort=activeSetups(qid).find(c=>c.id==='k4');if(fort&&dmg>0){const absorbed=Math.min(fort.fortressHp??30,dmg);fort.fortressHp=(fort.fortressHp??30)-absorbed;dmg-=absorbed;addLog(`${q.name}：《不動要塞》が${absorbed}ダメージを肩代わり（残り${fort.fortressHp}）。`);if(fort.fortressHp<=0){removeSetup(qid,fort);addLog(`${q.name}：《不動要塞》が崩れ、捨て札へ。`)}}}q.hp-=dmg;if(game){game.damageEvents.push({seq:++game.damageSeq,target:qid,amount:dmg});if(game.damageEvents.length>16)game.damageEvents.shift()}addLog(`${p.name}：${label} → ${dmg}ダメージ（${q.name} HP ${Math.max(q.hp,0)}）`);if(q.hp<=0){game.over=true;game.winner=pid;addLog(`=== ${p.name}の勝利！ ===`)}}
+function damage(pid,amount,label){if(game.over)return;const qid=other(pid),q=game.players[qid],p=game.players[pid];let dmg=amount;if(hasSetup(qid,'k8')){dmg=0;addLog(`${q.name}：《明鏡止水》でダメージを無効化。`)}else{const parry=activeSetups(qid).find(c=>c.id==='j16');if(parry){dmg=Math.ceil(dmg/2);removeSetup(qid,parry);addLog(`${q.name}：《紳士の受け流し》で半減。`)}if(hasSetup(qid,'j17'))dmg=Math.ceil(dmg/2);const guard=activeSetups(qid).find(c=>c.id==='guard');if(guard){dmg=Math.max(0,dmg-5);removeSetup(qid,guard,guard.generatedExhaust?'exhaust':'discard');addLog(`${q.name}：《防御》で5軽減。`)}if(hasSetup(qid,'j26')){dmg=Math.max(0,dmg-1);addLog(`${q.name}：《仕立ての良いコート》で1軽減。`)}if(hasSetup(qid,'k15')){dmg=Math.max(0,dmg-3);addLog(`${q.name}：《泰然自若》で3軽減。`)}const fort=activeSetups(qid).find(c=>c.id==='k4');if(fort&&dmg>0){const absorbed=Math.min(fort.fortressHp??20,dmg);fort.fortressHp=(fort.fortressHp??20)-absorbed;dmg-=absorbed;addLog(`${q.name}：《不動要塞》が${absorbed}ダメージを肩代わり（残り${fort.fortressHp}）。`);if(fort.fortressHp<=0){removeSetup(qid,fort);addLog(`${q.name}：《不動要塞》が崩れ、捨て札へ。`)}}}q.hp-=dmg;if(game){game.damageEvents.push({seq:++game.damageSeq,target:qid,amount:dmg});if(game.damageEvents.length>16)game.damageEvents.shift()}addLog(`${p.name}：${label} → ${dmg}ダメージ（${q.name} HP ${Math.max(q.hp,0)}）`);if(q.hp<=0){game.over=true;game.winner=pid;addLog(`=== ${p.name}の勝利！ ===`)}}
 function reveal(pid,c,cost){game.lastAction={seq:actionSeq++,pid,card:{...c},cost,at:Date.now()}}
 function noteHeavyPlay(pid,c){if(c.cost>=4)game.players[pid].usedHeavyThisTurn=true}
 function generateGuard(pid){const p=game.players[pid],g=makeCard('guard');g.generatedExhaust=true;game.shared.push({owner:pid,card:g});addLog(`${p.name}：《赤備え》で《防御》を共有枠に生成。`);if(game.shared.length>3)pushOldest('共有枠超過')}
 function afterPlayTriggers(pid,c){const p=game.players[pid];noteHeavyPlay(pid,c);if(c.cost>=4&&hasSetup(pid,'k12')&&!game.over)generateGuard(pid)}
 function playCard(pid,uid,dest){const p=game.players[pid],c=p.hand.find(x=>x.uid===uid);if(!c||!canPlay(pid,c))return;const cost=cardCost(pid,c);removeHand(pid,uid);p.energy-=cost;reveal(pid,c,cost);
- if(c.type==='setup'){if(c.id==='k4')c.fortressHp=30;if(dest==='personal'){if(p.personal){p.hand.push(c);p.energy+=cost;return}p.personal=c;addLog(`${p.name}：《${c.name}》を独自枠へ。`)}else{game.shared.push({owner:pid,card:c});addLog(`${p.name}：《${c.name}》を共有枠へ。`);if(game.shared.length>3)pushOldest('共有枠超過')}if(c.id==='j18'){discardAllHandByEffect(pid,'《本気の一張羅》');addLog(`${p.name}：《本気の一張羅》で残り手札を全て捨てる。`)}if(c.id==='j26'){const n=drawCards(pid,1,true);addLog(`${p.name}：《仕立ての良いコート》設置時に${n}枚ドロー。`)}afterPlayTriggers(pid,c);return}
- if(c.type==='attack'){if(c.id==='strike')damage(pid,modifiedDamage(pid,c,6),'《ストライク》');else if(c.id==='j4')damage(pid,modifiedDamage(pid,c,20),'《ロイヤルストレートフラッシュ》');else if(c.id==='j5')damage(pid,modifiedDamage(pid,c,p.hand.length+3),'《アクロバティックダガー》');else if(c.id==='j12'){const n=p.hand.length;discardAllHandByEffect(pid,'《ちゃぶ台返し》');for(let i=0;i<n&&!game.over;i++)damage(pid,modifiedDamage(pid,c,1),`《ちゃぶ台返し》 ${i+1}/${n}`)}else if(c.id==='j21')damage(pid,modifiedDamage(pid,c,6),`《${c.name}》`);else if(c.id==='j27'){damage(pid,modifiedDamage(pid,c,3),`《${c.name}》`);if(!game.over){addToHand(pid,makeCard('knife'));addLog(`${p.name}：《袖の短剣》でナイフ1枚を手札に加える。`)}}else if(c.id==='j23'){damage(pid,modifiedDamage(pid,c,8),'《大盤振る舞い》');if(!game.over){addToHand(pid,makeCard('knife'));addToHand(pid,makeCard('knife'));addLog(`${p.name}：《大盤振る舞い》でナイフ2枚。`)}}else if(c.id==='j25')damage(pid,modifiedDamage(pid,c,p.turnSkillDraws),'《剣の舞》');else if(c.id==='knife')damage(pid,modifiedDamage(pid,c,3+(c.knifeBonus||0)),'《ナイフ》');else if(c.id==='k1')damage(pid,modifiedDamage(pid,c,33),'《紅蓮一文字》');else if(c.id==='k6')damage(pid,modifiedDamage(pid,c,20),'《袈裟斬り》');else if(c.id==='kt2')damage(pid,modifiedDamage(pid,c,50),'《魂の一閃》');else if(c.id==='k10'){damage(pid,modifiedDamage(pid,c,20),'《活人剣》');if(!game.over)heal(pid,20,'《活人剣》')}else if(c.id==='k20'){const bonus=p.hand.some(x=>cardCost(pid,x)>=5)?10:0;damage(pid,modifiedDamage(pid,c,20+bonus),'《二刀流》')}else if(c.id==='k21'){const n=p.hand.filter(x=>cardCost(pid,x)>=4).length;damage(pid,modifiedDamage(pid,c,n*3),'《剣気》')}afterPlayTriggers(pid,c);((c.id==='knife'||c.id==='j4')?p.exhaust:p.discard).push(c);return}
+ if(c.type==='setup'){if(c.id==='k4')c.fortressHp=20;if(dest==='personal'){if(p.personal){p.hand.push(c);p.energy+=cost;return}p.personal=c;addLog(`${p.name}：《${c.name}》を独自枠へ。`)}else{game.shared.push({owner:pid,card:c});addLog(`${p.name}：《${c.name}》を共有枠へ。`);if(game.shared.length>3)pushOldest('共有枠超過')}if(c.id==='j18'){discardAllHandByEffect(pid,'《本気の一張羅》');addLog(`${p.name}：《本気の一張羅》で残り手札を全て捨てる。`)}if(c.id==='j26'){const n=drawCards(pid,1,true);addLog(`${p.name}：《仕立ての良いコート》設置時に${n}枚ドロー。`)}afterPlayTriggers(pid,c);return}
+ if(c.type==='attack'){if(c.id==='strike')damage(pid,modifiedDamage(pid,c,6),'《ストライク》');else if(c.id==='j4')damage(pid,modifiedDamage(pid,c,20),'《ロイヤルストレートフラッシュ》');else if(c.id==='j5')damage(pid,modifiedDamage(pid,c,p.hand.length+3),'《アクロバティックダガー》');else if(c.id==='j12'){const n=p.hand.length;discardAllHandByEffect(pid,'《ちゃぶ台返し》');for(let i=0;i<n&&!game.over;i++)damage(pid,modifiedDamage(pid,c,1),`《ちゃぶ台返し》 ${i+1}/${n}`)}else if(c.id==='j21')damage(pid,modifiedDamage(pid,c,6),`《${c.name}》`);else if(c.id==='j27'){damage(pid,modifiedDamage(pid,c,3),`《${c.name}》`);if(!game.over){addToHand(pid,makeCard('knife'));addLog(`${p.name}：《袖の短剣》でナイフ1枚を手札に加える。`)}}else if(c.id==='j23'){damage(pid,modifiedDamage(pid,c,8),'《大盤振る舞い》');if(!game.over){addToHand(pid,makeCard('knife'));addToHand(pid,makeCard('knife'));addLog(`${p.name}：《大盤振る舞い》でナイフ2枚。`)}}else if(c.id==='j25')damage(pid,modifiedDamage(pid,c,p.turnSkillDraws),'《剣の舞》');else if(c.id==='knife')damage(pid,modifiedDamage(pid,c,3+(c.knifeBonus||0)),'《ナイフ》');else if(c.id==='k1')damage(pid,modifiedDamage(pid,c,33),'《紅蓮一文字》');else if(c.id==='k6')damage(pid,modifiedDamage(pid,c,20),'《袈裟斬り》');else if(c.id==='kt2')damage(pid,modifiedDamage(pid,c,50),'《魂の一閃》');else if(c.id==='k10'){damage(pid,modifiedDamage(pid,c,20),'《活人剣》');if(!game.over)heal(pid,20,'《活人剣》')}else if(c.id==='k20'){const bonus=p.hand.some(x=>cardCost(pid,x)>=5)?5:0;damage(pid,modifiedDamage(pid,c,20+bonus),'《二刀流》')}else if(c.id==='k21'){const n=p.hand.filter(x=>cardCost(pid,x)>=4).length;damage(pid,modifiedDamage(pid,c,n*3),'《剣気》')}afterPlayTriggers(pid,c);((c.id==='knife'||c.id==='j4')?p.exhaust:p.discard).push(c);return}
  if(c.id==='j1'){p.discard.push(c);game.pending={pid,type:'discardHandThenDraw',count:1,title:'《果実の選別》：捨てるカードを1枚選択'}}
  else if(c.id==='j9'){p.discard.push(c);game.pending={pid,type:'returnDiscard',count:2,title:'《再読》：山札に戻す捨て札を2枚選択',excludeUid:c.uid}}
  else if(c.id==='j13'){p.discard.push(c);drawCards(pid,2,true);const n=Math.min(2,p.hand.length);if(n)game.pending={pid,type:'discardHand',count:n,title:`《選り好み》：捨てるカードを${n}枚選択`}}
@@ -624,7 +702,7 @@ function finalizeEndTurn(pid){const p=game.players[pid];runEndTurnEffects(pid);c
 function endPlayerTurn(pid){if(game.current!==pid||game.over||game.pending)return;const p=game.players[pid];runEndTurnEffects(pid);if(hasSetup(pid,'j20')&&p.hand.length){game.pending={pid,type:'endTurnDiscard',count:1,title:'《断捨離》：捨てるカードを1枚選択'};return}finalizeEndTurn(pid)}
 function handleAction(pid,a){if(roomRole!=='host'||!game||!a)return;if(a.type==='play')playCard(pid,Number(a.uid),a.dest);else if(a.type==='choose')resolvePending(pid,(a.uids||[]).map(Number),a.targetIndex);else if(a.type==='end')endPlayerTurn(pid);else if(a.type==='movePersonal'){if(game.current===pid&&!game.over&&!game.pending){const p=game.players[pid];if(p.personal){const c=p.personal;p.personal=null;game.shared.push({owner:pid,card:c});addLog(`${p.name}：独自枠《${c.name}》を共有枠へ移動。`);if(game.shared.length>3)pushOldest('独自枠移動')}}}else if(a.type==='keep'){if(game.current===pid&&hasSetup(pid,'j15')){const p=game.players[pid];p.keepUid=p.keepUid===Number(a.uid)?null:Number(a.uid)}}else if(a.type==='concede'){if(!game.over){game.over=true;game.winner=other(pid);addLog(`${game.players[pid].name}が降参しました。`)}}broadcastState()}
 function dispatchAction(action){if(roomRole==='host')handleAction('p1',action);else if(conn?.open)conn.send({type:'action',action})}
-function playerPublic(p,showHand){return{pid:p.pid,name:p.name,character:p.character,hp:p.hp,maxEnergy:p.maxEnergy,energy:p.energy,turnSkillDraws:showHand?p.turnSkillDraws:0,drawCount:p.drawPile.length,discardCount:p.discard.length,exhaustCount:p.exhaust.length,handCount:p.hand.length,hand:showHand?p.hand.map(c=>({...c})):[],discard:showHand?p.discard.map(c=>({...c})):[],personal:p.personal?{...p.personal}:null,keepUid:showHand?p.keepUid:null}}
+function playerPublic(p,showHand){return{pid:p.pid,name:p.name,character:p.character,hp:p.hp,maxHp:p.maxHp||100,maxEnergy:p.maxEnergy,energy:p.energy,turnSkillDraws:showHand?p.turnSkillDraws:0,drawCount:p.drawPile.length,discardCount:p.discard.length,exhaustCount:p.exhaust.length,handCount:p.hand.length,hand:showHand?p.hand.map(c=>({...c})):[],discard:showHand?p.discard.map(c=>({...c})):[],personal:p.personal?{...p.personal}:null,keepUid:showHand?p.keepUid:null}}
 function makeView(pid){const oid=other(pid);let pending=null;if(game.pending?.pid===pid){let cards;if(game.pending.type==='reorderShared')cards=game.shared.map(x=>({...x.card,sharedOwner:x.owner}));else cards=(game.pending.type==='returnDiscard'?game.players[pid].discard:game.players[pid].hand).filter(c=>c.uid!==game.pending.excludeUid&&(!game.pending.cardsOverride||game.pending.cardsOverride.includes(c.uid))).map(c=>({...c}));pending={...game.pending,cards}}return{me:playerPublic(game.players[pid],true),opp:playerPublic(game.players[oid],false),shared:game.shared.map(x=>({owner:x.owner,card:{...x.card}})),current:game.current,over:game.over,winner:game.winner,log:[...game.log],pending,lastAction:game.lastAction?{...game.lastAction}:null,damageEvents:(game.damageEvents||[]).map(x=>({...x})),drawEvents:(game.drawEvents||[]).map(x=>({...x}))}}
 function broadcastState(){if(roomRole!=='host'||!game)return;currentView=makeView('p1');showScreen('battle');renderBattleView();if(matchMode==='online'&&conn?.open)conn.send({type:'state',view:makeView('p2')});scheduleCpuTurn()}
 
@@ -651,17 +729,57 @@ function setupSlot(x,mePid){if(!x)return'<div class="slot"></div>';const owner=x
 function visibleSetupByUid(uid){const v=currentView;if(!v)return null;const n=Number(uid),all=[];if(v.me.personal)all.push({owner:v.me.pid,card:v.me.personal});if(v.opp.personal)all.push({owner:v.opp.pid,card:v.opp.personal});(v.shared||[]).forEach(x=>all.push(x));return all.find(x=>Number(x.card?.uid)===n)||null}
 function openSetupDetail(uid){const x=visibleSetupByUid(uid),v=currentView;if(!x||!v)return;const c=x.card,owner=x.owner===v.me.pid?'自分':'相手';$('setupDetailTitle').textContent=`《${c.name}》`;$('setupDetailBody').innerHTML=`<div class="card ${c.type} setup-detail-preview"><div class="head"><div><div class="cname">${escapeHtml(c.name)}</div><div class="type">${typeLabel(c.type)}</div></div><div class="cost">${c.cost}</div></div><div class="text">${escapeHtml(cardText(c))}</div></div><div class="setup-detail-owner">所有者：${owner}</div>`;$('setupDetailModal').classList.remove('hidden')}
 function bindSetupDetailClicks(){document.querySelectorAll('.setup-detail-trigger').forEach(b=>b.addEventListener('click',()=>openSetupDetail(b.dataset.setupUid)))}
+function collapseHandSelection(){
+  const hand=$('myHand');
+  if(hand)[...hand.children].forEach(x=>x.classList.remove('expanded'));
+}
+
+function layoutHandFan(){
+  const hand=$('myHand');
+  if(!hand)return;
+  const n=hand.children.length;
+  hand.dataset.count=String(n);
+
+  if(window.innerWidth>760 || n===0){
+    hand.style.removeProperty('--hand-card-w');
+    hand.style.removeProperty('--hand-step');
+    return;
+  }
+
+  const available=Math.max(280,(hand.clientWidth||window.innerWidth)-16);
+  let cardW;
+  if(n===1) cardW=Math.min(156,available);
+  else if(n===2) cardW=Math.min(150,(available-8)/2);
+  else if(n===3) cardW=Math.min(126,(available-12)/3);
+  else{
+    const widths={4:116,5:110,6:106,7:102,8:98,9:94,10:90};
+    cardW=widths[Math.min(10,n)]||90;
+  }
+
+  let step;
+  if(n<=3){
+    step=cardW+6;
+  }else{
+    step=(available-cardW)/(n-1);
+    step=Math.max(30,Math.min(cardW+4,step));
+  }
+
+  hand.style.setProperty('--hand-card-w',`${Math.round(cardW)}px`);
+  hand.style.setProperty('--hand-step',`${Math.round(step*10)/10}px`);
+}
+
 function renderLeaderSkin(prefix,character){const img=$(prefix+'LeaderImg'),fallback=$(prefix+'LeaderFallback'),src=LEADER_SKINS[character];if(src){img.src=src;img.classList.remove('hidden');fallback.classList.add('hidden')}else{img.removeAttribute('src');img.classList.add('hidden');fallback.textContent=CHARACTER_LABELS[character]||'リーダー';fallback.classList.remove('hidden')}}
-function renderHpBar(prefix,hp){const fill=$(prefix+'HpFill');if(fill)fill.style.width=`${Math.max(0,Math.min(100,hp))}%`}
+function renderHpBar(prefix,hp,maxHp=100){const fill=$(prefix+'HpFill'),cap=Math.max(1,maxHp||100);if(fill)fill.style.width=`${Math.max(0,Math.min(100,(hp/cap)*100))}%`}
 function showDamageEvents(v){const events=(v.damageEvents||[]).filter(e=>e.seq>lastShownDamage);if(!events.length)return;events.forEach((e,i)=>setTimeout(()=>{const layer=$(e.target===v.me.pid?'myDamageLayer':'oppDamageLayer');if(!layer)return;const d=document.createElement('div');d.className=`damage-pop ${e.amount===0?'zero':''}`;d.textContent=e.amount===0?'0':`-${e.amount}`;layer.appendChild(d);setTimeout(()=>d.remove(),900)},i*90));lastShownDamage=Math.max(lastShownDamage,...events.map(e=>e.seq))}
 function showDrawEvents(v){const events=(v.drawEvents||[]).filter(e=>e.seq>lastShownDraw);if(!events.length)return;const layer=$('drawFxLayer');if(layer){events.slice(-8).forEach((e,i)=>setTimeout(()=>{const d=document.createElement('div');d.className=`draw-fly ${e.pid===v.me.pid?'mine':'theirs'}`;layer.appendChild(d);setTimeout(()=>d.remove(),520)},i*65))}lastShownDraw=Math.max(lastShownDraw,...events.map(e=>e.seq))}
 function renderBattleView(){const v=currentView;if(!v)return;const me=v.me,op=v.opp,myTurn=v.current===me.pid&&!v.over&&!v.pending;
- [['myName',`${me.name}［${CHARACTER_LABELS[me.character]||'ジョバンニ'}］`],['oppName',`${op.name}［${CHARACTER_LABELS[op.character]||'ジョバンニ'}］`],['myHp',Math.max(0,me.hp)],['oppHp',Math.max(0,op.hp)],['myEnergy',me.energy],['myMaxEnergy',me.maxEnergy],['oppEnergy',op.energy],['oppMaxEnergy',op.maxEnergy],['myDeckN',me.drawCount],['oppDeckN',op.drawCount],['myDiscardN',me.discardCount],['oppDiscardN',op.discardCount],['myExhaustN',me.exhaustCount],['oppHandN',op.handCount],['myHandN',`${me.handCount}/10`]].forEach(([id,val])=>$(id).textContent=val);
- renderLeaderSkin('my',me.character);renderLeaderSkin('opp',op.character);renderHpBar('my',me.hp);renderHpBar('opp',op.hp);
+ [['myName',`${me.name}［${CHARACTER_LABELS[me.character]||'ジョバンニ'}］`],['oppName',`${op.name}［${CHARACTER_LABELS[op.character]||'ジョバンニ'}］`],['myHp',Math.max(0,me.hp)],['oppHp',Math.max(0,op.hp)],['myMaxHp',me.maxHp||100],['oppMaxHp',op.maxHp||100],['myEnergy',me.energy],['myMaxEnergy',me.maxEnergy],['oppEnergy',op.energy],['oppMaxEnergy',op.maxEnergy],['myDeckN',me.drawCount],['oppDeckN',op.drawCount],['myDiscardN',me.discardCount],['oppDiscardN',op.discardCount],['myExhaustN',me.exhaustCount],['oppHandN',`${op.handCount}/10`],['myHandN',`${me.handCount}/10`]].forEach(([id,val])=>$(id).textContent=val);
+ renderLeaderSkin('my',me.character);renderLeaderSkin('opp',op.character);renderHpBar('my',me.hp,me.maxHp||100);renderHpBar('opp',op.hp,op.maxHp||100);
  $('oppHandBacks').innerHTML=Array.from({length:op.handCount},()=>'<i class="card-back"></i>').join('');$('myPersonal').innerHTML=setupSlot(me.personal?{owner:me.pid,card:me.personal}:null,me.pid);$('oppPersonal').innerHTML=setupSlot(op.personal?{owner:op.pid,card:op.personal}:null,me.pid);$('sharedZone').innerHTML=[0,1,2].map(i=>setupSlot(v.shared[i],me.pid)).join('');bindSetupDetailClicks();
  $('turnLabel').textContent=v.over?'対戦終了':`${v.current===me.pid?'あなた':op.name}のターン / 最大コスト ${v.current===me.pid?me.maxEnergy:op.maxEnergy}`;$('winner').textContent=v.over?(v.winner===me.pid?'あなたの勝利！':`${op.name}の勝利`):'';$('battleNotice').className='notice';$('battleNotice').textContent=v.over?'対戦終了。ホームから次の対戦を選べます。':v.pending?'カードを選択してください。':myTurn?'あなたのターンです。':`${op.name}が考えています…`;
  $('movePersonal').disabled=!myTurn||!me.personal;$('endTurn').disabled=!myTurn;$('keepHint').textContent=activeViewHasSetup(v,me.pid,'j15')?'《お取り置き》有効：保持カードを選択可':'';
- const hand=$('myHand');hand.innerHTML='';me.hand.forEach(c=>{const playable=myTurn&&canPlayView(v,c),d=document.createElement('div');d.className=`card ${c.type} ${playable?'':'disabled'} ${me.keepUid===c.uid?'keep':''} ${(c.retain||activeViewHasSetup(v,me.pid,'k9'))?'retain':''}`;d.innerHTML=`<div class="head"><div><div class="cname">${c.name}</div><div class="type">${typeLabel(c.type)}</div></div><div class="cost">${viewCost(v,c)}</div></div><div class="text">${cardText(c,me.turnSkillDraws)}</div><div class="card-actions"></div>`;const actions=d.querySelector('.card-actions');if(c.type==='setup'){for(const [label,dest] of [['共有に置く','shared'],['独自枠に置く','personal']]){const b=document.createElement('button');b.textContent=label;b.disabled=!playable||(dest==='personal'&&!!me.personal);b.onclick=()=>dispatchAction({type:'play',uid:c.uid,dest});actions.appendChild(b)}}else{const b=document.createElement('button');b.textContent='使用';b.disabled=!playable;b.onclick=()=>dispatchAction({type:'play',uid:c.uid});actions.appendChild(b)}if(activeViewHasSetup(v,me.pid,'j15')&&v.current===me.pid){const b=document.createElement('button');b.textContent=me.keepUid===c.uid?'保持解除':'次ターンに保持';b.onclick=()=>dispatchAction({type:'keep',uid:c.uid});actions.appendChild(b)}d.addEventListener('click',e=>{if(e.target.closest('button'))return;const was=d.classList.contains('expanded');[...hand.children].forEach(x=>x.classList.remove('expanded'));if(!was)d.classList.add('expanded')});hand.appendChild(d)});
+ const hand=$('myHand');hand.innerHTML='';me.hand.forEach(c=>{const playable=myTurn&&canPlayView(v,c),d=document.createElement('div');d.className=`card ${c.type} ${playable?'':'disabled'} ${me.keepUid===c.uid?'keep':''} ${(c.retain||activeViewHasSetup(v,me.pid,'k9'))?'retain':''}`;d.innerHTML=`<div class="head"><div><div class="cname">${c.name}</div><div class="type">${typeLabel(c.type)}</div></div><div class="cost">${viewCost(v,c)}</div></div><div class="text">${cardText(c,me.turnSkillDraws)}</div><div class="card-actions"></div>`;const actions=d.querySelector('.card-actions');if(c.type==='setup'){for(const [label,dest] of [['共有に置く','shared'],['独自枠に置く','personal']]){const b=document.createElement('button');b.textContent=label;b.disabled=!playable||(dest==='personal'&&!!me.personal);b.onclick=()=>dispatchAction({type:'play',uid:c.uid,dest});actions.appendChild(b)}}else{const b=document.createElement('button');b.textContent='使用';b.disabled=!playable;b.onclick=()=>dispatchAction({type:'play',uid:c.uid});actions.appendChild(b)}if(activeViewHasSetup(v,me.pid,'j15')&&v.current===me.pid){const b=document.createElement('button');b.textContent=me.keepUid===c.uid?'保持解除':'次ターンに保持';b.onclick=()=>dispatchAction({type:'keep',uid:c.uid});actions.appendChild(b)}d.addEventListener('click',e=>{if(e.target.closest('button'))return;const was=d.classList.contains('expanded');collapseHandSelection();if(!was)d.classList.add('expanded')});hand.appendChild(d)});
+ requestAnimationFrame(layoutHandFan);
  const log=$('log');log.innerHTML=v.log.map(x=>`<div>${escapeHtml(x)}</div>`).join('');log.scrollTop=log.scrollHeight;showLastPlayed(v);showDamageEvents(v);showDrawEvents(v);if(v.pending)openPending(v.pending);else closePending();
 }
 function activeViewHasSetup(v,pid,id){if(pid===v.me.pid&&v.me.personal?.id===id)return true;if(pid===v.opp.pid&&v.opp.personal?.id===id)return true;return v.shared.some(x=>x.owner===pid&&x.card.id===id)}
@@ -670,6 +788,8 @@ function canPlayView(v,c){const cost=viewCost(v,c),me=v.me;if(cost>me.energy)ret
 function showLastPlayed(v){const a=v.lastAction;if(!a||a.pid===v.me.pid||a.seq===lastShownAction)return;lastShownAction=a.seq;const c=a.card,stage=$('playedStage');stage.innerHTML=`<div class="played-label">${escapeHtml(v.opp.name)}が使用</div><div class="card ${c.type} played"><div class="head"><div><div class="cname">${c.name}</div><div class="type">${typeLabel(c.type)}</div></div><div class="cost">${a.cost}</div></div><div class="text">${cardText(c)}</div></div>`;stage.classList.remove('hidden');setTimeout(()=>stage.classList.add('hidden'),2800)}
 function openPending(p){const key=`${p.type}:${p.cards.map(c=>c.uid).join(',')}`;if(modalPendingKey===key)return;modalPendingKey=key;const selected=new Set();$('modalTitle').textContent=p.title;$('modalBody').innerHTML='';p.cards.forEach(c=>{const b=document.createElement('button');b.className=`choice-card ${c.type}`;b.innerHTML=`<div class="head"><div class="cname">${c.name}</div><div class="type">${typeLabel(c.type)}</div></div><div class="text">${cardText(c)}</div>`;b.onclick=()=>{if(selected.has(c.uid)){selected.delete(c.uid);b.classList.remove('selected')}else if(selected.size<p.count){selected.add(c.uid);b.classList.add('selected')}};$('modalBody').appendChild(b)});let posSelect=null;if(p.type==='reorderShared'){const wrap=document.createElement('div');wrap.className='reorder-controls';wrap.innerHTML='<b>移動先</b>';posSelect=document.createElement('select');for(let i=0;i<p.positionCount;i++){const o=document.createElement('option');o.value=i;o.textContent=i===0?'一番左（最古）':i===p.positionCount-1?'一番右（最新）':`${i+1}番目`;posSelect.appendChild(o)}wrap.appendChild(posSelect);$('modalBody').appendChild(wrap)}$('modalOk').onclick=()=>{if(selected.size!==p.count)return alert(`${p.count}枚選んでください。`);dispatchAction({type:'choose',uids:[...selected],targetIndex:posSelect?Number(posSelect.value):null})};$('modal').classList.remove('hidden')}
 function closePending(){modalPendingKey='';$('modal').classList.add('hidden')}
+$('battleScreen').addEventListener('click',e=>{if(!e.target.closest('#myHand .card'))collapseHandSelection()});
+window.addEventListener('resize',()=>requestAnimationFrame(layoutHandFan));
 $('movePersonal').onclick=()=>dispatchAction({type:'movePersonal'});$('endTurn').onclick=()=>dispatchAction({type:'end'});$('openLog').onclick=()=>$('logModal').classList.remove('hidden');$('closeLog').onclick=()=>$('logModal').classList.add('hidden');$('logModal').addEventListener('click',e=>{if(e.target.id==='logModal')$('logModal').classList.add('hidden')});$('closeSetupDetail').onclick=()=>$('setupDetailModal').classList.add('hidden');$('setupDetailModal').addEventListener('click',e=>{if(e.target.id==='setupDetailModal')$('setupDetailModal').classList.add('hidden')});$('concede').onclick=()=>{if(confirm('この対戦を降参しますか？'))dispatchAction({type:'concede'})};
 
 refreshDeckSelects();renderDeckManager();resetLobby();showScreen('home');window.addEventListener('pageshow',e=>{if(e.persisted)showScreen('home')});
