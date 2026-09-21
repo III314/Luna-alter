@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>ルナオルタ v26</title>
+<title>ルナオルタ v27</title>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
 <style>
 :root{--bg:#f4efe5;--panel:#fffdf8;--ink:#24211d;--muted:#776f64;--line:#d8d0c3;--accent:#24211d;--gold:#a77a28;--danger:#9b2c2c;--ok:#276749;--setup:#efe2c6;--skill:#dce9ef;--attack:#edd7d2;--spell:#eadff2;--shadow:0 10px 30px rgba(44,34,24,.08)}
@@ -125,6 +125,159 @@
   #homeScreen .version{margin-top:7px;font-size:8px}
 }
 
+
+
+/* v27: battle UI restoration — v25 game rules + v26 title screen retained */
+/* Shared battle presentation */
+#battleScreen{position:relative}
+#battleScreen .battle-area{grid-template-columns:minmax(0,1fr);gap:0}
+#battleScreen .battle-main{min-width:0}
+#battleScreen .combat-stage{isolation:isolate}
+#battleScreen .center-board .zones{align-items:stretch}
+#battleScreen .center-board .zones>div{min-width:0}
+#battleScreen .leader-portrait{overflow:hidden;border-radius:16px;background:rgba(255,255,255,.2)}
+#battleScreen .leader-img{width:100%;height:100%;max-width:none;max-height:none;object-fit:cover;object-position:50% 18%;transform:scale(1.20);transform-origin:50% 20%}
+#battleScreen .leader-unit.self .leader-img{object-position:50% 20%;transform:scale(1.22)}
+#battleScreen .leader-unit.opponent .leader-img{object-position:50% 18%;transform:scale(1.22)}
+#battleScreen .center-board .zones{grid-template-columns:1fr;grid-template-rows:auto 1fr auto;gap:5px}
+#battleScreen .center-board .zones>div:nth-child(1){grid-row:1}
+#battleScreen .center-board .zones>div:nth-child(2){grid-row:2}
+#battleScreen .center-board .zones>div:nth-child(3){grid-row:3}
+#battleScreen .center-board .slot{min-height:44px;padding:4px 5px}
+#battleScreen .center-board .slot .mini-effect{display:none}
+#battleScreen .center-board .setup-row{grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+#battleScreen .center-board .zone-title{font-size:8.5px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#battleScreen .battle-controls{box-shadow:0 7px 18px rgba(0,0,0,.12)}
+#battleScreen .played-stage{left:50%;transform:translateX(-50%)}
+
+/* Overlapping 10-card hand: keep every card's left-side cost visible. */
+#battleScreen .hand{display:flex;justify-content:center;align-items:flex-end;overflow:visible;gap:0}
+#battleScreen .hand .card{position:relative;cursor:pointer}
+#battleScreen .hand .card .head{position:relative;padding-left:24px;min-width:0}
+#battleScreen .hand .card .cost{position:absolute;left:0;top:-1px;z-index:3;min-width:20px;text-align:center;padding:1px 3px;border-radius:999px;background:rgba(255,255,255,.88);box-shadow:0 1px 4px rgba(0,0,0,.10)}
+#battleScreen .hand .card .cname{white-space:normal;overflow:hidden}
+#battleScreen .hand .card:not(.expanded) .text,
+#battleScreen .hand .card:not(.expanded) .card-actions{opacity:0;pointer-events:none}
+#battleScreen .hand .card.expanded{z-index:90;filter:drop-shadow(0 12px 15px rgba(0,0,0,.28))}
+#battleScreen .hand .card.expanded .text,
+#battleScreen .hand .card.expanded .card-actions{opacity:1;pointer-events:auto}
+
+/* Phone portrait: retain the compact board rather than falling back to the old one-column page. */
+@media (max-width:760px) and (orientation:portrait){
+  #battleScreen{height:calc(100dvh - 49px);min-height:0;overflow:hidden;padding:5px}
+  #battleScreen #battleNotice{height:32px;padding:6px 8px;margin:0 0 4px;font-size:10px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  #battleScreen .battle-area{height:calc(100% - 36px)}
+  #battleScreen .battle-main{height:100%;display:grid;grid-template-rows:minmax(0,1fr) 150px;gap:2px}
+  #battleScreen .combat-stage{height:auto;min-height:0;border-radius:13px}
+  #battleScreen .leader-unit{width:126px;gap:2px}
+  #battleScreen .leader-unit.self{left:5px;bottom:5px}
+  #battleScreen .leader-unit.opponent{right:5px;top:5px}
+  #battleScreen .leader-portrait{height:134px}
+  #battleScreen .leader-unit.opponent .leader-portrait{height:120px}
+  #battleScreen .leader-nameplate{font-size:9px;line-height:1.05;max-height:21px;overflow:hidden}
+  #battleScreen .leader-meta{font-size:7.5px;padding:2px 3px}
+  #battleScreen .hpbar{height:17px}
+  #battleScreen .hpbar-text{font-size:9px}
+  #battleScreen .center-board{left:132px;right:132px;top:28px;bottom:7px;padding:4px;display:block}
+  #battleScreen .center-board .zones{height:100%;grid-template-rows:auto 1fr auto;gap:3px}
+  #battleScreen .center-board .slot{min-height:33px;padding:3px}
+  #battleScreen .center-board .slot .name{font-size:8px}
+  #battleScreen .center-board .slot .owner{font-size:6.5px}
+  #battleScreen .center-board .setup-row{gap:2px}
+  #battleScreen .battle-controls{right:5px;bottom:5px;width:126px;padding:4px;border-radius:9px}
+  #battleScreen .battle-turnline{margin-bottom:2px}
+  #battleScreen .battle-turnline .turn-badge{font-size:7.5px}
+  #battleScreen .battle-controls .status{display:block}
+  #battleScreen .battle-controls .small{font-size:6.8px;line-height:1.15}
+  #battleScreen .battle-controls .battle-actions{display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-top:3px}
+  #battleScreen .battle-controls .btn{padding:4px 3px;font-size:8px;line-height:1.05}
+  #battleScreen .played-stage{top:58px;width:126px}
+  #battleScreen .card.played{min-height:120px}
+  #battleScreen .card.played .text{font-size:8px}
+  #battleScreen .hand-wrap{height:150px;min-height:150px;margin:0;overflow:visible}
+  #battleScreen .hand-wrap>.zone-title{font-size:8px;margin:0 0 1px}
+  #battleScreen .hand{height:132px;padding:6px 8px 0;align-items:flex-end}
+  #battleScreen .hand .card{flex:0 0 76px;width:76px;min-height:105px;margin-left:-48px;transform:translateY(31px)}
+  #battleScreen .hand .card:first-child{margin-left:0}
+  #battleScreen .hand .card:not(.expanded){min-height:96px}
+  #battleScreen .hand .card .head{padding-left:20px;min-height:42px}
+  #battleScreen .hand .card .cost{font-size:13px;min-width:18px}
+  #battleScreen .hand .card .cname{font-size:7.8px;line-height:1.05}
+  #battleScreen .hand .card .type{font-size:6.5px}
+  #battleScreen .hand .card.expanded{transform:translateY(-22px) scale(1.48)}
+  #battleScreen .hand-tip{display:none}
+}
+
+/* Mobile landscape: the intended main battle layout. Everything fits on one screen. */
+@media (orientation:landscape) and (max-height:600px){
+  body,.app{height:100dvh;overflow:hidden}
+  .topbar{height:36px;padding:3px 7px}
+  .topbar .brand{font-size:11px}
+  .topbar .btn{padding:4px 7px;font-size:9px}
+  #battleScreen{height:calc(100dvh - 36px);min-height:0;overflow:hidden;padding:4px}
+  #battleScreen #battleNotice{position:absolute;z-index:45;left:50%;top:2px;transform:translateX(-50%);width:min(420px,48vw);height:23px;padding:3px 7px;margin:0;font-size:8.5px;background:rgba(255,246,217,.90);backdrop-filter:blur(5px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #battleScreen .battle-area{height:100%;margin-top:0!important}
+  #battleScreen .battle-main{height:100%;display:grid;grid-template-rows:minmax(0,1fr) 112px;gap:2px}
+  #battleScreen .combat-stage{height:auto;min-height:0;border-radius:12px}
+  #battleScreen .leader-unit{width:154px;gap:2px}
+  #battleScreen .leader-unit.self{left:7px;bottom:5px}
+  #battleScreen .leader-unit.opponent{right:7px;top:5px}
+  #battleScreen .leader-portrait{height:150px}
+  #battleScreen .leader-unit.opponent .leader-portrait{height:138px}
+  #battleScreen .leader-nameplate{font-size:9px;line-height:1.05;max-height:20px;overflow:hidden}
+  #battleScreen .leader-meta{font-size:7.5px;padding:2px 4px;line-height:1.15}
+  #battleScreen .opponent-hand{margin-top:2px;gap:1px}
+  #battleScreen .card-back{width:13px;height:19px}
+  #battleScreen .hpbar{height:17px}
+  #battleScreen .hpbar-text{font-size:9px}
+  #battleScreen .center-board{left:162px;right:162px;top:27px;bottom:6px;padding:4px;border-radius:10px;display:block;overflow:hidden}
+  #battleScreen .center-board .zones{height:100%;grid-template-rows:auto 1fr auto;gap:3px}
+  #battleScreen .center-board .slot{min-height:31px;padding:3px 4px}
+  #battleScreen .center-board .slot .name{font-size:8px;line-height:1.1}
+  #battleScreen .center-board .slot .owner{font-size:6.5px}
+  #battleScreen .center-board .setup-row{gap:3px}
+  #battleScreen .center-board .zone-title{font-size:7.5px;margin-bottom:1px}
+  #battleScreen .battle-controls{right:7px;bottom:5px;width:154px;padding:4px;border-radius:9px}
+  #battleScreen .battle-turnline{margin-bottom:2px}
+  #battleScreen .battle-turnline .turn-badge{font-size:7.5px}
+  #battleScreen .battle-turnline .winner{font-size:8px}
+  #battleScreen .battle-controls .status{display:block}
+  #battleScreen .battle-controls .small{font-size:6.5px;line-height:1.15}
+  #battleScreen .battle-controls .battle-actions{display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-top:3px}
+  #battleScreen .battle-controls .btn{padding:4px 2px;font-size:7.5px;line-height:1.05}
+  #battleScreen .played-stage{top:38px;width:138px}
+  #battleScreen .card.played{min-height:116px;padding:5px}
+  #battleScreen .card.played .cname{font-size:10px}
+  #battleScreen .card.played .text{font-size:7.7px}
+  #battleScreen .hand-wrap{height:112px;min-height:112px;margin:0;overflow:visible}
+  #battleScreen .hand-wrap>.zone-title{font-size:7.5px;margin:0 0 -1px;padding-left:4px}
+  #battleScreen .hand{height:100px;padding:3px 10px 0;align-items:flex-end}
+  #battleScreen .hand .card{flex:0 0 clamp(78px,10.6vw,94px);width:clamp(78px,10.6vw,94px);min-height:90px;margin-left:-17px;transform:translateY(25px);padding:4px}
+  #battleScreen .hand .card:first-child{margin-left:0}
+  #battleScreen .hand .card:not(.expanded){min-height:84px}
+  #battleScreen .hand .card .head{padding-left:21px;min-height:38px}
+  #battleScreen .hand .card .cost{font-size:13px;min-width:18px}
+  #battleScreen .hand .card .cname{font-size:7.7px;line-height:1.05}
+  #battleScreen .hand .card .type{font-size:6.3px}
+  #battleScreen .hand .card.expanded{transform:translateY(-38px) scale(1.38)}
+  #battleScreen .hand .card.expanded .cname{font-size:9px}
+  #battleScreen .hand .card.expanded .text{font-size:7.5px}
+  #battleScreen .hand .card.expanded .card-actions button{padding:2px;font-size:7px}
+  #battleScreen .hand-tip{display:none}
+
+  /* Title/home also fits cleanly in landscape. */
+  #homeScreen{min-height:calc(100dvh - 36px);height:calc(100dvh - 36px);background-position:56% 22%}
+  #homeScreen .hero-inner{width:min(620px,78vw);margin:0 10px 7px;padding:7px 9px;border-radius:12px}
+  #homeScreen .hero-inner>.eyebrow{font-size:7px}
+  #homeScreen .hero-inner>h1{display:block;font-size:22px;margin:1px 0}
+  #homeScreen .hero-inner>p{display:block;font-size:8px;margin:0 0 4px}
+  #homeScreen .home-choices{grid-template-columns:1fr 1fr;gap:5px}
+  #homeScreen .home-card{min-height:66px;padding:6px 8px;border-radius:10px}
+  #homeScreen .home-icon{font-size:15px}
+  #homeScreen .home-card h2{font-size:12px;margin:2px 0}
+  #homeScreen .home-card p{font-size:7px;line-height:1.2}
+  #homeScreen .version{font-size:6.5px;margin-top:3px}
+}
 </style>
 </head>
 <body>
@@ -144,7 +297,7 @@
           <button id="goBattle" class="home-card"><div class="home-icon">♟</div><h2>バトル</h2><p>CPU戦またはルームマッチを選び、使用するデッキを決めて対戦します。</p></button>
           <button id="goDecks" class="home-card"><div class="home-icon">▦</div><h2>デッキ作成</h2><p>保存済みデッキの編集、新規作成、名前の変更ができます。</p></button>
         </div>
-        <div class="version">v26 / 2キャラ対応・デッキはこのブラウザに保存されます</div>
+        <div class="version">v27 / 横画面UI復元・2キャラ対応・デッキはこのブラウザに保存されます</div>
       </div>
     </section>
 
@@ -519,7 +672,7 @@ function openPending(p){const key=`${p.type}:${p.cards.map(c=>c.uid).join(',')}`
 function closePending(){modalPendingKey='';$('modal').classList.add('hidden')}
 $('movePersonal').onclick=()=>dispatchAction({type:'movePersonal'});$('endTurn').onclick=()=>dispatchAction({type:'end'});$('openLog').onclick=()=>$('logModal').classList.remove('hidden');$('closeLog').onclick=()=>$('logModal').classList.add('hidden');$('logModal').addEventListener('click',e=>{if(e.target.id==='logModal')$('logModal').classList.add('hidden')});$('closeSetupDetail').onclick=()=>$('setupDetailModal').classList.add('hidden');$('setupDetailModal').addEventListener('click',e=>{if(e.target.id==='setupDetailModal')$('setupDetailModal').classList.add('hidden')});$('concede').onclick=()=>{if(confirm('この対戦を降参しますか？'))dispatchAction({type:'concede'})};
 
-refreshDeckSelects();renderDeckManager();resetLobby();
+refreshDeckSelects();renderDeckManager();resetLobby();showScreen('home');window.addEventListener('pageshow',e=>{if(e.persisted)showScreen('home')});
 </script>
 </body>
 </html>
