@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>ルナオルタ v43</title>
+<title>ルナオルタ v46</title>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
 <style>
 :root{--bg:#f4efe5;--panel:#fffdf8;--ink:#24211d;--muted:#776f64;--line:#d8d0c3;--accent:#24211d;--gold:#a77a28;--danger:#9b2c2c;--ok:#276749;--setup:#efe2c6;--skill:#dce9ef;--attack:#edd7d2;--spell:#eadff2;--shadow:0 10px 30px rgba(44,34,24,.08)}
@@ -857,6 +857,13 @@
 
 
 .shiranui-use-count{font-size:10px;font-weight:900;color:var(--gold);letter-spacing:.03em}.shiranui-use-count.hidden{display:none}
+
+/* v46: sticky deck count */
+.deck-count-sticky{position:sticky;top:0;z-index:18;display:flex;justify-content:flex-end;pointer-events:none;margin:-2px 0 6px}
+.deck-count-sticky .deck-count-pill{pointer-events:auto;background:rgba(31,29,26,.94);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:6px 11px;font-size:11px;font-weight:900;box-shadow:0 4px 12px rgba(0,0,0,.12);backdrop-filter:blur(8px)}
+.deck-count-sticky .deck-count-pill.complete{background:rgba(39,103,73,.96)}
+.deck-count-sticky .deck-count-pill.over{background:rgba(155,44,44,.96)}
+@media(max-width:760px){.deck-count-sticky{top:52px;margin:2px 0 6px;padding-right:2px}.deck-count-sticky .deck-count-pill{font-size:12px;padding:7px 12px}}
 </style>
 </head>
 <body>
@@ -876,7 +883,7 @@
           <button id="goBattle" class="home-card"><div class="home-icon">♟</div><h2>バトル</h2><p>CPU戦またはルームマッチを選び、使用するデッキを決めて対戦します。</p></button>
           <button id="goDecks" class="home-card"><div class="home-icon">▦</div><h2>デッキ作成</h2><p>保存済みデッキの編集、新規作成、名前の変更ができます。</p></button>
         </div>
-        <div class="version">v43 / シラヌイ調整・灯火追加</div>
+        <div class="version">v46 / デッキ枚数固定表示・狐の社説明改善</div>
       </div>
     </section>
 
@@ -935,6 +942,7 @@
               <div class="deck-meta-actions"><div style="padding:6px"><span id="deckCount" class="count">0</span> / 40枚</div><button id="resetDeck" class="btn">標準構成</button><button id="duplicateDeck" class="btn">複製</button><button id="saveDeck" class="btn primary">保存</button></div>
             </div>
             <div id="deckWarning" class="notice hidden"></div>
+            <div id="deckCountSticky" class="deck-count-sticky"><div id="deckCountStickyPill" class="deck-count-pill">現在 0 / 40枚</div></div>
             <div id="deckGrid" class="card-grid"></div>
           </div>
         </div>
@@ -961,7 +969,7 @@
               <div class="hpbar"><div id="myHpFill" class="hpbar-fill"></div><div id="myHpText" class="hpbar-text">HP 100 / 100</div></div>
               <div class="leader-meta">⚡ <span id="myEnergy">0</span>/<span id="myMaxEnergy">0</span></div>
             </div>
-            <div class="battle-controls"><div class="battle-turnline"><div id="turnLabel" class="turn-badge">-</div><div id="winner" class="winner"></div></div><div class="status"><div><div class="small">山札 <span id="myDeckN">0</span> / 捨て札 <span id="myDiscardN">0</span> / 廃棄 <span id="myExhaustN">0</span></div></div><div class="hp"></div></div><div class="battle-actions"><button id="movePersonal" class="btn">独自枠→共有へ</button><button id="endTurn" class="btn primary">ターン終了</button><button id="openLog" class="btn">ログ</button></div></div>
+            <div class="battle-controls"><div class="battle-turnline"><div id="turnLabel" class="turn-badge">-</div><div id="shiranuiUseCount" class="shiranui-use-count hidden">現在の使用枚数：0</div><div id="winner" class="winner"></div></div><div class="status"><div><div class="small">山札 <span id="myDeckN">0</span> / 捨て札 <span id="myDiscardN">0</span> / 廃棄 <span id="myExhaustN">0</span></div></div><div class="hp"></div></div><div class="battle-actions"><button id="movePersonal" class="btn">独自枠→共有へ</button><button id="endTurn" class="btn primary">ターン終了</button><button id="openLog" class="btn">ログ</button></div></div>
           </div>
           <div class="hand-wrap"><div class="zone-title">手札 <span id="myHandN"></span> <span id="keepHint"></span></div><div id="myHand" class="hand"></div><div class="hand-tip">カードをタップすると拡大します</div></div>
         </div>
@@ -2187,6 +2195,142 @@ renderBattleView=function(){
 })();
 /* ===== end v43 patch ===== */
 
+
+/* ===== v44 patch: smarter CPU Foxfire timing ===== */
+(function(){
+ const _scoreCardV43=scoreCard;
+ function foxfireCpuScore(pid){
+   const p=game.players[pid];
+   const used=p.cardsPlayedThisTurn||0;
+   const next=used+1;
+   const hand=p.hand||[];
+   const has=id=>hand.some(c=>c.id===id);
+
+   // 百鬼夜行が10枚目として待っているなら、狐火で枠を潰さない。
+   if(used===9&&has('s2'))return -100;
+
+   // 9枚目として使えば百鬼夜行を呼び込める。最優先級。
+   if(next===9&&!has('s2'))return 86;
+
+   // 灯火の5枚目トリガー、浮世火の3枚ごとのトリガーを狙う。
+   if(next===5&&hasSetup(pid,'s24'))return 70;
+   if(hasSetup(pid,'s8')&&next%3===0)return 66;
+
+   // 狐火1枚で玉藻の顕現が使用可能になるなら、コンボのつなぎとして使う。
+   const tamamo=hand.find(c=>c.id==='s20');
+   if(tamamo){
+     const nowCost=cardCost(pid,tamamo);
+     const afterCost=Math.max(0,12-next+(tamamo.costMod||0)-(hasSetup(pid,'k2')?1:0));
+     if(nowCost>p.energy&&afterCost<=p.energy)return 72;
+     if(nowCost<=p.energy&&used>=5)return 54;
+   }
+
+   // 百鬼夜行圏が近いときは温存した狐火を切って連鎖を伸ばす。
+   if(used>=6)return 44+used*2;
+
+   // 手札が枯れ気味なら0コストの循環札として使う。
+   if(hand.length<=2)return 20;
+
+   // それ以外は保留を活かして温存。CPUは原則ここでは使わない。
+   return 3;
+ }
+ scoreCard=function(pid,c){
+   if(c.id==='sf')return foxfireCpuScore(pid);
+   return _scoreCardV43(pid,c)
+ };
+})();
+/* ===== end v44 patch ===== */
+
+/* ===== v45 patch: Funeral Song + clearer Fox Shrine + Shiranui use-count UI ===== */
+(function(){
+ const funeral={id:'s25',name:'葬送歌',type:'skill',cost:1,text:'このカードがこのターン3枚目の使用なら、狐火1枚を手札に加える。',pool:'shiranui'};
+ if(!SHIRANUI_CARD_DEFS.some(c=>c.id==='s25')){
+   SHIRANUI_CARD_DEFS.push(funeral);CARD_DEFS.push(funeral);DEF.s25=funeral;
+ }
+ if(DEFAULT_DECKS.shiranui)DEFAULT_DECKS.shiranui.s25=DEFAULT_DECKS.shiranui.s25||0;
+
+ const shrine=SHIRANUI_CARD_DEFS.find(c=>c.id==='s11');
+ if(shrine)shrine.text='耐久値を持つ防壁を設置する。次のターン開始時まで、リーダーが受けるダメージを代わりに受け、耐久値を超えた分はリーダーが受ける。耐久値はこのカード自身を含む、このターンの使用枚数×2。ターン開始時、捨て札へ。';
+
+ const _cardTextV44=cardText;
+ cardText=function(c,skillDraws=null){
+   if(c.id==='s11'&&!Number.isFinite(c.fortressHp))return '耐久値を持つ防壁を設置する。次のターン開始時まで、リーダーが受けるダメージを代わりに受け、耐久値を超えた分はリーダーが受ける。耐久値はこのカード自身を含む、このターンの使用枚数×2。ターン開始時、捨て札へ。';
+   return _cardTextV44(c,skillDraws)
+ };
+
+ const _playShiranuiV44=playShiranuiCard;
+ playShiranuiCard=function(pid,c,dest){
+   if(c.id!=='s25')return _playShiranuiV44(pid,c,dest);
+   const p=game.players[pid],useNo=(p.cardsPlayedThisTurn||0)+1,cost=cardCost(pid,c);
+   removeHand(pid,c.uid);p.energy-=cost;reveal(pid,c,cost);
+   if(useNo===3&&!game.over){addToHand(pid,makeCard('sf'));addLog(`${p.name}：《葬送歌》が3枚目の使用となり、狐火1枚を手札に加えた。`)}
+   p.discard.push(c);shiranuiFinish(pid,c)
+ };
+
+ const _scoreCardV44=scoreCard;
+ scoreCard=function(pid,c){
+   if(c.id==='s25')return ((game.players[pid].cardsPlayedThisTurn||0)+1===3)?58:18;
+   return _scoreCardV44(pid,c)
+ };
+
+ const _cardConditionReadyV44=cardConditionReady;
+ cardConditionReady=function(v,c){
+   if(c.id==='s25')return (v.me.cardsPlayedThisTurn||0)+1===3;
+   return _cardConditionReadyV44(v,c)
+ };
+
+ const _renderBattleViewV44=renderBattleView;
+ renderBattleView=function(){
+   _renderBattleViewV44();const v=currentView;if(!v)return;
+   const count=$('shiranuiUseCount');
+   if(count){
+     if(v.me.character==='shiranui'){
+       count.textContent=`現在の使用枚数：${v.me.cardsPlayedThisTurn||0}`;
+       count.classList.remove('hidden')
+     }else count.classList.add('hidden')
+   }
+   document.querySelectorAll('#myHand .card').forEach((d,i)=>{
+     const c=v.me.hand[i],t=d.querySelector('.text');if(!c||!t)return;
+     if(c.id==='s11')t.textContent=`耐久値を持つ防壁を設置する。次のターン開始時までリーダーへのダメージを肩代わりし、超過分はリーダーが受ける。耐久値＝使用枚数×2。（今使用すると耐久値：${((v.me.cardsPlayedThisTurn||0)+1)*2}）ターン開始時、捨て札へ。`;
+   })
+ };
+})();
+/* ===== end v45 patch ===== */
+
+/* ===== v46 patch: persistent deck count + clearer Fox Shrine wording ===== */
+(function(){
+ const shrine=SHIRANUI_CARD_DEFS.find(c=>c.id==='s11');
+ const shrineBase='X＝このカード自身を含む、このターンに使用したカードの枚数×2。このカードは耐久値Xの防壁になる。次のターン開始時まで、リーダーが受けるダメージを防壁が肩代わりする。耐久値を超えたダメージはリーダーが受ける。次のターン開始時、このカードを捨て札に送る。';
+ if(shrine)shrine.text=shrineBase;
+
+ const _cardTextV45=cardText;
+ cardText=function(c,skillDraws=null){
+   if(c.id==='s11'&&!Number.isFinite(c.fortressHp))return shrineBase;
+   return _cardTextV45(c,skillDraws)
+ };
+
+ const _renderDeckCardsV45=renderDeckCards;
+ renderDeckCards=function(){
+   _renderDeckCardsV45();
+   const total=deckTotal(workingCounts),pill=$('deckCountStickyPill');
+   if(pill){
+     pill.textContent=`現在 ${total} / 40枚`;
+     pill.classList.toggle('complete',total===40);
+     pill.classList.toggle('over',total>40);
+   }
+ };
+
+ const _renderBattleViewV45b=renderBattleView;
+ renderBattleView=function(){
+   _renderBattleViewV45b();const v=currentView;if(!v)return;
+   document.querySelectorAll('#myHand .card').forEach((d,i)=>{
+     const c=v.me.hand[i],t=d.querySelector('.text');if(!c||!t||c.id!=='s11')return;
+     const used=v.me.cardsPlayedThisTurn||0,x=(used+1)*2;
+     t.textContent=`X＝（現在の使用枚数${used}＋このカード1枚）×2＝${x}。耐久値Xの防壁になり、次のターン開始時までリーダーへのダメージを肩代わりする。超過分はリーダーが受ける。次のターン開始時、捨て札へ。`;
+   })
+ };
+})();
+/* ===== end v46 patch ===== */
 
 refreshDeckSelects();renderDeckManager();resetLobby();if(!restoreHostRecovery())showScreen('home');
 window.addEventListener('beforeunload',()=>saveHostRecovery());
