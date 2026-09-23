@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>ルナオルタ v54</title>
+<title>ルナオルタ v57</title>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
 <style>
 :root{--bg:#f4efe5;--panel:#fffdf8;--ink:#24211d;--muted:#776f64;--line:#d8d0c3;--accent:#24211d;--gold:#a77a28;--danger:#9b2c2c;--ok:#276749;--setup:#efe2c6;--skill:#dce9ef;--attack:#edd7d2;--spell:#eadff2;--shadow:0 10px 30px rgba(44,34,24,.08)}
@@ -900,7 +900,7 @@ ruby{ruby-position:over}rt{font-size:.58em;font-weight:700;line-height:1;color:v
           <button id="goBattle" class="home-card"><div class="home-icon">♟</div><h2>バトル</h2><p>CPU戦またはルームマッチを選び、使用するデッキを決めて対戦します。</p></button>
           <button id="goDecks" class="home-card"><div class="home-icon">▦</div><h2>デッキ作成</h2><p>保存済みデッキの編集、新規作成、名前の変更ができます。</p></button>
         </div>
-        <div class="version">v50 / シラヌイデッキ保存修正・デッキ枚数表示追従</div>
+        <div class="version" id="appVersionLabel">v57 / カード使用表示テンポ調整</div>
       </div>
     </section>
 
@@ -2867,6 +2867,320 @@ renderBattleView=function(){
 })();
 /* ===== end v54 patch ===== */
 
+/* ===== v55 patch: strategic CPU planning layer ===== */
+(function(){
+ const _scoreCardV54=scoreCard;
+ const _cpuSetupDestV54=cpuSetupDest;
+
+ function cpuOppThreat(pid){
+   const oid=other(pid),op=game.players[oid];
+   const threat={s26:92,s13:70,s8:76,s3:68,s21:72,j11:78,j10:68,j18:70,j20:62,k5:84,k2:90,k9:72,k13:66,k14:64,k15:82,k24:70};
+   let total=0;
+   for(const x of activeSetups(oid)) total+=threat[x.id]||28;
+   return total;
+ }
+ function sharedOldestThreat(pid){
+   const x=game.shared?.[0];if(!x||x.owner===pid)return 0;
+   const c=x.card;
+   const map={s26:100,s13:78,s8:82,s3:72,s21:78,j11:84,j10:72,j18:74,j20:68,k5:90,k2:96,k9:80,k13:72,k14:70,k15:92,k24:76};
+   return map[c.id]||35;
+ }
+ function masaAttackDamage(pid,c){
+   const p=game.players[pid];let d=0;
+   if(c.id==='k1')d=33;else if(c.id==='k6')d=20;else if(c.id==='k10')d=20;else if(c.id==='k20')d=20+(p.hand.some(x=>x.uid!==c.uid&&cardCost(pid,x)>=5)?5:0);
+   else if(c.id==='k21')d=p.hand.filter(x=>x.uid!==c.uid&&cardCost(pid,x)>=4).length*3;
+   else if(c.id==='k22')d=6;else if(c.id==='k23')d=5;else if(c.id==='k25')d=6;else if(c.id==='k26')d=5;
+   return d+(c.damageBonus||0);
+ }
+ function shiranuiThresholdBias(pid,c){
+   const p=game.players[pid],used=p.cardsPlayedThisTurn||0,next=used+1,hand=p.hand;
+   let b=0;
+   // Exact-order cards: make the CPU deliberately hit their payoff number.
+   if(c.id==='s25') b+=next===3?95:(next<3?18:-35);
+   if(c.id==='s7') b+=next===3?70:0;
+   if(c.id==='s14') b+=next===3?82:(next<3?20:0);
+   if(c.id==='s12') b+=next===5?105:(next<5?8:-20);
+   if(c.id==='s19') b+=next===5?92:(next<5?10:0);
+   if(c.id==='sf'){
+     if(next===3&&hand.some(x=>['s25','s7','s14'].includes(x.id)))b-=55;
+     if(next===5&&hand.some(x=>['s12','s19'].includes(x.id)))b-=65;
+     if(next===7&&hasSetup(pid,'s26'))b+=85;
+     if(next===9&&!hand.some(x=>x.id==='s2'))b+=150;
+   }
+   if(c.id==='s2') b+=used>=9?500:-500;
+   if(c.id==='s26') b+=(used<=4?40:10)+(hand.some(x=>x.id==='s2')?25:0);
+   if(c.id==='s13') b+=used>=2?42:20;
+   return b;
+ }
+ function cpuStrategicScore(pid,c){
+   const p=game.players[pid],op=game.players[other(pid)],base=_scoreCardV54(pid,c),cost=cardCost(pid,c);
+   let s=base;
+   if(p.character==='kenshi'){
+     const dmg=c.type==='attack'?masaAttackDamage(pid,c):0;
+     if(dmg>=op.hp)s+=1000;
+     if(c.id==='k5')s+=p.maxEnergy<6?180:-120; // unlock the six-cost half of the kit
+     if(c.id==='k2')s+=p.maxEnergy>=6?95:20;
+     if(c.id==='k23')s+=(c.damageBonus||0)*7+(hasSetup(pid,'k9')?55:0);
+     if(c.id==='k24')s+=p.hand.filter(x=>x.type==='attack').length*9;
+     if(c.id==='k11')s+=p.hand.some(x=>x.type==='attack')?38:-50;
+     if(c.id==='k16')s+=p.hand.some(x=>cardCost(pid,x)>=5)?45:5;
+     if(c.id==='k3')s+=p.hand.some(x=>x.id==='k23'||cardCost(pid,x)>=5)?48:8;
+     if(c.id==='k17'&&p.hp>80)s-=45;
+     if(c.id==='k8'&&p.hp>65)s-=35;
+     if(c.id==='k4')s+=p.hp<=55?65:10;
+   }else if(p.character==='shiranui'){
+     s+=shiranuiThresholdBias(pid,c);
+     if(c.id==='s6')s+=(p.exhaust?.length||0)*5;
+     if(c.id==='s23')s+=(p.exhaust||[]).filter(x=>x.id==='sf').length*8;
+     if(c.id==='s15'&&p.drawPile?.some(x=>x.id==='s2'))s-=300; // never mutate 百鬼 in the deck
+     if(c.id==='s20'&&cost<=p.energy)s+=usedComboValue(p)*12;
+   }else if(p.character==='giovanni'){
+     // Preserve v47's detailed Giovanni logic; only add board awareness.
+     if(c.type==='setup'&&sharedOldestThreat(pid)>=70)s+=22;
+   }
+   // A setup can also be a tempo play when it pushes a dangerous enemy engine out.
+   if(c.type==='setup'&&game.shared?.length>=3){
+     const t=sharedOldestThreat(pid);if(t)s+=Math.max(0,t-25);
+   }
+   return s;
+ }
+ function usedComboValue(p){return Math.min(10,p.cardsPlayedThisTurn||0)}
+
+ scoreCard=function(pid,c){return cpuStrategicScore(pid,c)};
+
+ cpuSetupDest=function(pid,c){
+   const p=game.players[pid];
+   // If playing to shared immediately ejects a dangerous opposing engine, do it.
+   if(game.shared?.length>=3&&sharedOldestThreat(pid)>=65)return 'shared';
+   // Growing/interactive Shiranui engines intentionally live in shared space.
+   if(p.character==='shiranui'&&['s26','s13','s8','s3','s21','s24'].includes(c.id))return 'shared';
+   return _cpuSetupDestV54(pid,c)
+ };
+
+ function pendingCpuOrder(pid,x,pool){
+   const p=game.players[pid];
+   // Higher number = more desirable choice for "choose one to keep/buff/return".
+   const keepValue=c=>{
+     let v=scoreCard(pid,c);
+     if(p.character==='kenshi'&&c.id==='k23')v+=120+(c.damageBonus||0)*8;
+     if(p.character==='shiranui'&&c.id==='s2')v+=10000;
+     return v
+   };
+   const discardValue=c=>{
+     if(p.character==='giovanni'){
+       if(c.id==='j21')return 160;if(c.id==='j27')return 145;if(c.id==='j24')return 120;
+     }
+     if(p.character==='shiranui'){
+       if(c.id==='s2')return -10000;if(c.id==='sf')return 70;
+       if(c.id==='s4')return 45;
+     }
+     if(p.character==='kenshi'){
+       if(c.id==='k23')return -100-(c.damageBonus||0)*5;
+       if(c.id==='k22')return -40;
+     }
+     return -keepValue(c)
+   };
+   if(['discardAfterDraw','discardHand','endTurnDiscardV42','endTurnDiscard','discardLowest','exhaustAny'].includes(x.type))
+     return [...pool].sort((a,b)=>discardValue(b)-discardValue(a));
+   if(x.type==='buffAttack')return [...pool].sort((a,b)=>masaAttackDamage(pid,b)-masaAttackDamage(pid,a));
+   if(x.type==='grantRetain'||x.type==='endTurnKeep'||x.type==='returnUsed')return [...pool].sort((a,b)=>keepValue(b)-keepValue(a));
+   if(x.type==='transformDraw')return [...pool].sort((a,b)=>{
+     if(a.id==='s2')return 1;if(b.id==='s2')return -1;return keepValue(a)-keepValue(b)
+   });
+   if(x.type==='reduceCost')return [...pool].sort((a,b)=>(cardCost(pid,b)*20+keepValue(b))-(cardCost(pid,a)*20+keepValue(a)));
+   return [...pool].sort((a,b)=>keepValue(a)-keepValue(b))
+ }
+
+ cpuTurn=async function(){
+   const pid='p2',battle=game;if(!battle||battle.over||battle.current!==pid){cpuBusy=false;return}
+   let actions=0;
+   while(game===battle&&!battle.over&&battle.current===pid&&actions++<34){
+     if(battle.pending?.pid===pid){
+       const x=battle.pending,p=battle.players[pid],pool=pendingPoolCards(pid,x).filter(c=>c.uid!==x.excludeUid&&(!x.cardsOverride||x.cardsOverride.includes(c.uid)));
+       if(x.type==='reorderShared'){
+         // Move our valuable setup away from FIFO danger when possible; otherwise move oldest to newest.
+         const own=game.shared.filter(z=>z.owner===pid).sort((a,b)=>scoreCard(pid,b.card)-scoreCard(pid,a.card))[0];
+         const target=own?.card||game.shared[0]?.card;if(target)resolvePending(pid,[target.uid],game.shared.length-1);else battle.pending=null
+       }else{
+         let take=x.count??x.minCount??0;if(x.type==='exhaustAny')take=Math.min(x.maxCount||2,Math.max(x.minCount||0,2));
+         const ordered=pendingCpuOrder(pid,x,pool);resolvePending(pid,ordered.slice(0,take).map(c=>c.uid))
+       }
+       broadcastState();await wait(650);continue
+     }
+     const p=battle.players[pid],plays=p.hand.filter(c=>canPlay(pid,c)).sort((a,b)=>scoreCard(pid,b)-scoreCard(pid,a));
+     if(!plays.length||scoreCard(pid,plays[0])<5)break;
+     const c=plays[0],dest=c.type==='setup'?cpuSetupDest(pid,c):undefined;
+     playCard(pid,c.uid,dest);broadcastState();await wait(900)
+   }
+   if(game===battle&&!battle.over&&battle.current===pid&&!battle.pending){
+     // Giovanni's お取り置き: retain the card with the highest future value, not simply the current play score.
+     const p=battle.players[pid];if(hasSetup(pid,'j15')&&p.hand.length)p.keepUid=[...p.hand].sort((a,b)=>scoreCard(pid,b)-scoreCard(pid,a))[0].uid;
+     await wait(400);endPlayerTurn(pid);broadcastState()
+   }
+   cpuBusy=false;if(game===battle&&!battle.over&&battle.current===pid)scheduleCpuTurn()
+ };
+})();
+/* ===== end v55 patch ===== */
+
+/* ===== v56 patch: presentation / linked detail / stable hands ===== */
+(function(){
+ const APP_VERSION='v56';
+ document.title=`ルナオルタ ${APP_VERSION}`;
+ const versionEl=document.getElementById('appVersionLabel')||document.querySelector('.version');
+ if(versionEl)versionEl.textContent=`${APP_VERSION} / 演出・カード閲覧・手札UI改修`;
+
+ // --- Linked card details: references inside rules text can be followed recursively. ---
+ const detailHistory=[];
+ function allKnownCards(){return [...CARD_DEFS,...(typeof TOKEN_FOXFIRE!=='undefined'?[TOKEN_FOXFIRE]:[])];}
+ function linkedRulesHtml(c){
+   const raw=String(cardText(c));
+   const names=[...new Set(allKnownCards().map(x=>x.name))].sort((a,b)=>b.length-a.length);
+   const escRe=x=>x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+   const re=new RegExp(`《(${names.map(escRe).join('|')})》|(${names.map(escRe).join('|')})`,'g');
+   let out='',last=0,m;
+   while((m=re.exec(raw))){
+     out+=escapeHtml(raw.slice(last,m.index));
+     const name=m[1]||m[2],bracketed=!!m[1];
+     const btn=`<button type="button" class="detail-card-link" data-card-name="${escapeHtml(name)}">${escapeHtml(name)}</button>`;
+     out+=bracketed?`《${btn}》`:btn;last=re.lastIndex;
+   }
+   return out+escapeHtml(raw.slice(last));
+ }
+ function showLinkedDetail(c,push=true,ownerText='カード詳細'){
+   if(!c)return;
+   if(push){const cur=$('setupDetailBody')?.dataset?.detailCard;if(cur)detailHistory.push(cur)}
+   $('setupDetailTitle').innerHTML=`《${cardNameHtml(c)}》`;
+   $('setupDetailBody').dataset.detailCard=c.name;
+   $('setupDetailBody').innerHTML=`<div class="card ${c.type} setup-detail-preview linked-detail-preview"><div class="head"><div><div class="cname">${cardNameHtml(c)}</div><div class="type">${typeLabel(c.type)}</div></div><div class="cost">${c.cost}</div></div><div class="text">${linkedRulesHtml(c)}</div></div><div class="detail-nav"><button type="button" class="btn detail-back" ${detailHistory.length?'':'disabled'}>← 戻る</button><span class="setup-detail-owner">${escapeHtml(ownerText)}</span></div>`;
+   $('setupDetailModal').classList.remove('hidden');
+ }
+ function cardByAnyName(name){return allKnownCards().find(x=>x.name===name)||cardByName(name)}
+ const oldOpenSetupDetailV56=openSetupDetail;
+ openSetupDetail=function(uid){
+   const x=visibleSetupByUid(uid),v=currentView;if(!x||!v)return oldOpenSetupDetailV56(uid);
+   detailHistory.length=0;showLinkedDetail(x.card,false,`所有者：${x.owner===v.me.pid?'自分':'相手'}`);
+ };
+ openLogCardDetail=function(name){const c=cardByAnyName(name);if(!c)return;detailHistory.length=0;showLinkedDetail(c,false,'ログから参照')};
+ $('setupDetailBody').addEventListener('click',e=>{
+   const link=e.target.closest('.detail-card-link');
+   if(link){const c=cardByAnyName(link.dataset.cardName);if(c)showLinkedDetail(c,true);return}
+   const back=e.target.closest('.detail-back');
+   if(back&&detailHistory.length){const name=detailHistory.pop(),c=cardByAnyName(name);if(c)showLinkedDetail(c,false)}
+ });
+ const oldCloseDetail=$('closeSetupDetail').onclick;
+ $('closeSetupDetail').onclick=()=>{detailHistory.length=0;$('setupDetailBody').dataset.detailCard='';if(oldCloseDetail)oldCloseDetail()};
+
+ // Hand cards use the same detail surface on a second tap, avoiding zoom clipping.
+ let expandedUidV56=null;
+ const oldRenderBattleV56=renderBattleView;
+ renderBattleView=function(){
+   oldRenderBattleV56();
+   const v=currentView;if(!v)return;
+   const cards=[...document.querySelectorAll('#myHand .card')];
+   cards.forEach((d,i)=>{
+     const c=v.me.hand[i];if(!c)return;
+     d.dataset.uid=c.uid;
+     d.onclick=e=>{
+       if(e.target.closest('button'))return;
+       if(expandedUidV56===c.uid){detailHistory.length=0;showLinkedDetail(c,false,'手札');expandedUidV56=null;collapseHandSelection();return}
+       expandedUidV56=c.uid;collapseHandSelection();d.classList.add('expanded');
+     };
+   });
+   renderOpponentHandV56(v.opp.handCount);
+   showDeckMoveFromLogsV56(v);
+ };
+
+ // --- Opponent hand: one consistent card-back design and size, no striped placeholders. ---
+ function renderOpponentHandV56(count){
+   const el=$('oppHandBacks');if(!el)return;el.innerHTML='';
+   for(let i=0;i<count;i++){const b=document.createElement('i');b.className='card-back luna-back';b.style.setProperty('--i',i);b.style.setProperty('--n',count);el.appendChild(b)}
+ }
+
+ // --- Zone-motion feedback. Draw is already an event; deck additions are derived from public log lines. ---
+ let seenLogCountV56=0;
+ function spawnZoneFlyV56(kind,mine=true,fox=false){
+   const layer=$('drawFxLayer');if(!layer)return;
+   const d=document.createElement('div');d.className=`zone-fly ${kind} ${mine?'mine':'theirs'} ${fox?'fox':''}`;
+   d.innerHTML=fox?'<span>狐</span>':'<span>◆</span>';layer.appendChild(d);setTimeout(()=>d.remove(),950)
+ }
+ function showDeckMoveFromLogsV56(v){
+   const logs=v.log||[];
+   if(seenLogCountV56>logs.length)seenLogCountV56=0;
+   const fresh=logs.slice(seenLogCountV56);seenLogCountV56=logs.length;
+   fresh.forEach((line,i)=>{
+     const toDeck=/山札に加え|山札へ戻|山札に戻/.test(line);if(!toDeck)return;
+     const mine=line.startsWith(`${v.me.name}：`);const fox=line.includes('狐火');
+     setTimeout(()=>spawnZoneFlyV56('to-deck',mine,fox),i*90)
+   });
+ }
+ const oldShowDrawEventsV56=showDrawEvents;
+ showDrawEvents=function(v){
+   const events=(v.drawEvents||[]).filter(e=>e.seq>lastShownDraw);if(!events.length)return;
+   events.slice(-8).forEach((e,i)=>setTimeout(()=>spawnZoneFlyV56('draw',e.pid===v.me.pid,false),i*105));
+   lastShownDraw=Math.max(lastShownDraw,...events.map(e=>e.seq));
+ };
+
+ // Both players' played cards are readable for a moment. New plays replace the previous reveal cleanly.
+ let playedHideTimerV56=null;
+ showLastPlayed=function(v){
+   const a=v.lastAction;if(!a||a.seq===lastShownAction)return;lastShownAction=a.seq;
+   const mine=a.pid===v.me.pid,c=a.card,stage=$('playedStage');
+   stage.innerHTML=`<div class="played-label">${mine?'あなた':escapeHtml(v.opp.name)}が使用</div><div class="card ${c.type} played"><div class="head"><div><div class="cname">${cardNameHtml(c)}</div><div class="type">${typeLabel(c.type)}</div></div><div class="cost">${a.cost}</div></div><div class="text">${linkedRulesHtml(c)}</div></div>`;
+   stage.classList.remove('hidden');if(playedHideTimerV56)clearTimeout(playedHideTimerV56);playedHideTimerV56=setTimeout(()=>stage.classList.add('hidden'),700)
+ };
+
+ // Damage feedback lingers longer; multi-hit cadence is deliberately readable.
+ showDamageEvents=function(v){
+   const events=(v.damageEvents||[]).filter(e=>e.seq>lastShownDamage);if(!events.length)return;
+   events.forEach((e,i)=>{const delay=i*320;triggerBattleImpact(e.amount,delay);showDamageCutin(v,e,delay);setTimeout(()=>{const layer=$(e.target===v.me.pid?'myDamageLayer':'oppDamageLayer');if(!layer)return;const d=document.createElement('div');d.className=`damage-pop ${e.amount===0?'zero':''}`;d.textContent=e.amount===0?'0':`-${e.amount}`;layer.appendChild(d);setTimeout(()=>d.remove(),1900)},delay)});
+   lastShownDamage=Math.max(lastShownDamage,...events.map(e=>e.seq))
+ };
+
+ // CPU pace: enough time to read each revealed play without turning the match into molasses.
+ const oldScheduleCpuV56=scheduleCpuTurn;
+ scheduleCpuTurn=function(){if(matchMode!=='cpu'||roomRole!=='host'||cpuBusy||!game||game.over||game.current!=='p2')return;cpuBusy=true;setTimeout(cpuTurn,1000)};
+
+ // Stable hand geometry: count changes never alter the row's vertical footprint.
+ const style=document.createElement('style');style.textContent=`
+ #battleScreen .hand-wrap{height:154px!important;min-height:154px!important;max-height:154px!important;overflow:visible!important}
+ #battleScreen .hand{height:136px!important;min-height:136px!important;max-height:136px!important;align-items:flex-end!important;overflow:visible!important}
+ #battleScreen .hand .card{height:108px!important;min-height:108px!important;max-height:108px!important;overflow:hidden}
+ #battleScreen .hand .card.expanded{height:150px!important;min-height:150px!important;max-height:150px!important;transform:translateY(-34px) scale(1.22)!important;overflow:auto;z-index:95!important}
+ #battleScreen .hand .card.expanded .text{max-height:70px;overflow:auto}
+ #battleScreen .opponent-hand{height:38px;min-height:38px;display:flex;align-items:flex-end;justify-content:center;gap:0;overflow:visible;padding:0 5px}
+ #battleScreen .opponent-hand .luna-back{position:relative;display:block;flex:0 0 27px;width:27px;height:38px;margin-left:-10px;border-radius:5px;background:linear-gradient(145deg,#201d28,#3b3147 55%,#17151c);border:1px solid #d7b96d;box-shadow:0 2px 5px rgba(0,0,0,.28);transform:translateY(calc(abs(var(--i) - (var(--n) - 1)/2) * 0px))}
+ #battleScreen .opponent-hand .luna-back:first-child{margin-left:0}
+ #battleScreen .opponent-hand .luna-back:before{content:'L';position:absolute;inset:4px;display:grid;place-items:center;border:1px solid rgba(215,185,109,.6);border-radius:3px;color:#d7b96d;font:900 12px/1 Georgia,serif;text-shadow:0 1px 2px #000}
+ #battleScreen .opponent-hand .luna-back:after{content:'';position:absolute;left:50%;top:50%;width:7px;height:7px;border:1px solid #d7b96d;transform:translate(-50%,-50%) rotate(45deg);opacity:.75}
+ .setup-detail-card{width:min(620px,94vw)!important;max-height:86vh!important;overflow:auto!important}
+ .setup-detail-preview,.linked-detail-preview{width:min(360px,100%);min-height:220px;margin:0 auto;overflow:visible!important}
+ .linked-detail-preview .text{font-size:13px!important;line-height:1.55!important;overflow:visible!important}
+ .detail-card-link{appearance:none;border:0;border-bottom:1px solid currentColor;background:none;padding:0;color:#755014;font:inherit;font-weight:900;cursor:pointer}
+ .detail-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px}
+ #battleScreen .played-stage{pointer-events:auto}
+ #battleScreen .zone-fly{position:absolute;z-index:60;width:42px;height:58px;border-radius:7px;border:2px solid #d7b96d;background:linear-gradient(145deg,#282331,#493c56);box-shadow:0 7px 16px rgba(0,0,0,.3);display:grid;place-items:center;color:#f0d995;font-weight:1000;opacity:0}
+ #battleScreen .zone-fly.fox{background:linear-gradient(145deg,#5a2030,#bd633d);color:#fff3dc}
+ #battleScreen .zone-fly.draw.mine{right:18%;top:34%;animation:v56DrawMine .72s ease-out forwards}
+ #battleScreen .zone-fly.draw.theirs{right:10%;top:14%;animation:v56DrawTheirs .72s ease-out forwards}
+ #battleScreen .zone-fly.to-deck.mine{left:44%;bottom:8%;animation:v56ToDeckMine .82s ease-in forwards}
+ #battleScreen .zone-fly.to-deck.theirs{left:44%;top:18%;animation:v56ToDeckTheirs .82s ease-in forwards}
+ #battleScreen .damage-pop{animation-duration:1.65s!important}
+ @keyframes v56DrawMine{0%{opacity:.2;transform:translate(0,0) scale(.72) rotate(-8deg)}20%{opacity:1}100%{opacity:0;transform:translate(-110px,190px) scale(1.05) rotate(5deg)}}
+ @keyframes v56DrawTheirs{0%{opacity:.2;transform:translate(0,0) scale(.72) rotate(8deg)}20%{opacity:1}100%{opacity:0;transform:translate(-105px,36px) scale(.9) rotate(-5deg)}}
+ @keyframes v56ToDeckMine{0%{opacity:0;transform:translate(0,0) scale(1.15)}18%{opacity:1}100%{opacity:0;transform:translate(165px,-85px) scale(.45) rotate(13deg)}}
+ @keyframes v56ToDeckTheirs{0%{opacity:0;transform:translate(0,0) scale(1.15)}18%{opacity:1}100%{opacity:0;transform:translate(185px,-20px) scale(.45) rotate(-13deg)}}
+ @media(max-width:760px){
+   #battleScreen .hand-wrap{height:150px!important;min-height:150px!important;max-height:150px!important}
+   #battleScreen .hand{height:132px!important;min-height:132px!important;max-height:132px!important}
+   #battleScreen .hand .card.expanded{transform:translateY(-28px) scale(1.12)!important;max-width:42vw!important}
+   .setup-detail-card{width:94vw!important;padding:10px!important}
+   .setup-detail-preview,.linked-detail-preview{width:min(330px,88vw)!important}
+ }
+ `;document.head.appendChild(style);
+})();
+/* ===== end v56 patch ===== */
+
+
 refreshDeckSelects();renderDeckManager();resetLobby();if(!restoreHostRecovery())showScreen('home');
 window.addEventListener('beforeunload',()=>saveHostRecovery());
 window.addEventListener('offline',()=>{if(matchMode==='online'&&!currentView?.over&&!game?.over){setNetworkPaused(true);if(roomRole==='host')saveHostRecovery()}});
@@ -2875,3 +3189,5 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
 </script>
 </body>
 </html>
+
+<!-- v57: normal played-card reveal shortened from 1.5s to 0.7s -->
