@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>ルナオルタ v50</title>
+<title>ルナオルタ v53</title>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
 <style>
 :root{--bg:#f4efe5;--panel:#fffdf8;--ink:#24211d;--muted:#776f64;--line:#d8d0c3;--accent:#24211d;--gold:#a77a28;--danger:#9b2c2c;--ok:#276749;--setup:#efe2c6;--skill:#dce9ef;--attack:#edd7d2;--spell:#eadff2;--shadow:0 10px 30px rgba(44,34,24,.08)}
@@ -864,6 +864,23 @@
 .deck-count-sticky .deck-count-pill.complete{background:rgba(39,103,73,.96)}
 .deck-count-sticky .deck-count-pill.over{background:rgba(155,44,44,.96)}
 @media(max-width:760px){.deck-count-sticky{top:52px;margin:2px 0 6px;padding-right:2px}.deck-count-sticky .deck-count-pill{font-size:12px;padding:7px 12px}}
+
+/* v51: pile viewer, furigana, hand edge safety */
+ruby{ruby-position:over}rt{font-size:.58em;font-weight:700;line-height:1;color:var(--muted)}
+.card .cname rt,.choice-card .cname rt,.deck-card h3 rt,.slot .name rt{font-size:.6em}
+.pile-link{appearance:none;border:0;background:none;padding:0;color:inherit;font:inherit;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;cursor:pointer}
+.pile-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:7px}
+.pile-item{border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff;display:grid;grid-template-columns:1fr auto;gap:6px;align-items:start}
+.pile-item .pile-name{font-weight:900;font-size:11px}.pile-item .pile-meta{font-size:9px;color:var(--muted);margin-top:3px}.pile-item .pile-qty{font-weight:900}
+#battleScreen .hand{box-sizing:border-box;max-width:100%;padding-left:64px;padding-right:64px}
+#battleScreen .hand .card:last-child{margin-right:0}
+@media(max-width:760px){#battleScreen .hand{padding-left:22px;padding-right:22px;justify-content:center}.pile-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* v52: pending-card modifiers + slower damage feedback */
+.choice-card .modifier-list{display:flex;flex-wrap:wrap;gap:3px;margin-top:5px}
+.choice-card .modifier-badge{display:inline-flex;align-items:center;padding:2px 5px;border-radius:999px;border:1px solid rgba(96,78,50,.35);background:rgba(255,255,255,.68);font-size:8px;font-weight:900;line-height:1.25}
+.damage-pop{animation-duration:1.35s}
+@keyframes damagePop{0%{opacity:0;transform:translate(-50%,18px) scale(.55)}16%{opacity:1;transform:translate(-50%,-8px) scale(1.25)}72%{opacity:1;transform:translate(-50%,-24px) scale(1)}100%{opacity:0;transform:translate(-50%,-52px) scale(.9)}}
 </style>
 </head>
 <body>
@@ -969,7 +986,7 @@
               <div class="hpbar"><div id="myHpFill" class="hpbar-fill"></div><div id="myHpText" class="hpbar-text">HP 100 / 100</div></div>
               <div class="leader-meta">⚡ <span id="myEnergy">0</span>/<span id="myMaxEnergy">0</span></div>
             </div>
-            <div class="battle-controls"><div class="battle-turnline"><div id="turnLabel" class="turn-badge">-</div><div id="shiranuiUseCount" class="shiranui-use-count hidden">現在の使用枚数：0</div><div id="winner" class="winner"></div></div><div class="status"><div><div class="small">山札 <span id="myDeckN">0</span> / 捨て札 <span id="myDiscardN">0</span> / 廃棄 <span id="myExhaustN">0</span></div></div><div class="hp"></div></div><div class="battle-actions"><button id="movePersonal" class="btn">独自枠→共有へ</button><button id="endTurn" class="btn primary">ターン終了</button><button id="openLog" class="btn">ログ</button></div></div>
+            <div class="battle-controls"><div class="battle-turnline"><div id="turnLabel" class="turn-badge">-</div><div id="shiranuiUseCount" class="shiranui-use-count hidden">現在の使用枚数：0</div><div id="winner" class="winner"></div></div><div class="status"><div><div class="small"><button type="button" id="openMyDeck" class="pile-link">山札 <span id="myDeckN">0</span></button> / <button type="button" id="openMyDiscard" class="pile-link">捨て札 <span id="myDiscardN">0</span></button> / 廃棄 <span id="myExhaustN">0</span></div></div><div class="hp"></div></div><div class="battle-actions"><button id="movePersonal" class="btn">独自枠→共有へ</button><button id="endTurn" class="btn primary">ターン終了</button><button id="openLog" class="btn">ログ</button></div></div>
           </div>
           <div class="hand-wrap"><div class="zone-title">手札 <span id="myHandN"></span> <span id="keepHint"></span></div><div id="myHand" class="hand"></div><div class="hand-tip">カードをタップすると拡大します</div></div>
         </div>
@@ -999,6 +1016,7 @@
 <div id="logModal" class="modal hidden"><div class="modal-card log-modal-card"><div class="log-modal-head"><h3>対戦ログ</h3><button id="closeLog" class="btn">閉じる</button></div><div id="log" class="log"></div><div class="log-rules">ログ内の《カード名》をタップすると、そのカードのコスト・種類・効果を確認できます。HP100／最大コストは通常1→5（マサムネは効果で6まで）。共有セットアップは3枠です。</div></div></div>
 
 <div id="setupDetailModal" class="modal hidden"><div class="modal-card setup-detail-card"><div class="setup-detail-head"><h3 id="setupDetailTitle">セットアップ詳細</h3><button id="closeSetupDetail" class="btn">閉じる</button></div><div id="setupDetailBody"></div></div></div>
+<div id="pileModal" class="modal hidden"><div class="modal-card pile-modal-card"><div class="setup-detail-head"><h3 id="pileTitle">山札</h3><button id="closePile" class="btn">閉じる</button></div><div id="pileBody" class="pile-grid"></div></div></div>
 
 
 <script>
@@ -1022,7 +1040,7 @@ const GIOVANNI_CARD_DEFS=[
  {id:'j12',name:'ちゃぶ台返し',type:'attack',cost:0,text:'このカード以外の手札を全て捨てる。捨てた枚数だけ「1ダメージ」を繰り返す。',pool:'giovanni'},
  {id:'j13',name:'選り好み',type:'skill',cost:0,text:'カードを2枚引く。その後、手札を2枚捨てる。',pool:'giovanni'},
  {id:'j14',name:'フルコース',type:'skill',cost:3,text:'手札を全て捨てる。ナイフを3枚手札に加える。',pool:'giovanni'},
- {id:'j15',name:'お取り置き',type:'setup',cost:2,text:'自分のターン終了時、手札から1枚選び、次のターンまで残す。',pool:'giovanni'},
+ {id:'j15',name:'お取り置き',type:'setup',cost:2,text:'自分のターン終了時、手札から1枚選び、次のターン開始時まで保留にする。',pool:'giovanni'},
  {id:'j16',name:'紳士の受け流し',type:'setup',cost:1,text:'次に受けるダメージを半分にする（端数切り上げ）。発動後、捨て札へ。',pool:'giovanni'},
  {id:'j17',name:'ホワイトガード',type:'setup',cost:1,text:'次の自分のターン開始時まで、相手から受けるダメージを半分にする（端数切り上げ）。開始時に捨て札へ。',pool:'giovanni'},
  {id:'j18',name:'本気の一張羅',type:'setup',cost:3,text:'手札を全て捨てる。次の自分のターン中、アタックのダメージを2倍にする。開始時に廃棄。',pool:'giovanni'},
@@ -1308,10 +1326,10 @@ function playCard(pid,uid,dest){const p=game.players[pid],c=p.hand.find(x=>x.uid
  else if(c.id==='k19'){p.discard.push(c);drawCards(pid,2,true);if(p.hand.length){const min=Math.min(...p.hand.map(x=>cardCost(pid,x))),cards=p.hand.filter(x=>cardCost(pid,x)===min);game.pending={pid,type:'discardLowest',count:1,title:'《取捨選択》：最もコストが低いカードを1枚捨てる',cardsOverride:cards.map(x=>x.uid)}}}
  afterPlayTriggers(pid,c);
 }
-function resolvePending(pid,uids,targetIndex=null){const x=game.pending,p=game.players[pid];if(!x||x.pid!==pid||!Array.isArray(uids)||new Set(uids).size!==x.count)return;if(x.type==='reorderShared'){const uid=uids[0],from=game.shared.findIndex(s=>s.card.uid===uid);if(from<0)return;const max=game.shared.length-1,to=Math.max(0,Math.min(max,Number(targetIndex)));if(!Number.isInteger(to))return;const [slot]=game.shared.splice(from,1);game.shared.splice(to,0,slot);addLog(`${p.name}：《席替え》で《${slot.card.name}》を共有枠の${to+1}番目へ移動。`);game.pending=null;return}let pool=x.type==='returnDiscard'?p.discard:p.hand;if(!uids.every(id=>pool.some(c=>c.uid===id)&&(x.excludeUid!==id)))return;if(x.cardsOverride&&!uids.every(id=>x.cardsOverride.includes(id)))return;
- if(x.type==='grantRetain'){const c=p.hand.find(c=>c.uid===uids[0]);if(!c)return;c.retain=true;addLog(`${p.name}：《${c.name}》が保留を得た。`);game.pending=null;return}
- if(x.type==='buffAttack'){const c=p.hand.find(c=>c.uid===uids[0]);if(!c||c.type!=='attack')return;const amount=Number(x.amount)||10;c.damageBonus=(c.damageBonus||0)+amount;addLog(`${p.name}：${x.source||'カード効果'}で《${c.name}》のダメージを${amount}強化。`);game.pending=null;return}
- if(x.type==='reduceCost'){const c=p.hand.find(c=>c.uid===uids[0]);if(!c)return;c.costMod=(c.costMod||0)-1;addLog(`${p.name}：《${c.name}》の手札中コストを1軽減。`);game.pending=null;return}
+function resolvePending(pid,uids,targetIndex=null){const x=game.pending,p=game.players[pid];if(!x||x.pid!==pid||!Array.isArray(uids)||new Set(uids).size!==x.count)return;if(x.type==='reorderShared'){const uid=uids[0],from=game.shared.findIndex(s=>s.card.uid===uid);if(from<0)return;const max=game.shared.length-1,to=Math.max(0,Math.min(max,Number(targetIndex)));if(!Number.isInteger(to))return;const [slot]=game.shared.splice(from,1);game.shared.splice(to,0,slot);addLog(`${p.name}：《席替え》で共有セットアップ1枚を${to+1}番目へ移動。`);game.pending=null;return}let pool=x.type==='returnDiscard'?p.discard:p.hand;if(!uids.every(id=>pool.some(c=>c.uid===id)&&(x.excludeUid!==id)))return;if(x.cardsOverride&&!uids.every(id=>x.cardsOverride.includes(id)))return;
+ if(x.type==='grantRetain'){const c=p.hand.find(c=>c.uid===uids[0]);if(!c)return;c.retain=true;addLog(`${p.name}：カード1枚が保留を得た。`);game.pending=null;return}
+ if(x.type==='buffAttack'){const c=p.hand.find(c=>c.uid===uids[0]);if(!c||c.type!=='attack')return;const amount=Number(x.amount)||10;c.damageBonus=(c.damageBonus||0)+amount;addLog(`${p.name}：${x.source||'カード効果'}でアタック1枚のダメージを${amount}強化。`);game.pending=null;return}
+ if(x.type==='reduceCost'){const c=p.hand.find(c=>c.uid===uids[0]);if(!c)return;c.costMod=(c.costMod||0)-1;addLog(`${p.name}：手札1枚のコストを1軽減。`);game.pending=null;return}
  if(x.type==='returnDiscard'){uids.forEach(id=>{const i=p.discard.findIndex(c=>c.uid===id),c=p.discard.splice(i,1)[0];p.drawPile.push(c)});shuffle(p.drawPile);addLog(`${p.name}：《再読》で捨て札から${uids.length}枚を山札へ戻してシャッフル。`)}else{uids.forEach(id=>{const i=p.hand.findIndex(c=>c.uid===id),c=p.hand.splice(i,1)[0];discardFromHandByEffect(pid,c,x.type==='endTurnDiscard'?'《断捨離》':'カード効果')});if(x.type==='discardAfterDraw'){addLog(`${p.name}：《果実の選別》で手札を1枚捨てる。`)}else if(x.type==='endTurnDiscard'){addLog(`${p.name}：《断捨離》で手札を1枚捨てる。`)}else if(x.type==='discardLowest'){addLog(`${p.name}：《取捨選択》で最も軽いカードを1枚捨てた。`)}else addLog(`${p.name}：《選り好み》で${x.count}枚捨てる。`)}game.pending=null;if(x.type==='endTurnDiscard'&&!game.over)finalizeEndTurn(pid)}
 function runEndTurnEffects(pid){const p=game.players[pid];if(p.endEffectsDone)return;p.endEffectsDone=true;if(hasSetup(pid,'k18')&&p.usedHeavyThisTurn){const n=drawCards(pid,1,true);addLog(`${p.name}：《剣戟の残響》で${n}枚ドロー。`)}if(hasSetup(pid,'k24')){const attacks=p.hand.filter(c=>c.type==='attack');attacks.forEach(c=>c.damageBonus=(c.damageBonus||0)+2);if(attacks.length)addLog(`${p.name}：《日々の研鑽》で手札のアタック${attacks.length}枚を+2強化。`)}}
 function finalizeEndTurn(pid){const p=game.players[pid];runEndTurnEffects(pid);const keepAll=hasSetup(pid,'k9'),kept=[];while(p.hand.length){const c=p.hand.pop();if(keepAll||c.retain||c.uid===p.keepUid){if(c.id==='k23'){c.damageBonus=(c.damageBonus||0)+5;addLog(`${p.name}：《一念の太刀》が保留され、ダメージ+5。`)}kept.push(c)}else sendDiscard(p,c)}kept.reverse().forEach(c=>p.hand.push(c));if(kept.length)addLog(`${p.name}：${kept.length}枚を保留。`);p.attackDouble=false;game.current=other(pid);startTurn(game.current)}
@@ -1468,7 +1486,7 @@ function showDamageCutin(v,e,delay=0){
     },650);
   },delay);
 }
-function showDamageEvents(v){const events=(v.damageEvents||[]).filter(e=>e.seq>lastShownDamage);if(!events.length)return;events.forEach((e,i)=>{const delay=i*90;triggerBattleImpact(e.amount,delay);showDamageCutin(v,e,delay);setTimeout(()=>{const layer=$(e.target===v.me.pid?'myDamageLayer':'oppDamageLayer');if(!layer)return;const d=document.createElement('div');d.className=`damage-pop ${e.amount===0?'zero':''}`;d.textContent=e.amount===0?'0':`-${e.amount}`;layer.appendChild(d);setTimeout(()=>d.remove(),900)},delay)});lastShownDamage=Math.max(lastShownDamage,...events.map(e=>e.seq))}
+function showDamageEvents(v){const events=(v.damageEvents||[]).filter(e=>e.seq>lastShownDamage);if(!events.length)return;events.forEach((e,i)=>{const delay=i*240;triggerBattleImpact(e.amount,delay);showDamageCutin(v,e,delay);setTimeout(()=>{const layer=$(e.target===v.me.pid?'myDamageLayer':'oppDamageLayer');if(!layer)return;const d=document.createElement('div');d.className=`damage-pop ${e.amount===0?'zero':''}`;d.textContent=e.amount===0?'0':`-${e.amount}`;layer.appendChild(d);setTimeout(()=>d.remove(),1450)},delay)});lastShownDamage=Math.max(lastShownDamage,...events.map(e=>e.seq))}
 function showDrawEvents(v){const events=(v.drawEvents||[]).filter(e=>e.seq>lastShownDraw);if(!events.length)return;const layer=$('drawFxLayer');if(layer){events.slice(-8).forEach((e,i)=>setTimeout(()=>{const d=document.createElement('div');d.className=`draw-fly ${e.pid===v.me.pid?'mine':'theirs'}`;layer.appendChild(d);setTimeout(()=>d.remove(),520)},i*65))}lastShownDraw=Math.max(lastShownDraw,...events.map(e=>e.seq))}
 function renderBattleView(){const v=currentView;if(!v)return;const me=v.me,op=v.opp,myTurn=v.current===me.pid&&!v.over&&!v.pending&&!networkPaused;
  [['myName',`${me.name}［${CHARACTER_LABELS[me.character]||'ジョバンニ'}］`],['oppName',`${op.name}［${CHARACTER_LABELS[op.character]||'ジョバンニ'}］`],['myHpText',`HP ${Math.max(0,me.hp)} / ${me.maxHp||100}`],['oppHpText',`HP ${Math.max(0,op.hp)} / ${op.maxHp||100}`],['myEnergy',me.energy],['myMaxEnergy',me.maxEnergy],['oppEnergy',op.energy],['oppMaxEnergy',op.maxEnergy],['myDeckN',me.drawCount],['oppDeckN',op.drawCount],['myDiscardN',me.discardCount],['oppDiscardN',op.discardCount],['myExhaustN',me.exhaustCount],['oppHandN',`${op.handCount}/10`],['myHandN',`${me.handCount}/10`]].forEach(([id,val])=>$(id).textContent=val);
@@ -1484,7 +1502,7 @@ function activeViewHasSetup(v,pid,id){if(pid===v.me.pid&&v.me.personal?.id===id)
 function viewCost(v,c){let base=c.id==='j2'?Math.max(0,4-(v.me.turnSkillDraws||0)):c.cost;base=Math.max(0,base+(c.costMod||0));if(activeViewHasSetup(v,v.me.pid,'k2'))base=Math.max(0,base-1);return base}
 function canPlayView(v,c){const cost=viewCost(v,c),me=v.me;if(cost>me.energy)return false;if(c.id==='j4'&&me.handCount!==10)return false;if(c.id==='j1'&&me.handCount<2)return false;if(c.id==='j9'&&me.discardCount<2)return false;if(c.id==='k11'&&!me.hand.some(x=>x.uid!==c.uid&&x.type==='attack'))return false;if(c.type==='setup'&&activeViewHasSetup(v,me.pid,c.id))return false;return true}
 function showLastPlayed(v){const a=v.lastAction;if(!a||a.pid===v.me.pid||a.seq===lastShownAction)return;lastShownAction=a.seq;const c=a.card,stage=$('playedStage');stage.innerHTML=`<div class="played-label">${escapeHtml(v.opp.name)}が使用</div><div class="card ${c.type} played"><div class="head"><div><div class="cname">${c.name}</div><div class="type">${typeLabel(c.type)}</div></div><div class="cost">${a.cost}</div></div><div class="text">${cardText(c)}</div></div>`;stage.classList.remove('hidden');setTimeout(()=>stage.classList.add('hidden'),2800)}
-function openPending(p){const key=`${p.type}:${p.cards.map(c=>c.uid).join(',')}`;if(modalPendingKey===key)return;modalPendingKey=key;const selected=new Set();$('modalTitle').textContent=p.title;$('modalBody').innerHTML='';p.cards.forEach(c=>{const b=document.createElement('button');b.className=`choice-card ${c.type}`;b.innerHTML=`<div class="head"><div><div class="cname">${c.name}</div><div class="type">${typeLabel(c.type)}</div></div><div class="cost">${Number.isFinite(c.choiceCost)?c.choiceCost:c.cost}</div></div><div class="text">${cardText(c)}</div>`;b.onclick=()=>{if(selected.has(c.uid)){selected.delete(c.uid);b.classList.remove('selected')}else if(selected.size<p.count){selected.add(c.uid);b.classList.add('selected')}};$('modalBody').appendChild(b)});let posSelect=null;if(p.type==='reorderShared'){const wrap=document.createElement('div');wrap.className='reorder-controls';wrap.innerHTML='<b>移動先</b>';posSelect=document.createElement('select');for(let i=0;i<p.positionCount;i++){const o=document.createElement('option');o.value=i;o.textContent=i===0?'一番左（最古）':i===p.positionCount-1?'一番右（最新）':`${i+1}番目`;posSelect.appendChild(o)}wrap.appendChild(posSelect);$('modalBody').appendChild(wrap)}$('modalOk').onclick=()=>{if(selected.size!==p.count)return alert(`${p.count}枚選んでください。`);dispatchAction({type:'choose',uids:[...selected],targetIndex:posSelect?Number(posSelect.value):null})};$('modal').classList.remove('hidden')}
+function openPending(p){const key=`${p.type}:${p.cards.map(c=>c.uid).join(',')}`;if(modalPendingKey===key)return;modalPendingKey=key;const selected=new Set();$('modalTitle').textContent=p.title;$('modalBody').innerHTML='';p.cards.forEach(c=>{const b=document.createElement('button');b.className=`choice-card ${c.type}`;b.innerHTML=`<div class="head"><div><div class="cname">${c.name}</div><div class="type">${typeLabel(c.type)}</div></div><div class="cost">${Number.isFinite(c.choiceCost)?c.choiceCost:c.cost}</div></div><div class="text">${cardText(c)}</div>${choiceModifierHtml(c)}`;b.onclick=()=>{if(selected.has(c.uid)){selected.delete(c.uid);b.classList.remove('selected')}else if(selected.size<p.count){selected.add(c.uid);b.classList.add('selected')}};$('modalBody').appendChild(b)});let posSelect=null;if(p.type==='reorderShared'){const wrap=document.createElement('div');wrap.className='reorder-controls';wrap.innerHTML='<b>移動先</b>';posSelect=document.createElement('select');for(let i=0;i<p.positionCount;i++){const o=document.createElement('option');o.value=i;o.textContent=i===0?'一番左（最古）':i===p.positionCount-1?'一番右（最新）':`${i+1}番目`;posSelect.appendChild(o)}wrap.appendChild(posSelect);$('modalBody').appendChild(wrap)}$('modalOk').onclick=()=>{if(selected.size!==p.count)return alert(`${p.count}枚選んでください。`);dispatchAction({type:'choose',uids:[...selected],targetIndex:posSelect?Number(posSelect.value):null})};$('modal').classList.remove('hidden')}
 function closePending(){modalPendingKey='';$('modal').classList.add('hidden')}
 $('battleScreen').addEventListener('click',e=>{if(!e.target.closest('#myHand .card'))collapseHandSelection()});
 window.addEventListener('resize',()=>requestAnimationFrame(layoutHandFan));
@@ -1842,10 +1860,10 @@ resolvePending=function(pid,uids,targetIndex=null){
    if(uids.length!==1||!handHas(uids))return;p.keepUid=uids[0];const kept=p.hand.find(c=>c.uid===uids[0]);if(kept)kept.retainedOnce=true;game.pending=null;finalizeEndTurn(pid);return
  }
  if(x.type==='startTurnExhaust'){
-   if(uids.length!==1||!handHas(uids))return;const c=p.hand.splice(p.hand.findIndex(z=>z.uid===uids[0]),1)[0];sendExhaust(pid,c,'《花魁道中》');addLog(`${p.name}：《花魁道中》で《${c.name}》を廃棄。`);game.pending=null;finishStartTurnDraw(pid);return
+   if(uids.length!==1||!handHas(uids))return;const c=p.hand.splice(p.hand.findIndex(z=>z.uid===uids[0]),1)[0];sendExhaust(pid,c,'《花魁道中》');addLog(`${p.name}：《花魁道中》で手札1枚を廃棄。`);game.pending=null;finishStartTurnDraw(pid);return
  }
  if(x.type==='foxMaskExhaust'){
-   if(uids.length!==1||!handHas(uids))return;const c=p.hand.splice(p.hand.findIndex(z=>z.uid===uids[0]),1)[0];sendExhaust(pid,c,'《狐面》');addLog(`${p.name}：《狐面》で《${c.name}》を廃棄。`);finishDeferred();return
+   if(uids.length!==1||!handHas(uids))return;const c=p.hand.splice(p.hand.findIndex(z=>z.uid===uids[0]),1)[0];sendExhaust(pid,c,'《狐面》');addLog(`${p.name}：《狐面》で手札1枚を廃棄。`);finishDeferred();return
  }
  if(x.type==='exhaustAny'){
    if(!handHas(uids))return;uids.forEach(id=>{const i=p.hand.findIndex(z=>z.uid===id),c=p.hand.splice(i,1)[0];sendExhaust(pid,c,'《十六夜》')});
@@ -1858,10 +1876,10 @@ resolvePending=function(pid,uids,targetIndex=null){
  }
  if(x.type==='returnUsed'){
    if(uids.length!==1)return;const id=uids[0];let i=p.discard.findIndex(c=>c.uid===id),c=null;if(i>=0)c=p.discard.splice(i,1)[0];else{i=p.exhaust.findIndex(c=>c.uid===id);if(i>=0)c=p.exhaust.splice(i,1)[0]}
-   if(!c)return;addToHand(pid,c);addLog(`${p.name}：《輪廻の理》で《${c.name}》を手札に戻した。`);finishDeferred();return
+   if(!c)return;addToHand(pid,c);addLog(`${p.name}：《輪廻の理》でカード1枚を手札に戻した。`);finishDeferred();return
  }
  if(x.type==='transformDraw'){
-   if(uids.length!==1)return;const i=p.drawPile.findIndex(c=>c.uid===uids[0]);if(i<0)return;const old=p.drawPile[i];p.drawPile[i]=makeCard('sf');shuffle(p.drawPile);addLog(`${p.name}：《化粧直し》で山札の《${old.name}》を狐火に変化させ、シャッフル。`);finishDeferred();return
+   if(uids.length!==1)return;const i=p.drawPile.findIndex(c=>c.uid===uids[0]);if(i<0)return;const old=p.drawPile[i];p.drawPile[i]=makeCard('sf');shuffle(p.drawPile);addLog(`${p.name}：《化粧直し》で山札のカード1枚を狐火に変化させ、シャッフル。`);finishDeferred();return
  }
  _resolvePendingV41(pid,uids,targetIndex)
 };
@@ -1878,7 +1896,7 @@ playerPublic=function(p,showHand){return{
  pid:p.pid,name:p.name,character:p.character,hp:p.hp,maxHp:p.maxHp||100,maxEnergy:p.maxEnergy,energy:p.energy,
  turnSkillDraws:showHand?p.turnSkillDraws:0,cardsPlayedThisTurn:showHand?(p.cardsPlayedThisTurn||0):0,
  drawCount:p.drawPile.length,discardCount:p.discard.length,exhaustCount:p.exhaust.length,handCount:p.hand.length,
- hand:showHand?p.hand.map(c=>({...c})):[],discard:showHand?p.discard.map(c=>({...c})):[],
+ hand:showHand?p.hand.map(c=>({...c})):[],drawPile:showHand?p.drawPile.map(c=>({...c})):[],discard:showHand?p.discard.map(c=>({...c})):[],
  personal:p.personal?{...p.personal}:null,keepUid:showHand?p.keepUid:null
 }};
 
@@ -1965,11 +1983,23 @@ function cardConditionReady(v,c){
  return (c.id==='j4'&&v.me.handCount===10)||(c.id==='s2'&&n===9)||(c.id==='s7'&&n===3)||(c.id==='s12'&&n===5)||(c.id==='s14'&&n===3)||(c.id==='s19'&&n===5)||(c.id==='s20'&&viewCost(v,c)===0)
 }
 
+function choiceModifierHtml(c){
+ const mods=[];
+ if(c.retain||c.retainedOnce)mods.push('保留');
+ if(c.damageBonus)mods.push(`ダメージ +${c.damageBonus}`);
+ if(c.knifeBonus)mods.push(`ナイフダメージ +${c.knifeBonus}`);
+ if(c.costMod)mods.push(`コスト ${c.costMod>0?'+':''}${c.costMod}`);
+ if(c.generatedExhaust)mods.push('使用後廃棄');
+ if(Number.isFinite(c.fortressHp))mods.push(`肩代わり残り ${c.fortressHp}`);
+ if(Number.isFinite(c.yakouX))mods.push(`X=${c.yakouX}`);
+ return mods.length?`<div class="modifier-list">${mods.map(x=>`<span class="modifier-badge">${escapeHtml(x)}</span>`).join('')}</div>`:'';
+}
+
 openPending=function(p){
  const key=`${p.type}:${p.cards.map(c=>c.uid).join(',')}:${p.minCount??p.count}:${p.maxCount??p.count}`;if(modalPendingKey===key)return;modalPendingKey=key;
  const selected=new Set(),min=Number.isInteger(p.minCount)?p.minCount:p.count,max=Number.isInteger(p.maxCount)?p.maxCount:p.count;
  $('modalTitle').textContent=p.title;$('modalBody').innerHTML='';
- p.cards.forEach(c=>{const b=document.createElement('button');b.className=`choice-card ${c.type}`;b.innerHTML=`<div class="head"><div><div class="cname">${c.name}</div><div class="type">${typeLabel(c.type)}</div></div><div class="cost">${Number.isFinite(c.choiceCost)?c.choiceCost:c.cost}</div></div><div class="text">${cardText(c)}</div>`;b.onclick=()=>{if(selected.has(c.uid)){selected.delete(c.uid);b.classList.remove('selected')}else if(selected.size<max){selected.add(c.uid);b.classList.add('selected')}};$('modalBody').appendChild(b)});
+ p.cards.forEach(c=>{const b=document.createElement('button');b.className=`choice-card ${c.type}`;b.innerHTML=`<div class="head"><div><div class="cname">${c.name}</div><div class="type">${typeLabel(c.type)}</div></div><div class="cost">${Number.isFinite(c.choiceCost)?c.choiceCost:c.cost}</div></div><div class="text">${cardText(c)}</div>${choiceModifierHtml(c)}`;b.onclick=()=>{if(selected.has(c.uid)){selected.delete(c.uid);b.classList.remove('selected')}else if(selected.size<max){selected.add(c.uid);b.classList.add('selected')}};$('modalBody').appendChild(b)});
  let posSelect=null;if(p.type==='reorderShared'){const wrap=document.createElement('div');wrap.className='reorder-controls';wrap.innerHTML='<b>移動先</b>';posSelect=document.createElement('select');for(let i=0;i<p.positionCount;i++){const o=document.createElement('option');o.value=i;o.textContent=i===0?'一番左（最古）':i===p.positionCount-1?'一番右（最新）':`${i+1}番目`;posSelect.appendChild(o)}wrap.appendChild(posSelect);$('modalBody').appendChild(wrap)}
  $('modalOk').onclick=()=>{if(selected.size<min||selected.size>max)return alert(min===max?`${min}枚選んでください。`:`${min}〜${max}枚選んでください。`);dispatchAction({type:'choose',uids:[...selected],targetIndex:posSelect?Number(posSelect.value):null})};
  $('modal').classList.remove('hidden')
@@ -2522,8 +2552,8 @@ renderBattleView=function(){
  const kuchiyose=SHIRANUI_CARD_DEFS.find(c=>c.id==='s13');
  if(kuchiyose)Object.assign(kuchiyose,{
    type:'setup',
-   cost:3,
-   text:'ターン終了時、このターン中にカードを3枚以上使用していた場合、狐火1枚を山札に加え、その後シャッフルする。'
+   cost:1,
+   text:'ターン終了時、このターン中にカードを3枚以上使用していた場合、狐火1枚を山札に加え、その後シャッフルする。設置したターンも発動する。'
  });
 
  // 設置したターンも含め、3枚以上使用していればターン終了時に狐火を仕込む。
@@ -2634,6 +2664,72 @@ renderBattleView=function(){
  document.head.appendChild(style);
 })();
 /* ===== end v50 patch ===== */
+
+/* ===== v51 patch: readings, pile viewer, UI cleanup ===== */
+(function(){
+ const READINGS={
+ '防御':'ぼうぎょ','席替え':'せきがえ','果実の選別':'かじつのせんべつ','掃除の時間':'そうじのじかん','朝刊':'ちょうかん','明日の予定':'あしたのよてい','食事の用意':'しょくじのようい','再読':'さいどく','研ぎ澄まされた作法':'とぎすまされたさほう','ちゃぶ台返し':'ちゃぶだいがえし','選り好み':'えりごのみ','お取り置き':'おとりおき','紳士の受け流し':'しんしのうけながし','本気の一張羅':'ほんきのいっちょうら','銀器磨き':'ぎんきみがき','断捨離':'だんしゃり','最後の一皿':'さいごのひとさら','袖の下':'そでのした','大盤振る舞い':'おおばんぶるまい','準備周到':'じゅんびしゅうとう','剣の舞':'つるぎのまい','仕立ての良いコート':'したてのよいコート','袖の短剣':'そでのたんけん','紅蓮一文字':'ぐれんいちもんじ','神算鬼謀':'しんさんきぼう','戦化粧':'いくさげしょう','不動要塞':'ふどうようさい','気炎万丈':'きえんばんじょう','袈裟斬り':'けさぎり','正眼の構え':'せいがんのかまえ','明鏡止水':'めいきょうしすい','静謐の鞘':'せいひつのさや','活人剣':'かつじんけん','刃紋磨き':'はもんみがき','赤備え':'あかぞなえ','剛剣の心得':'ごうけんのこころえ','不退転':'ふたいてん','泰然自若':'たいぜんじじゃく','軽妙なる足捌き':'けいみょうなるあしさばき','束の間の休息':'つかのまのきゅうそく','剣戟の残響':'けんげきのざんきょう','取捨選択':'しゅしゃせんたく','二刀流':'にとうりゅう','剣気':'けんき','一閃':'いっせん','一念の太刀':'いちねんのたち','日々の研鑽':'ひびのけんさん','燕返し':'つばめがえし','宵待ち':'よいまち','刹那の踏み込み':'せつなのふみこみ','魂の一閃':'たましいのいっせん',
+ '宵のはじまり':'よいのはじまり','百鬼夜行':'ひゃっきやこう','誘い火':'いざないび','火遊び':'ひあそび','輪廻の理':'りんねのことわり','千本桜':'せんぼんざくら','化け猫':'ばけねこ','浮世火':'うきよび','彼岸送り':'ひがんおくり','緋色の舞':'ひいろのまい','狐の社':'きつねのやしろ','宵月斬':'よいづきざん','口寄せ':'くちよせ','夜行':'やこう','化粧直し':'けしょうなおし','終わらぬ宴':'おわらぬうたげ','花魁道中':'おいらんどうちゅう','十六夜':'いざよい','数珠繋ぎ':'じゅずつなぎ','玉藻の顕現':'たまものけんげん','逢魔時':'おうまがとき','狐面':'きつねめん','鬼火':'おにび','狐火':'きつねび','灯火':'ともしび','葬送歌':'そうそうか','夜行絵巻':'やこうえまき'
+ };
+ window.cardNameHtml=function(c){const name=typeof c==='string'?c:c?.name||'';const r=READINGS[name];return r?`<ruby>${escapeHtml(name)}<rt>${escapeHtml(r)}</rt></ruby>`:escapeHtml(name)};
+ // Keep the original rule text of 狐の社 visible after placement; append state instead of replacing it.
+ const prevCardText=cardText;
+ cardText=function(c,skillDraws=null){
+   if(c?.id==='s11'&&Number.isFinite(c.fortressHp))return `${DEF.s11?.text||c.text}（現在の肩代わり残り：${c.fortressHp}）`;
+   return prevCardText(c,skillDraws)
+ };
+ // Furigana in the major card surfaces.
+ const prevRenderDeckCards=renderDeckCards;
+ renderDeckCards=function(){prevRenderDeckCards();document.querySelectorAll('#deckGrid .deck-card').forEach(el=>{const h=el.querySelector('h3');if(!h)return;const c=cardByName(h.textContent.trim());if(c)h.innerHTML=cardNameHtml(c)})};
+ const prevSetupSlot=setupSlot;
+ setupSlot=function(x,mePid){const html=prevSetupSlot(x,mePid);if(!x)return html;const wrap=document.createElement('div');wrap.innerHTML=html;const n=wrap.querySelector('.name');if(n)n.innerHTML=cardNameHtml(x.card);return wrap.innerHTML};
+ const prevOpenSetupDetail=openSetupDetail;
+ openSetupDetail=function(uid){prevOpenSetupDetail(uid);const x=visibleSetupByUid(uid);if(x){$('setupDetailTitle').innerHTML=`《${cardNameHtml(x.card)}》`;const n=$('setupDetailBody').querySelector('.cname');if(n)n.innerHTML=cardNameHtml(x.card)}};
+ const prevOpenLogCardDetail=openLogCardDetail;
+ openLogCardDetail=function(name){prevOpenLogCardDetail(name);const c=cardByName(name);if(c){$('setupDetailTitle').innerHTML=`《${cardNameHtml(c)}》`;const n=$('setupDetailBody').querySelector('.cname');if(n)n.innerHTML=cardNameHtml(c)}};
+ // Own draw/discard viewer. Display is sorted independently of real draw order.
+ function pileTypeOrder(c){return({attack:0,skill:1,spell:2,setup:3})[c.type]??9}
+ function openPile(kind){const v=currentView;if(!v)return;const src=kind==='draw'?(v.me.drawPile||[]):(v.me.discard||[]);$('pileTitle').textContent=kind==='draw'?`山札（${src.length}枚）`:`捨て札（${src.length}枚）`;const groups=new Map();src.forEach(c=>{const key=c.id;const g=groups.get(key)||{card:c,n:0};g.n++;groups.set(key,g)});const arr=[...groups.values()].sort((a,b)=>pileTypeOrder(a.card)-pileTypeOrder(b.card)||(a.card.cost-b.card.cost)||a.card.name.localeCompare(b.card.name,'ja'));$('pileBody').innerHTML=arr.length?arr.map(g=>`<div class="pile-item"><div><div class="pile-name">${cardNameHtml(g.card)}</div><div class="pile-meta">${typeLabel(g.card.type)} / ${g.card.cost}コスト</div></div><div class="pile-qty">×${g.n}</div></div>`).join(''):'<div class="notice">カードはありません。</div>';$('pileModal').classList.remove('hidden')}
+ $('openMyDeck').onclick=()=>openPile('draw');$('openMyDiscard').onclick=()=>openPile('discard');$('closePile').onclick=()=>$('pileModal').classList.add('hidden');$('pileModal').addEventListener('click',e=>{if(e.target.id==='pileModal')$('pileModal').classList.add('hidden')});
+ // Add readings after each battle render, including hand/pending/last-played cards.
+ const prevRenderBattleView=renderBattleView;
+ renderBattleView=function(){prevRenderBattleView();document.querySelectorAll('#myHand .card,#playedStage .card,#modalBody .choice-card').forEach(el=>{const n=el.querySelector('.cname');if(!n)return;const c=cardByName(n.textContent.trim());if(c)n.innerHTML=cardNameHtml(c)})};
+})();
+/* ===== end v51 patch ===== */
+
+/* ===== v53 patch: retain unification + 夜行絵巻 reset ===== */
+(function(){
+ // 《お取り置き》は専用の「保持」表示ではなく、通常の「保留」状態として扱う。
+ // retainedOnce は次の自分のターン開始時に解除されるため、挙動も「次ターン開始時まで保留」と一致する。
+ const j15=DEF.j15;
+ if(j15)j15.text='自分のターン終了時、手札から1枚選び、次のターン開始時まで保留にする。';
+
+ // 旧UIの金縁を廃止し、保留バッジ＋通常の保留内枠に統一する。
+ const style=document.createElement('style');
+ style.textContent=`.card.keep{outline:none}.card.keep,.card.retain{box-shadow:inset 0 0 0 2px rgba(167,122,40,.5)}`;
+ document.head.appendChild(style);
+
+ // 《夜行絵巻》の成長値は「場にあるその個体」の蓄積値。
+ // 共有枠からの押し出し・通常除去・廃棄など、場を離れた時点でX=1へ戻す。
+ const prevRemoveSetup=removeSetup;
+ removeSetup=function(pid,card,to='discard'){
+   const p=game.players[pid];
+   const wasOnField=!!(p.personal?.uid===card.uid||game.shared.some(x=>x.owner===pid&&x.card.uid===card.uid));
+   prevRemoveSetup(pid,card,to);
+   if(wasOnField&&card.id==='s26')card.yakouX=1;
+ };
+
+ // 選択画面でも《お取り置き》由来の一時保留を通常の「保留」として明示する。
+ const prevModifierLabels=window.cardModifierLabels;
+ if(typeof prevModifierLabels==='function'){
+   window.cardModifierLabels=function(c,...args){
+     const mods=prevModifierLabels(c,...args)||[];
+     if(c?.retainedOnce&&!mods.includes('保留'))mods.unshift('保留');
+     return mods;
+   };
+ }
+})();
+/* ===== end v53 patch ===== */
 
 refreshDeckSelects();renderDeckManager();resetLobby();if(!restoreHostRecovery())showScreen('home');
 window.addEventListener('beforeunload',()=>saveHostRecovery());
