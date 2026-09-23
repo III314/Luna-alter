@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>ルナオルタ v49</title>
+<title>ルナオルタ v50</title>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
 <style>
 :root{--bg:#f4efe5;--panel:#fffdf8;--ink:#24211d;--muted:#776f64;--line:#d8d0c3;--accent:#24211d;--gold:#a77a28;--danger:#9b2c2c;--ok:#276749;--setup:#efe2c6;--skill:#dce9ef;--attack:#edd7d2;--spell:#eadff2;--shadow:0 10px 30px rgba(44,34,24,.08)}
@@ -883,7 +883,7 @@
           <button id="goBattle" class="home-card"><div class="home-icon">♟</div><h2>バトル</h2><p>CPU戦またはルームマッチを選び、使用するデッキを決めて対戦します。</p></button>
           <button id="goDecks" class="home-card"><div class="home-icon">▦</div><h2>デッキ作成</h2><p>保存済みデッキの編集、新規作成、名前の変更ができます。</p></button>
         </div>
-        <div class="version">v49 / 夜行絵巻実装・口寄せセットアップ化・CPU調整</div>
+        <div class="version">v50 / シラヌイデッキ保存修正・デッキ枚数表示追従</div>
       </div>
     </section>
 
@@ -1088,7 +1088,7 @@ let decks=loadDecks(),selectedDeckId=decks[0]?.id||null,workingCounts={},working
 const $=id=>document.getElementById(id);
 
 function uid(){return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`}
-function normalizeCounts(counts){return Object.fromEntries(CARD_DEFS.map(c=>[c.id,Number.isInteger(counts?.[c.id])?counts[c.id]:0]))}
+function normalizeCounts(counts){const out={};if(counts&&typeof counts==='object')Object.entries(counts).forEach(([id,n])=>{if(Number.isInteger(n))out[id]=n});CARD_DEFS.forEach(c=>{if(!Number.isInteger(out[c.id]))out[c.id]=0});return out}
 function inferCharacter(counts){return KENSHI_CARD_DEFS.some(c=>(counts?.[c.id]||0)>0)?'kenshi':'giovanni'}
 function allowedCards(character){return [...COMMON_CARD_DEFS,...(character==='kenshi'?KENSHI_CARD_DEFS:GIOVANNI_CARD_DEFS)]}
 function validCounts(counts,character='giovanni'){const norm=normalizeCounts(counts),allowed=new Set(allowedCards(character).map(c=>c.id));return CARD_DEFS.every(c=>{const n=norm[c.id]||0;return Number.isInteger(n)&&n>=0&&n<=3&&(!n||allowed.has(c.id))})&&deckTotal(norm)===40}
@@ -2612,6 +2612,28 @@ renderBattleView=function(){
  };
 })();
 /* ===== end v49 patch ===== */
+/* ===== v50 patch: Shiranui deck persistence + floating deck count ===== */
+(function(){
+ // Older builds normalized saved decks before Shiranui cards were registered,
+ // which stripped s* card counts on reload. Preserve all integer count keys above.
+ // Repair only the built-in standard deck if an older build already zeroed it out.
+ const std=decks.find(d=>d.character==='shiranui'&&d.name==='シラヌイ標準デッキ');
+ if(std&&deckTotal(std.counts)!==40){
+   std.counts={...DEFAULT_DECKS.shiranui};
+   localStorage.setItem(STORAGE_DECKS,JSON.stringify(decks));
+ }
+
+ // The card grid itself is the desktop scroll container, so a sticky sibling cannot
+ // follow that scroll. Keep the count pill fixed to the viewport while the editor is visible.
+ const style=document.createElement('style');
+ style.textContent=`
+   #deckEditor:not(.hidden) .deck-count-sticky{position:fixed;top:58px;right:max(12px,calc((100vw - 1280px)/2 + 12px));z-index:80;margin:0;pointer-events:none}
+   #deckEditor:not(.hidden) .deck-count-sticky .deck-count-pill{pointer-events:auto}
+   @media(max-width:760px){#deckEditor:not(.hidden) .deck-count-sticky{top:57px;right:9px;padding:0;margin:0}}
+ `;
+ document.head.appendChild(style);
+})();
+/* ===== end v50 patch ===== */
 
 refreshDeckSelects();renderDeckManager();resetLobby();if(!restoreHostRecovery())showScreen('home');
 window.addEventListener('beforeunload',()=>saveHostRecovery());
