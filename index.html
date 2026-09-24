@@ -3446,6 +3446,80 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
   #battleScreen .hand{padding-top:16px!important;}
 }
 </style>
+
+<!-- LUNA ALTER 0.9.0: battle piles, clearer X text, pile animations, reliable tap controls -->
+<style id="la-090-style">
+@media (max-width:760px) and (orientation:portrait){
+  #battleScreen .center-board{position:relative!important}
+  #battleScreen .zones{padding-bottom:92px!important}
+  #battleScreen .zones>div:last-child{transform:translateY(-34px)}
+  #battleScreen .la-pile-shelf{position:absolute;left:190px;right:12px;bottom:12px;height:76px;display:flex;gap:10px;align-items:stretch;z-index:8}
+  #battleScreen .la-pile-box{flex:1;min-width:0;border:2px solid #cdbf9f;border-radius:13px;background:#fffdf8;box-shadow:0 3px 9px rgba(62,49,25,.12);font:700 12px/1.15 system-ui;color:#3c3427;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+  #battleScreen .la-pile-box .la-pile-icon{width:34px;height:42px;border-radius:5px;border:2px solid #aa8b43;background:linear-gradient(135deg,#17152a,#30294e);box-shadow:2px 2px 0 #d4b75f;position:relative}
+  #battleScreen .la-pile-box.discard .la-pile-icon{background:linear-gradient(135deg,#eee5d4,#fff);border-color:#b8aa90;box-shadow:2px 2px 0 #c9bda8}
+  #battleScreen .la-pile-box strong{font-size:13px}.la-pile-count{font-size:11px;font-weight:600;color:#746a58}
+}
+.la-card-flight{position:fixed;z-index:9999;width:72px;height:104px;border-radius:9px;pointer-events:none;transform-style:preserve-3d;transition:transform .42s cubic-bezier(.2,.75,.25,1),left .42s cubic-bezier(.2,.75,.25,1),top .42s cubic-bezier(.2,.75,.25,1),opacity .18s linear;box-shadow:0 8px 22px rgba(0,0,0,.24)}
+.la-card-flight .face{position:absolute;inset:0;border-radius:9px;backface-visibility:hidden;overflow:hidden;border:2px solid #bda45c;background:#f6edd9}
+.la-card-flight .back{background:linear-gradient(135deg,#17152a,#30294e);display:grid;place-items:center;color:#e6ca71;font:800 10px system-ui;letter-spacing:.08em}
+.la-card-flight .front{transform:rotateY(180deg);padding:7px;font:700 9px/1.2 system-ui;color:#2e2920;background:#f8f0dc}
+.la-card-flight.reveal{transform:rotateY(180deg) scale(1.05)}
+.la-card-flight.discarding{transform:rotateY(180deg)}
+.la-card-flight.discarding.flipback{transform:rotateY(360deg) scale(.92)}
+</style>
+<script id="la-090-patch">
+(function(){
+ const VERSION='0.9.0',LABEL='山札・捨て札UI／ドロー演出';
+ window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});document.title=`ルナオルタ ${VERSION}`;
+ const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${VERSION} / ${LABEL}`;
+ // Clear X-formula wording: the card text itself explains what X means.
+ const j25=DEF.j25;if(j25)j25.text='Xダメージを与える。Xは、このターンにカード効果で引いたカードの枚数。';
+ const s11=DEF.s11;if(s11)s11.text='次の自分のターン開始時まで、リーダーへのXダメージをブロックする。Xは、このカード自身を含む、このターンの使用枚数×2。次の自分のターン開始時、捨て札へ。';
+ const s26=DEF.s26;if(s26)s26.text='《百鬼夜行》の攻撃回数をX回増やす。Xは1から始まる。自分のターン中、自分がカードを7枚使用したとき、Xを1増やす（1ターンに1回）。';
+ const oldCardText=cardText;
+ cardText=function(c,skillDraws=null){
+   let t=oldCardText(c,skillDraws);
+   if(c.id==='j25')t=`Xダメージを与える。Xは、このターンにカード効果で引いたカードの枚数。${skillDraws!==null?`（現在 X=${skillDraws}）`:''}`;
+   if(c.id==='s11'&&Number.isFinite(c.shrineBlock))t=`次の自分のターン開始時まで、リーダーへのXダメージをブロックする。Xは、このカード自身を含む、このターンの使用枚数×2。（現在 残り${c.shrineBlock}）`;
+   if(c.id==='s26'&&Number.isFinite(c.emakiX))t=`《百鬼夜行》の攻撃回数をX回増やす。Xは1から始まり、7枚使用時に1増える（1ターンに1回）。（現在 X=${c.emakiX}）`;
+   return t;
+ };
+ // Physical-looking deck/discard buttons beside the raised personal setup.
+ const board=document.querySelector('#battleScreen .center-board');
+ if(board&&!document.getElementById('laPileShelf')){
+   const shelf=document.createElement('div');shelf.id='laPileShelf';shelf.className='la-pile-shelf';
+   shelf.innerHTML='<button type="button" id="laDeckBox" class="la-pile-box"><span class="la-pile-icon"></span><strong>山札</strong><span class="la-pile-count">0枚</span></button><button type="button" id="laDiscardBox" class="la-pile-box discard"><span class="la-pile-icon"></span><strong>捨て札</strong><span class="la-pile-count">0枚</span></button>';
+   board.appendChild(shelf);
+   document.getElementById('laDeckBox').onclick=()=>document.getElementById('openMyDeck')?.click();
+   document.getElementById('laDiscardBox').onclick=()=>document.getElementById('openMyDiscard')?.click();
+ }
+ function rectCenter(el){const r=el?.getBoundingClientRect();return r?{x:r.left+r.width/2,y:r.top+r.height/2}:null}
+ function handTarget(){const h=document.getElementById('myHand'),r=h?.getBoundingClientRect();return r?{x:r.left+r.width*.55,y:r.top+30}:null}
+ function makeFlight(card,mode){const el=document.createElement('div');el.className='la-card-flight '+(mode==='discard'?'discarding':'');el.innerHTML=`<div class="face back">LUNA<br>ALTER</div><div class="face front">${card?`<b>${escapeHtml(card.name)}</b><br><span>${escapeHtml(cardText(card))}</span>`:'CARD'}</div>`;document.body.appendChild(el);return el}
+ function flyDraw(card){const a=rectCenter(document.getElementById('laDeckBox')),b=handTarget();if(!a||!b)return;const el=makeFlight(card,'draw');el.style.left=(a.x-36)+'px';el.style.top=(a.y-52)+'px';requestAnimationFrame(()=>{el.style.left=(b.x-36)+'px';el.style.top=(b.y-52)+'px';setTimeout(()=>el.classList.add('reveal'),260)});setTimeout(()=>{el.style.opacity='0';setTimeout(()=>el.remove(),190)},760)}
+ function flyDiscard(card){const h=handTarget(),b=rectCenter(document.getElementById('laDiscardBox'));if(!h||!b)return;const el=makeFlight(card,'discard');el.classList.add('reveal');el.style.left=(h.x-36)+'px';el.style.top=(h.y-52)+'px';setTimeout(()=>{el.classList.add('flipback');el.style.left=(b.x-36)+'px';el.style.top=(b.y-52)+'px'},210);setTimeout(()=>{el.style.opacity='0';setTimeout(()=>el.remove(),180)},720)}
+ let prev=null,lastDrawSeq=0;
+ const oldRender=renderBattleView;
+ renderBattleView=function(){
+   const before=prev;oldRender();const v=currentView;if(!v)return;
+   const db=document.querySelector('#laDeckBox .la-pile-count'),xb=document.querySelector('#laDiscardBox .la-pile-count');if(db)db.textContent=`${v.me.drawCount}枚`;if(xb)xb.textContent=`${v.me.discardCount}枚`;
+   const now={hand:(v.me.hand||[]).map(c=>({...c})),discard:v.me.discardCount,draw:v.me.drawCount};
+   if(before){
+     const events=(v.drawEvents||[]).filter(e=>e.pid===v.me.pid&&e.seq>lastDrawSeq);if(events.length){const added=now.hand.filter(c=>!before.hand.some(x=>x.uid===c.uid));added.slice(0,3).forEach((c,i)=>setTimeout(()=>flyDraw(c),i*150));}
+     if(now.discard>before.discard){const removed=before.hand.filter(c=>!now.hand.some(x=>x.uid===c.uid));removed.slice(0,3).forEach((c,i)=>setTimeout(()=>flyDiscard(c),i*150));}
+   }
+   lastDrawSeq=Math.max(lastDrawSeq,...(v.drawEvents||[]).filter(e=>e.pid===v.me.pid).map(e=>e.seq),0);prev=now;
+ };
+ // Remove all inherited long-press/tap listeners again; one tap must always react.
+ function fresh(id){const old=document.getElementById(id);if(!old)return null;const n=old.cloneNode(true);old.replaceWith(n);return n}
+ const end=fresh('endTurn'),home=fresh('backHome');
+ function playable(){const v=currentView;return !!(v&&!v.over&&!v.pending&&!networkPaused&&v.current===v.me.pid&&(v.me.hand||[]).some(c=>canPlayView(v,c)))}
+ if(end)end.addEventListener('click',e=>{e.preventDefault();if(playable()&&!confirm('まだプレイ可能なカードがあります。\nこのままターンを終了しますか？'))return;dispatchAction({type:'end'})});
+ if(home)home.addEventListener('click',e=>{e.preventDefault();leaveRoom();showScreen('home')});
+ [end,home].filter(Boolean).forEach(el=>{el.style.webkitUserSelect='none';el.style.userSelect='none';el.style.webkitTouchCallout='none';el.addEventListener('contextmenu',e=>e.preventDefault())});
+ if(currentView)renderBattleView();
+})();
+</script>
 </body>
 </html>
 
@@ -3959,7 +4033,7 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
  function watchConnected(){const r=fbDb.ref('.info/connected');const h=s=>{const ok=s.val()===true;fbDiag(ok?'Firebase接続中':'Firebase切断',ok?'Realtime Database':'再接続を待っています',ok?'ok':'bad');if(matchMode==='online'&&(game||currentView)&&!(game?.over||currentView?.over))setNetworkPaused(!ok)};onRef(r,'value',h)}
  async function hostCreate(){
   await fbReady();let tries=0,code='';
-  while(tries++<12){code=randomCode();const r=fbDb.ref(`rooms/${code}/meta`);const tx=await r.transaction(cur=>{if(cur&&Date.now()-Number(cur.createdAt||0)<12*60*60*1000)return;return {hostUid:fbUid,createdAt:Date.now(),version:'0.8.2'}});if(tx.committed)break;code=''}
+  while(tries++<12){code=randomCode();const r=fbDb.ref(`rooms/${code}/meta`);const tx=await r.transaction(cur=>{if(cur&&Date.now()-Number(cur.createdAt||0)<12*60*60*1000)return;return {hostUid:fbUid,createdAt:Date.now(),version:'0.9.0'}});if(tx.committed)break;code=''}
   if(!code)throw new Error('空いているルーム番号を取得できませんでした');
   roomCode=code;setupLobby(code);fbRoomRef=fbDb.ref(`rooms/${code}`);await setPresence('host');listenInbox('hostInbox');watchPresence('guest');watchConnected();conn=makeFirebaseConn();peer={open:true,disconnected:false,destroyed:false,reconnect(){},destroy(){}};
   const name=cleanName('hostName'),deck=getDeck(document.getElementById('hostDeck').value);document.getElementById('hostLabel').textContent=name;document.getElementById('hostReady').textContent=deck.name;document.getElementById('roomStatus').textContent='友達の参加を待っています…';fbDiag('ルーム作成成功',`番号 ${code}`,'ok');
@@ -3983,7 +4057,7 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
  document.getElementById('joinRoom').onclick=async()=>{const code=document.getElementById('joinCode').value.replace(/\D/g,'').slice(0,4);if(code.length!==4)return alert('数字4桁のルーム番号を入力してください。');try{leaveRoom(false);fbOffAll();roomRole='guest';localPid='p2';matchMode='online';await guestJoin(code)}catch(e){fbDiag('ルーム参加失敗',e.message,'bad');document.getElementById('roomStatus').textContent=e.message;document.getElementById('roomStatus').className='notice bad'}};
  const oldLeave=leaveRoom;leaveRoom=function(reset=true){const code=roomCode,role=roomRole,wasOnline=matchMode==='online',r=fbRoomRef;fbOffAll();if(wasOnline&&r&&role){try{r.child(`presence/${role}`).set({online:false,uid:fbUid,at:firebase.database.ServerValue.TIMESTAMP})}catch(_){}if(role==='host'&&!game){setTimeout(()=>r.remove().catch(()=>{}),0)}}oldLeave(reset)};
  // Host recovery from localStorage now reconnects to the Firebase room rather than PeerJS.
- const oldRestore=restoreHostRecovery;restoreHostRecovery=function(){const x=readHostRecovery();if(!x)return false;roomRole='host';localPid='p1';matchMode='online';roomCode=String(x.roomCode);game=x.game;guestInfo=x.guestInfo||{name:game.players.p2.name,deck:{name:'復帰中',character:game.players.p2.character,counts:{}}};uidSeq=Number(x.uidSeq)||1;actionSeq=Number(x.actionSeq)||1;networkPaused=true;lastShownAction=game.lastAction?.seq||0;lastShownDamage=game.damageSeq||0;lastShownDraw=game.drawSeq||0;setupLobby(roomCode);document.getElementById('hostLabel').textContent=game.players.p1.name;document.getElementById('hostReady').textContent='対戦復帰';document.getElementById('guestLabel').textContent=game.players.p2.name;document.getElementById('guestReady').textContent='再接続待ち';document.getElementById('roomStatus').textContent='対戦を復元しました。Firebaseへ再接続しています…';currentView=makeView('p1');showScreen('battle');renderBattleView();fbReady().then(async()=>{fbRoomRef=fbDb.ref(`rooms/${roomCode}`);await fbRoomRef.child('meta').update({hostUid:fbUid,createdAt:Date.now(),version:'0.8.2'});await setPresence('host');listenInbox('hostInbox');watchPresence('guest');watchConnected();conn=makeFirebaseConn();setNetworkPaused(false);saveHostRecovery()}).catch(()=>{});return true};
+ const oldRestore=restoreHostRecovery;restoreHostRecovery=function(){const x=readHostRecovery();if(!x)return false;roomRole='host';localPid='p1';matchMode='online';roomCode=String(x.roomCode);game=x.game;guestInfo=x.guestInfo||{name:game.players.p2.name,deck:{name:'復帰中',character:game.players.p2.character,counts:{}}};uidSeq=Number(x.uidSeq)||1;actionSeq=Number(x.actionSeq)||1;networkPaused=true;lastShownAction=game.lastAction?.seq||0;lastShownDamage=game.damageSeq||0;lastShownDraw=game.drawSeq||0;setupLobby(roomCode);document.getElementById('hostLabel').textContent=game.players.p1.name;document.getElementById('hostReady').textContent='対戦復帰';document.getElementById('guestLabel').textContent=game.players.p2.name;document.getElementById('guestReady').textContent='再接続待ち';document.getElementById('roomStatus').textContent='対戦を復元しました。Firebaseへ再接続しています…';currentView=makeView('p1');showScreen('battle');renderBattleView();fbReady().then(async()=>{fbRoomRef=fbDb.ref(`rooms/${roomCode}`);await fbRoomRef.child('meta').update({hostUid:fbUid,createdAt:Date.now(),version:'0.9.0'});await setPresence('host');listenInbox('hostInbox');watchPresence('guest');watchConnected();conn=makeFirebaseConn();setNetworkPaused(false);saveHostRecovery()}).catch(()=>{});return true};
  // Update copy/help text that still mentions direct P2P.
  document.querySelectorAll('.connection-help li').forEach(li=>{li.innerHTML=li.innerHTML.replace(/通信にはインターネット接続が必要です。.*$/,'通信にはインターネット接続が必要です。対戦通信はFirebase経由で同期されます。')});
  const pw=document.getElementById('peerWarning');if(pw)pw.classList.add('hidden');
