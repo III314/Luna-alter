@@ -3388,7 +3388,7 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
 </script>
 <!-- ===== end v60 ===== -->
 
-<!-- LUNA ALTER 0.8.2 Firebase online multiplayer + compact sync -->
+<!-- LUNA ALTER 0.8.8 Firebase online multiplayer + compact sync -->
 
 <style id="v083-style">
 /* 0.8.4: Izayoi counter + mobile control column */
@@ -3778,7 +3778,7 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
 </style>
 <script id="la-062-swipe-script">
 (function(){
- const VERSION='0.8.6', LABEL='ドロップ領域判定修正';
+ const VERSION='0.8.8', LABEL='ターン終了確認・長押し解除';
  window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});
  document.title=`ルナオルタ ${VERSION}`;
  const versionLabel=document.getElementById('appVersionLabel');if(versionLabel)versionLabel.textContent=`${VERSION} / ${LABEL}`;
@@ -3845,18 +3845,16 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
    e.preventDefault();moveGhost(e.clientX,e.clientY);drag.dest=activeZone(e.clientX,e.clientY,drag.c)
  }
  function finish(e,cancel=false){
-   if(!drag||e.pointerId!==drag.id)return;const d=drag;drag=null;
+   if(!drag||e.pointerId!==drag.id)return;const d=drag;
+   // IMPORTANT: determine the release destination BEFORE removing the visible guide.
+   // 0.8.6 cleared #laDropGuide first, so activeZone() had no rectangles left to hit-test.
+   const releaseDest=(!cancel&&d.moved&&playableNow(d.c))?activeZone(e.clientX,e.clientY,d.c):null;
+   drag=null;
    document.body.classList.remove('la-card-gesture-active');
    document.getElementById('battleScreen')?.classList.remove('la-card-gesture-active');
    window.getSelection?.()?.removeAllRanges?.();
    d.el.classList.remove('la-dragging');clearGhost();clearGuide();
    if(d.moved){suppressClickUntil=Date.now()+350;e.preventDefault();e.stopPropagation()}
-   // Pointer-up itself is authoritative: only release INSIDE a visible drop zone plays the card.
-   // This prevents a tiny upward flick (or stale pointermove destination) from firing a play.
-   drag=d;
-   const releaseDest=(!cancel&&d.moved&&playableNow(d.c))?activeZone(e.clientX,e.clientY,d.c):null;
-   drag=null;
-   document.querySelectorAll('#laDropGuide .la-drop-zone').forEach(z=>z.classList.remove('active'));
    if(cancel||!d.moved||!releaseDest||!playableNow(d.c))return;
    if(d.c.type==='setup')dispatchAction({type:'play',uid:d.c.uid,dest:releaseDest});else dispatchAction({type:'play',uid:d.c.uid});
  }
@@ -3974,5 +3972,46 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
  document.querySelectorAll('.connection-help li').forEach(li=>{li.innerHTML=li.innerHTML.replace(/通信にはインターネット接続が必要です。.*$/,'通信にはインターネット接続が必要です。対戦通信はFirebase経由で同期されます。')});
  const pw=document.getElementById('peerWarning');if(pw)pw.classList.add('hidden');
  fbReady().catch(()=>{});
+})();
+</script>
+
+<!-- LUNA ALTER 0.8.8: normal tap controls + end-turn playable-card confirmation -->
+<style id="v088-style">
+#endTurn,#backHome{-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;touch-action:manipulation}
+#endTurn.hold-active,#backHome.hold-active{transform:none!important;filter:none!important;box-shadow:none!important}
+</style>
+<script id="v088-controls">
+(function(){
+  const VERSION='0.8.8', LABEL='ターン終了確認・長押し解除';
+  window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});
+  document.title=`ルナオルタ ${VERSION}`;
+  const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${VERSION} / ${LABEL}`;
+
+  // Clone the buttons once to remove the old anonymous long-press pointer listeners cleanly.
+  function freshButton(id){
+    const old=document.getElementById(id);if(!old)return null;
+    const neo=old.cloneNode(true);neo.classList.remove('hold-active');
+    if(neo.textContent==='長押し…')neo.textContent=id==='endTurn'?'ターン終了':'ホーム';
+    old.replaceWith(neo);return neo;
+  }
+  const endBtn=freshButton('endTurn');
+  const homeBtn=freshButton('backHome');
+
+  function hasPlayableCard(){
+    const v=currentView;
+    if(!v||v.over||v.pending||networkPaused||v.current!==v.me.pid)return false;
+    return Array.isArray(v.me.hand)&&v.me.hand.some(c=>canPlayView(v,c));
+  }
+  if(endBtn)endBtn.onclick=()=>{
+    if(hasPlayableCard()&&!window.confirm('まだプレイ可能なカードがあります。\nこのままターンを終了しますか？'))return;
+    dispatchAction({type:'end'});
+  };
+  if(homeBtn)homeBtn.onclick=()=>{leaveRoom();showScreen('home')};
+
+  // Prevent iOS text selection/callout on these game controls without delaying the tap.
+  [endBtn,homeBtn].filter(Boolean).forEach(el=>{
+    el.addEventListener('selectstart',e=>e.preventDefault());
+    el.addEventListener('contextmenu',e=>e.preventDefault());
+  });
 })();
 </script>
