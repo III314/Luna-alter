@@ -3534,3 +3534,120 @@ document.querySelectorAll('.tutorial-course').forEach(b=>b.onclick=()=>{startTut
   if(label) label.textContent = `${APP_META.version} / ${APP_META.label}`;
 })();
 </script>
+<style id="la-062-swipe-style">
+/* LUNA ALTER 0.6.2 — mobile-first swipe-to-play */
+#battleScreen .hand .card.expanded{
+  width:184px!important;max-width:min(46vw,184px)!important;
+  height:auto!important;min-height:230px!important;max-height:330px!important;
+  transform:translateY(-105px) scale(1.04)!important;
+  overflow:visible!important;z-index:120!important;
+}
+#battleScreen .hand .card.expanded .text{
+  display:block!important;opacity:1!important;pointer-events:auto!important;
+  max-height:none!important;overflow:visible!important;
+  font-size:11px!important;line-height:1.42!important;padding-bottom:7px;
+}
+#battleScreen .hand .card.expanded .card-art{height:86px!important;min-height:86px!important}
+#battleScreen .hand .card.expanded .card-actions{opacity:1!important;pointer-events:auto!important}
+/* Play/destination buttons are obsolete. Retain/keep controls, when present, remain. */
+#battleScreen .card-actions button[data-la-play-button="1"]{display:none!important}
+#battleScreen .hand .card.la-dragging{opacity:.28!important;filter:none!important}
+#laSwipeGhost{position:fixed;z-index:10000;pointer-events:none;width:150px;transform:translate(-50%,-50%) rotate(-2deg) scale(1.03);opacity:.94;filter:drop-shadow(0 14px 18px rgba(0,0,0,.32))}
+#laSwipeGhost .card{width:150px!important;min-height:190px!important;margin:0!important;transform:none!important}
+#laSwipeGhost .card-actions{display:none!important}
+#laDropGuide{position:fixed;z-index:9998;left:10px;right:10px;top:118px;height:min(42vh,360px);pointer-events:none;display:none;gap:10px}
+#laDropGuide.show{display:flex}
+#laDropGuide .la-drop-zone{flex:1;border:2px dashed rgba(125,93,34,.55);border-radius:18px;background:rgba(255,249,231,.82);backdrop-filter:blur(4px);display:grid;place-items:center;text-align:center;color:#6c5221;font-weight:1000;font-size:17px;box-shadow:inset 0 0 0 2px rgba(255,255,255,.45);transition:.12s ease}
+#laDropGuide .la-drop-zone small{display:block;font-size:10px;margin-top:5px;color:#776e5e}
+#laDropGuide .la-drop-zone.active{background:rgba(255,225,128,.94);border-style:solid;transform:scale(1.015);box-shadow:0 8px 25px rgba(96,68,17,.16),inset 0 0 0 2px #fff}
+#laDropGuide .la-drop-zone.invalid{background:rgba(185,185,185,.72);color:#777;border-color:#999}
+#laDropGuide.normal .la-drop-zone{max-width:560px;margin:0 auto}
+#laSwipeHint{position:fixed;z-index:9999;left:50%;top:88px;transform:translateX(-50%);padding:7px 13px;border-radius:999px;background:#25211d;color:#fff;font-size:12px;font-weight:900;pointer-events:none;opacity:0;transition:.12s;white-space:nowrap}
+#laSwipeHint.show{opacity:.92}
+@media(max-width:760px){
+ #battleScreen .hand .card.expanded{width:172px!important;max-width:45vw!important;min-height:225px!important;max-height:315px!important;transform:translateY(-112px) scale(1.02)!important}
+ #battleScreen .hand .card.expanded .text{font-size:10.5px!important;line-height:1.38!important}
+ #battleScreen .hand .card.expanded .card-art{height:82px!important;min-height:82px!important}
+ #laDropGuide{top:112px;height:42vh}
+ #laDropGuide .la-drop-zone{font-size:15px}
+}
+</style>
+<script id="la-062-swipe-script">
+(function(){
+ const VERSION='0.6.2', LABEL='上スワイプ操作・カード効果表示改善';
+ window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});
+ document.title=`ルナオルタ ${VERSION}`;
+ const versionLabel=document.getElementById('appVersionLabel');if(versionLabel)versionLabel.textContent=`${VERSION} / ${LABEL}`;
+
+ function ensureSwipeUi(){
+   if(!document.getElementById('laDropGuide')){
+     const g=document.createElement('div');g.id='laDropGuide';document.body.appendChild(g);
+     const h=document.createElement('div');h.id='laSwipeHint';h.textContent='↑ このエリアで離して使用';document.body.appendChild(h);
+   }
+ }
+ ensureSwipeUi();
+ let drag=null, suppressClickUntil=0;
+ function playableNow(c){const v=currentView;return !!(v&&v.current===v.me.pid&&!v.over&&!v.pending&&!networkPaused&&canPlayView(v,c))}
+ function setupGuide(c){
+   const g=document.getElementById('laDropGuide'),h=document.getElementById('laSwipeHint');
+   g.className='show';g.innerHTML='';
+   if(c.type==='setup'){
+     const personalBlocked=!!currentView?.me?.personal;
+     g.innerHTML=`<div class="la-drop-zone personal ${personalBlocked?'invalid':''}" data-dest="personal">↖ 独自枠<small>${personalBlocked?'使用中':'ここで離して設置'}</small></div><div class="la-drop-zone shared" data-dest="shared">共有枠 ↗<small>ここで離して設置</small></div>`;
+     h.textContent='セットアップ：左上＝独自枠 ／ 右上＝共有枠';
+   }else{
+     g.className='show normal';g.innerHTML='<div class="la-drop-zone normal-use" data-dest="use">↑ このエリアで離して使用</div>';
+     h.textContent='↑ このエリアで離して使用';
+   }
+   h.classList.add('show');
+ }
+ function clearGuide(){const g=document.getElementById('laDropGuide'),h=document.getElementById('laSwipeHint');if(g){g.className='';g.innerHTML=''}if(h)h.classList.remove('show')}
+ function makeGhost(cardEl,x,y){const w=document.createElement('div');w.id='laSwipeGhost';const clone=cardEl.cloneNode(true);clone.classList.remove('expanded','disabled','la-dragging');clone.querySelectorAll('button').forEach(b=>b.remove());w.appendChild(clone);document.body.appendChild(w);moveGhost(x,y)}
+ function moveGhost(x,y){const w=document.getElementById('laSwipeGhost');if(w){w.style.left=x+'px';w.style.top=y+'px'}}
+ function clearGhost(){document.getElementById('laSwipeGhost')?.remove()}
+ function activeZone(x,y,c){
+   document.querySelectorAll('#laDropGuide .la-drop-zone').forEach(z=>z.classList.remove('active'));
+   if(!drag||drag.dy>-72)return null;
+   if(c.type==='setup'){
+     const dest=x<innerWidth/2?'personal':'shared',z=document.querySelector(`#laDropGuide [data-dest="${dest}"]`);
+     if(z&&!z.classList.contains('invalid')){z.classList.add('active');return dest}return null;
+   }
+   const z=document.querySelector('#laDropGuide [data-dest="use"]');if(z){z.classList.add('active');return 'use'}return null;
+ }
+ function begin(e,el,c){
+   if(e.button!==undefined&&e.button!==0)return;
+   drag={id:e.pointerId,x0:e.clientX,y0:e.clientY,dy:0,el,c,moved:false,dest:null};
+   try{el.setPointerCapture(e.pointerId)}catch(_){ }
+ }
+ function move(e){
+   if(!drag||e.pointerId!==drag.id)return;drag.dy=e.clientY-drag.y0;
+   if(!drag.moved&&Math.hypot(e.clientX-drag.x0,e.clientY-drag.y0)>10){drag.moved=true;if(!playableNow(drag.c))return;drag.el.classList.add('la-dragging');makeGhost(drag.el,e.clientX,e.clientY);setupGuide(drag.c)}
+   if(!drag.moved||!playableNow(drag.c))return;
+   e.preventDefault();moveGhost(e.clientX,e.clientY);drag.dest=activeZone(e.clientX,e.clientY,drag.c)
+ }
+ function finish(e,cancel=false){
+   if(!drag||e.pointerId!==drag.id)return;const d=drag;drag=null;
+   d.el.classList.remove('la-dragging');clearGhost();clearGuide();
+   if(d.moved){suppressClickUntil=Date.now()+350;e.preventDefault();e.stopPropagation()}
+   if(cancel||!d.moved||!d.dest||!playableNow(d.c))return;
+   if(d.c.type==='setup')dispatchAction({type:'play',uid:d.c.uid,dest:d.dest});else dispatchAction({type:'play',uid:d.c.uid});
+ }
+ function bindCards(){
+   const v=currentView;if(!v)return;
+   [...document.querySelectorAll('#myHand .card')].forEach((el,i)=>{
+     const c=v.me.hand[i];if(!c||el.dataset.laSwipeBound==='1')return;el.dataset.laSwipeBound='1';el.style.touchAction='pan-x';
+     // Remove only obsolete play/destination controls; keep retain/hold controls.
+     el.querySelectorAll('.card-actions button').forEach(b=>{if(['使用','共有に置く','独自枠に置く'].includes((b.textContent||'').trim())){b.dataset.laPlayButton='1';b.remove()}});
+     el.addEventListener('pointerdown',e=>begin(e,el,c));
+     el.addEventListener('pointermove',move,{passive:false});
+     el.addEventListener('pointerup',e=>finish(e));
+     el.addEventListener('pointercancel',e=>finish(e,true));
+   })
+ }
+ document.addEventListener('click',e=>{if(Date.now()<suppressClickUntil&&e.target.closest('#myHand .card')){e.preventDefault();e.stopImmediatePropagation()}},true);
+ const prev=renderBattleView;
+ renderBattleView=function(){prev();requestAnimationFrame(()=>{bindCards();const l=document.getElementById('appVersionLabel');if(l)l.textContent=`${VERSION} / ${LABEL}`;document.title=`ルナオルタ ${VERSION}`})};
+ // Initial screen can already be visible when this patch loads.
+ requestAnimationFrame(bindCards);
+})();
+</script>
