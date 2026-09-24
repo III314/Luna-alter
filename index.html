@@ -901,6 +901,14 @@ ruby{ruby-position:over}rt{font-size:.58em;font-weight:700;line-height:1;color:v
 /* 0.7.1: Shiranui leader skin */
 #battleScreen .leader-img[data-character="shiranui"]{object-fit:cover;object-position:52% 23%;width:100%;height:100%;border-radius:14px;transform:scale(1.06);transform-origin:50% 25%}
 </style>
+
+<script id="luna-alter-build-meta">
+// Single source of truth for build/version metadata.
+window.LUNA_ALTER_APP_META = Object.freeze({
+  version: '0.10.8',
+  label: 'バージョン表示一元化'
+});
+</script>
 </head>
 <body>
 <div class="app">
@@ -3447,7 +3455,7 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
 }
 </style>
 
-<!-- LUNA ALTER 0.10.3: current build -->
+<!-- LUNA ALTER current build: metadata is centralized in #luna-alter-build-meta -->
 <style id="la-090-style">
 @media (max-width:760px) and (orientation:portrait){
   #battleScreen .center-board{position:relative!important}
@@ -3469,7 +3477,7 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
 </style>
 <script id="la-090-patch">
 (function(){
- const VERSION='0.10.0',LABEL='バトルエフェクト';
+ const {version:VERSION,label:LABEL}=window.LUNA_ALTER_APP_META;
  window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});document.title=`ルナオルタ ${VERSION}`;
  const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${VERSION} / ${LABEL}`;
  // Clear X-formula wording: the card text itself explains what X means.
@@ -3541,7 +3549,7 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
 </style>
 <script id="la-010-battle-fx">
 (function(){
- const VERSION='0.10.0',LABEL='バトルエフェクト';
+ const {version:VERSION,label:LABEL}=window.LUNA_ALTER_APP_META;
  window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});document.title=`ルナオルタ ${VERSION}`;
  const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${VERSION} / ${LABEL}`;
  let fx=document.getElementById('laBattleFx');if(!fx){fx=document.createElement('div');fx.id='laBattleFx';document.body.appendChild(fx)}
@@ -3572,7 +3580,7 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
 <!-- LUNA ALTER 0.10.7: robust Firebase authoritative sync -->
 <script id="la-0107-firebase-sync-fix">
 (function(){
- const VERSION='0.10.7', LABEL='マルチ同期安定化';
+ const {version:VERSION,label:LABEL}=window.LUNA_ALTER_APP_META;
  window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});
  document.title=`ルナオルタ ${VERSION}`;
  const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${VERSION} / ${LABEL}`;
@@ -3830,10 +3838,7 @@ document.querySelectorAll('.tutorial-course').forEach(b=>b.onclick=()=>{startTut
 <script>
 /* ===== authoritative app metadata: single source of truth ===== */
 (function(){
-  const APP_META = Object.freeze({
-    version: '0.8.9',
-    label: 'Firebaseオンライン対戦'
-  });
+  const APP_META = window.LUNA_ALTER_APP_META;
   window.LUNA_ALTER_APP_META = APP_META;
   document.title = `ルナオルタ ${APP_META.version}`;
   const label = document.getElementById('appVersionLabel');
@@ -3952,7 +3957,7 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
 </style>
 <script id="la-062-swipe-script">
 (function(){
- const VERSION='0.8.9', LABEL='十六夜説明・手札表示調整';
+ const {version:VERSION,label:LABEL}=window.LUNA_ALTER_APP_META;
  window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});
  document.title=`ルナオルタ ${VERSION}`;
  const versionLabel=document.getElementById('appVersionLabel');if(versionLabel)versionLabel.textContent=`${VERSION} / ${LABEL}`;
@@ -4118,7 +4123,7 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
  function watchConnected(){const r=fbDb.ref('.info/connected');const h=s=>{const ok=s.val()===true;fbDiag(ok?'Firebase接続中':'Firebase切断',ok?'Realtime Database':'再接続を待っています',ok?'ok':'bad');if(matchMode==='online'&&(game||currentView)&&!(game?.over||currentView?.over))setNetworkPaused(!ok)};onRef(r,'value',h)}
  async function hostCreate(){
   await fbReady();let tries=0,code='';
-  while(tries++<12){code=randomCode();const r=fbDb.ref(`rooms/${code}/meta`);const tx=await r.transaction(cur=>{if(cur&&Date.now()-Number(cur.createdAt||0)<12*60*60*1000)return;return {hostUid:fbUid,createdAt:Date.now(),version:'0.10.7'}});if(tx.committed)break;code=''}
+  while(tries++<12){code=randomCode();const r=fbDb.ref(`rooms/${code}/meta`);const tx=await r.transaction(cur=>{if(cur&&Date.now()-Number(cur.createdAt||0)<12*60*60*1000)return;return {hostUid:fbUid,createdAt:Date.now(),version:window.LUNA_ALTER_APP_META.version}});if(tx.committed)break;code=''}
   if(!code)throw new Error('空いているルーム番号を取得できませんでした');
   roomCode=code;setupLobby(code);fbRoomRef=fbDb.ref(`rooms/${code}`);await setPresence('host');listenInbox('hostInbox');watchPresence('guest');watchConnected();conn=makeFirebaseConn();peer={open:true,disconnected:false,destroyed:false,reconnect(){},destroy(){}};
   const name=cleanName('hostName'),deck=getDeck(document.getElementById('hostDeck').value);document.getElementById('hostLabel').textContent=name;document.getElementById('hostReady').textContent=deck.name;document.getElementById('roomStatus').textContent='友達の参加を待っています…';fbDiag('ルーム作成成功',`番号 ${code}`,'ok');
@@ -4142,7 +4147,7 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
  document.getElementById('joinRoom').onclick=async()=>{const code=document.getElementById('joinCode').value.replace(/\D/g,'').slice(0,4);if(code.length!==4)return alert('数字4桁のルーム番号を入力してください。');try{leaveRoom(false);fbOffAll();roomRole='guest';localPid='p2';matchMode='online';await guestJoin(code)}catch(e){fbDiag('ルーム参加失敗',e.message,'bad');document.getElementById('roomStatus').textContent=e.message;document.getElementById('roomStatus').className='notice bad'}};
  const oldLeave=leaveRoom;leaveRoom=function(reset=true){const code=roomCode,role=roomRole,wasOnline=matchMode==='online',r=fbRoomRef;fbOffAll();if(wasOnline&&r&&role){try{r.child(`presence/${role}`).set({online:false,uid:fbUid,at:firebase.database.ServerValue.TIMESTAMP})}catch(_){}if(role==='host'&&!game){setTimeout(()=>r.remove().catch(()=>{}),0)}}oldLeave(reset)};
  // Host recovery from localStorage now reconnects to the Firebase room rather than PeerJS.
- const oldRestore=restoreHostRecovery;restoreHostRecovery=function(){const x=readHostRecovery();if(!x)return false;roomRole='host';localPid='p1';matchMode='online';roomCode=String(x.roomCode);game=x.game;guestInfo=x.guestInfo||{name:game.players.p2.name,deck:{name:'復帰中',character:game.players.p2.character,counts:{}}};uidSeq=Number(x.uidSeq)||1;actionSeq=Number(x.actionSeq)||1;networkPaused=true;lastShownAction=game.lastAction?.seq||0;lastShownDamage=game.damageSeq||0;lastShownDraw=game.drawSeq||0;setupLobby(roomCode);document.getElementById('hostLabel').textContent=game.players.p1.name;document.getElementById('hostReady').textContent='対戦復帰';document.getElementById('guestLabel').textContent=game.players.p2.name;document.getElementById('guestReady').textContent='再接続待ち';document.getElementById('roomStatus').textContent='対戦を復元しました。Firebaseへ再接続しています…';currentView=makeView('p1');showScreen('battle');renderBattleView();fbReady().then(async()=>{fbRoomRef=fbDb.ref(`rooms/${roomCode}`);await fbRoomRef.child('meta').update({hostUid:fbUid,createdAt:Date.now(),version:'0.10.7'});await setPresence('host');listenInbox('hostInbox');watchPresence('guest');watchConnected();conn=makeFirebaseConn();setNetworkPaused(false);saveHostRecovery()}).catch(()=>{});return true};
+ const oldRestore=restoreHostRecovery;restoreHostRecovery=function(){const x=readHostRecovery();if(!x)return false;roomRole='host';localPid='p1';matchMode='online';roomCode=String(x.roomCode);game=x.game;guestInfo=x.guestInfo||{name:game.players.p2.name,deck:{name:'復帰中',character:game.players.p2.character,counts:{}}};uidSeq=Number(x.uidSeq)||1;actionSeq=Number(x.actionSeq)||1;networkPaused=true;lastShownAction=game.lastAction?.seq||0;lastShownDamage=game.damageSeq||0;lastShownDraw=game.drawSeq||0;setupLobby(roomCode);document.getElementById('hostLabel').textContent=game.players.p1.name;document.getElementById('hostReady').textContent='対戦復帰';document.getElementById('guestLabel').textContent=game.players.p2.name;document.getElementById('guestReady').textContent='再接続待ち';document.getElementById('roomStatus').textContent='対戦を復元しました。Firebaseへ再接続しています…';currentView=makeView('p1');showScreen('battle');renderBattleView();fbReady().then(async()=>{fbRoomRef=fbDb.ref(`rooms/${roomCode}`);await fbRoomRef.child('meta').update({hostUid:fbUid,createdAt:Date.now(),version:window.LUNA_ALTER_APP_META.version});await setPresence('host');listenInbox('hostInbox');watchPresence('guest');watchConnected();conn=makeFirebaseConn();setNetworkPaused(false);saveHostRecovery()}).catch(()=>{});return true};
  // Update copy/help text that still mentions direct P2P.
  document.querySelectorAll('.connection-help li').forEach(li=>{li.innerHTML=li.innerHTML.replace(/通信にはインターネット接続が必要です。.*$/,'通信にはインターネット接続が必要です。対戦通信はFirebase経由で同期されます。')});
  const pw=document.getElementById('peerWarning');if(pw)pw.classList.add('hidden');
@@ -4157,7 +4162,7 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
 </style>
 <script id="v088-controls">
 (function(){
-  const VERSION='0.8.9', LABEL='十六夜説明・手札表示調整';
+  const {version:VERSION,label:LABEL}=window.LUNA_ALTER_APP_META;
   window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});
   document.title=`ルナオルタ ${VERSION}`;
   const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${VERSION} / ${LABEL}`;
@@ -4232,7 +4237,7 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
 </style>
 <script id="la-0101-pile-patch">
 (function(){
-  const VERSION='0.10.1',LABEL='山札・捨て札UI調整';
+  const {version:VERSION,label:LABEL}=window.LUNA_ALTER_APP_META;
   window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});
   document.title=`ルナオルタ ${VERSION}`;
   const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${VERSION} / ${LABEL}`;
@@ -4283,7 +4288,7 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
 </style>
 <script id="la-0102-patch" type="text/plain">
 (function(){
- const VERSION='0.10.2',LABEL='盤面配置・ドロー演出再設計';
+ const {version:VERSION,label:LABEL}=window.LUNA_ALTER_APP_META;
  window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});document.title=`ルナオルタ ${VERSION}`;
  const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${VERSION} / ${LABEL}`;
  // Make the bottom board row a real layout row instead of absolute-positioned overlays.
@@ -4363,7 +4368,7 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
 </style>
 <script id="la-0103-patch">
 (function(){
- const VERSION='0.10.3',LABEL='盤面下部・ドロー導線再調整';
+ const {version:VERSION,label:LABEL}=window.LUNA_ALTER_APP_META;
  window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});document.title=`ルナオルタ ${VERSION}`;
  const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${VERSION} / ${LABEL}`;
  // Replace 0.10.2's draw renderer with a slower, readable deck -> left edge -> reveal sequence.
@@ -4402,7 +4407,7 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
 <!-- LUNA ALTER 0.10.4: online input recovery -->
 <script id="la-0104-online-input-fix">
 (function(){
- const VERSION='0.10.4', LABEL='マルチ対戦操作復旧';
+ const {version:VERSION,label:LABEL}=window.LUNA_ALTER_APP_META;
  window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});
  document.title=`ルナオルタ ${VERSION}`;
  const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${VERSION} / ${LABEL}`;
@@ -4447,7 +4452,7 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
 <!-- LUNA ALTER 0.10.5: CPU freeze failsafe -->
 <script id="la-0105-cpu-failsafe">
 (function(){
- const VERSION='0.10.5', LABEL='CPUフリーズ対策';
+ const {version:VERSION,label:LABEL}=window.LUNA_ALTER_APP_META;
  window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});
  document.title=`ルナオルタ ${VERSION}`;
  const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${VERSION} / ${LABEL}`;
@@ -4575,7 +4580,7 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
 </style>
 <script id="la-0106-meta">
 (function(){
- const VERSION='0.10.6',LABEL='スマホ対戦画面レイアウト整理';
+ const {version:VERSION,label:LABEL}=window.LUNA_ALTER_APP_META;
  window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});
  document.title=`ルナオルタ ${VERSION}`;
  const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${VERSION} / ${LABEL}`;
