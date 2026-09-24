@@ -4204,3 +4204,85 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
   if(discard)discard.innerHTML='<span class="la-pile-icon" aria-hidden="true"></span><strong>捨て札</strong>';
 })();
 </script>
+
+<!-- LUNA ALTER 0.10.2: rebuilt self utility row + honest draw animation -->
+<style id="la-0102-layout-draw">
+/* Retire the old absolute pile shelf / post-render flight. */
+.la-card-flight{display:none!important}
+@media (max-width:760px) and (orientation:portrait){
+  #battleScreen .center-board .zones{padding-bottom:0!important}
+  #battleScreen .center-board .zones>div:last-child{
+    width:100%!important;transform:none!important;position:relative!important;z-index:9!important;
+  }
+  #battleScreen .center-board .zones>div:last-child.la-self-zone{
+    display:grid!important;grid-template-columns:minmax(0,1fr) 50px 50px!important;
+    grid-template-rows:auto minmax(72px,auto)!important;column-gap:8px!important;align-items:end!important;
+  }
+  #battleScreen .center-board .zones>div:last-child.la-self-zone>.zone-title{grid-column:1;grid-row:1}
+  #battleScreen .center-board .zones>div:last-child.la-self-zone>#myPersonal{grid-column:1;grid-row:2;min-width:0}
+  #battleScreen .la-pile-shelf{
+    position:static!important;grid-column:2/4!important;grid-row:1/3!important;
+    width:auto!important;height:auto!important;display:grid!important;grid-template-columns:50px 50px!important;
+    gap:8px!important;align-items:end!important;justify-content:end!important;align-self:end!important;
+    z-index:10!important;pointer-events:auto!important;
+  }
+  #battleScreen .la-pile-box{width:50px!important;height:82px!important;display:flex!important;align-items:center!important;justify-content:flex-end!important}
+  #battleScreen .la-pile-box .la-pile-icon{width:42px!important;height:58px!important}
+  #battleScreen .la-pile-box strong{font-size:9px!important;white-space:nowrap!important;margin-top:3px!important}
+}
+/* New draw card: real face with the same art as the hand card. */
+.la-draw-card{position:fixed;z-index:10020;width:78px;height:116px;pointer-events:none;perspective:700px;will-change:left,top,transform,opacity}
+.la-draw-card-inner{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .30s ease}
+.la-draw-card.flipped .la-draw-card-inner{transform:rotateY(180deg)}
+.la-draw-face{position:absolute;inset:0;border-radius:9px;overflow:hidden;backface-visibility:hidden;box-shadow:0 9px 24px rgba(0,0,0,.28)}
+.la-draw-back{border:2px solid #d7b96d;background:linear-gradient(145deg,#201d28,#3b3147 55%,#17151c);display:grid;place-items:center;color:#d7b96d;font:900 27px/1 Georgia,serif}
+.la-draw-back:after{content:'';position:absolute;inset:9px;border:1px solid rgba(215,185,109,.65);border-radius:5px}
+.la-draw-front{transform:rotateY(180deg);border:2px solid #bda45c;background:#f6edd9;color:#28231c;padding:5px;display:flex;flex-direction:column;gap:3px}
+.la-draw-front.attack{background:#efd9d6}.la-draw-front.skill{background:#dce9ef}.la-draw-front.setup{background:#eee2bf}.la-draw-front.spell{background:#e7dced}
+.la-draw-head{display:flex;align-items:center;justify-content:space-between;gap:3px;min-height:20px}.la-draw-name{font:800 8px/1.05 system-ui;overflow:hidden;max-height:18px}.la-draw-cost{flex:none;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:#fff;border:2px solid #9a7c39;font:900 12px/1 system-ui}
+.la-draw-art{height:55px;border-radius:5px;overflow:hidden;background:#201d28;border:1px solid rgba(80,60,35,.3)}.la-draw-art img{width:100%;height:100%;display:block;object-fit:cover;image-rendering:pixelated}.la-draw-text{font:600 6.5px/1.2 system-ui;overflow:hidden;max-height:26px}
+.la-hand-enter{visibility:hidden!important}
+@media(prefers-reduced-motion:reduce){.la-draw-card,.la-draw-card-inner{transition:none!important}}
+</style>
+<script id="la-0102-patch">
+(function(){
+ const VERSION='0.10.2',LABEL='盤面配置・ドロー演出再設計';
+ window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});document.title=`ルナオルタ ${VERSION}`;
+ const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${VERSION} / ${LABEL}`;
+ // Make the bottom board row a real layout row instead of absolute-positioned overlays.
+ const myPersonal=document.getElementById('myPersonal'),selfZone=myPersonal?.parentElement,shelf=document.getElementById('laPileShelf');
+ if(selfZone){selfZone.classList.add('la-self-zone');if(shelf&&shelf.parentElement!==selfZone)selfZone.appendChild(shelf)}
+ function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+ function artSrc(c){try{return (typeof CARD_ART!=='undefined'&&CARD_ART[c.id])||''}catch(e){return''}}
+ function pileCenter(){const el=document.querySelector('#laDeckBox .la-pile-icon')||document.getElementById('laDeckBox');const r=el?.getBoundingClientRect();return r?{x:r.left+r.width/2,y:r.top+r.height/2}:null}
+ function leftHandTarget(){const h=document.getElementById('myHand'),r=h?.getBoundingClientRect();if(!r)return null;return{x:r.left+34,y:r.top+58}}
+ function drawGhost(c,targetEl,delay){
+   setTimeout(()=>{const a=pileCenter(),b=leftHandTarget();if(!a||!b){targetEl?.classList.remove('la-hand-enter');return}
+     const el=document.createElement('div');el.className='la-draw-card';const src=artSrc(c),art=src?`<div class="la-draw-art"><img src="${src}" alt=""></div>`:'<div class="la-draw-art"></div>';
+     el.innerHTML=`<div class="la-draw-card-inner"><div class="la-draw-face la-draw-back">L</div><div class="la-draw-face la-draw-front ${esc(c.type)}"><div class="la-draw-head"><div class="la-draw-name">${esc(c.name)}</div><div class="la-draw-cost">${esc(viewCost(currentView,c))}</div></div>${art}<div class="la-draw-text">${esc(cardText(c,currentView?.me?.turnSkillDraws))}</div></div></div>`;
+     document.body.appendChild(el);el.style.left=(a.x-39)+'px';el.style.top=(a.y-58)+'px';el.style.transform='scale(.82)';el.style.opacity='1';
+     requestAnimationFrame(()=>{el.style.transition='left .62s cubic-bezier(.18,.74,.2,1),top .62s cubic-bezier(.18,.74,.2,1),transform .62s cubic-bezier(.18,.74,.2,1),opacity .16s linear';el.style.left=(b.x-39)+'px';el.style.top=(b.y-58)+'px';el.style.transform='scale(1)'});
+     // Flip only after it has travelled most of the way, so the reveal happens at the hand edge.
+     setTimeout(()=>el.classList.add('flipped'),430);
+     setTimeout(()=>{targetEl?.classList.remove('la-hand-enter');el.style.opacity='0';setTimeout(()=>el.remove(),170)},760);
+   },delay)
+ }
+ let prevHand=null;
+ const baseRender=renderBattleView;
+ renderBattleView=function(){
+   const before=prevHand?prevHand.map(x=>({...x})):null;
+   baseRender();
+   const v=currentView;if(!v)return;
+   const now=(v.me.hand||[]).map(x=>({...x}));
+   if(before){
+     const oldUids=new Set(before.map(c=>Number(c.uid))),added=now.filter(c=>!oldUids.has(Number(c.uid)));
+     if(added.length){
+       const els=[...document.querySelectorAll('#myHand>.card')];
+       added.forEach((c,i)=>{const idx=now.findIndex(x=>Number(x.uid)===Number(c.uid)),target=els[idx];if(target)target.classList.add('la-hand-enter');drawGhost(c,target,i*170)});
+     }
+   }
+   prevHand=now;
+ };
+ if(currentView){prevHand=(currentView.me.hand||[]).map(x=>({...x}));renderBattleView()}
+})();
+</script>
