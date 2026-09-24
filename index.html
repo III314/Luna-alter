@@ -4,7 +4,9 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>ルナオルタ</title>
-<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
 <style>
 :root{--bg:#f4efe5;--panel:#fffdf8;--ink:#24211d;--muted:#776f64;--line:#d8d0c3;--accent:#24211d;--gold:#a77a28;--danger:#9b2c2c;--ok:#276749;--setup:#efe2c6;--skill:#dce9ef;--attack:#edd7d2;--spell:#eadff2;--shadow:0 10px 30px rgba(44,34,24,.08)}
 *{box-sizing:border-box}html,body{height:100%}body{margin:0;overflow:hidden;background:radial-gradient(circle at top,#fffaf0 0,var(--bg) 55%);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans","Yu Gothic",sans-serif;font-size:13px}button,input,select{font:inherit}button{cursor:pointer}.app{max-width:1280px;margin:auto;height:100vh;overflow:hidden}.topbar{height:49px;position:sticky;top:0;z-index:40;display:flex;justify-content:space-between;align-items:center;padding:7px 12px;background:rgba(244,239,229,.94);border-bottom:1px solid var(--line);backdrop-filter:blur(10px)}.brand{font-weight:900;letter-spacing:.04em}.top-actions{display:flex;gap:6px}.btn{border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:7px 11px;color:var(--ink)}.btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.08)}.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}.btn.gold{background:var(--gold);color:#fff;border-color:var(--gold)}.btn.danger{background:var(--danger);color:#fff;border-color:var(--danger)}.btn:disabled{opacity:.42;cursor:not-allowed}.screen{display:none;height:calc(100vh - 49px);padding:10px;overflow:auto}.screen.active{display:block}.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px;margin-bottom:8px;box-shadow:var(--shadow)}.hidden{display:none!important}.small{font-size:11px;color:var(--muted)}.notice{padding:7px 9px;background:#fff6d9;border:1px solid #e7cd7d;border-radius:9px;font-size:11px}.notice.ok{background:#edf8f1;border-color:#a7d6b7}.notice.bad{background:#fff0ee;border-color:#e5aaa3}.field{display:grid;gap:5px}.field label{font-size:10px;font-weight:800;color:var(--muted)}.field input,.field select{border:1px solid var(--line);border-radius:9px;background:#fff;padding:8px;min-width:0}.empty{color:var(--muted);text-align:center;padding:28px 12px}
@@ -3322,7 +3324,7 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
 </script>
 <!-- ===== end v60 ===== -->
 
-<!-- LUNA ALTER 0.6.3 room diagnostics -->
+<!-- LUNA ALTER 0.7.0 Firebase online multiplayer -->
 </body>
 </html>
 
@@ -3550,8 +3552,8 @@ document.querySelectorAll('.tutorial-course').forEach(b=>b.onclick=()=>{startTut
 /* ===== authoritative app metadata: single source of truth ===== */
 (function(){
   const APP_META = Object.freeze({
-    version: '0.6.3',
-    label: 'ルーム通信診断'
+    version: '0.7.0',
+    label: 'Firebaseオンライン対戦'
   });
   window.LUNA_ALTER_APP_META = APP_META;
   document.title = `ルナオルタ ${APP_META.version}`;
@@ -3599,7 +3601,7 @@ document.querySelectorAll('.tutorial-course').forEach(b=>b.onclick=()=>{startTut
 </style>
 <script id="la-062-swipe-script">
 (function(){
- const VERSION='0.6.3', LABEL='ルーム通信診断';
+ const VERSION='0.7.0', LABEL='Firebaseオンライン対戦';
  window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});
  document.title=`ルナオルタ ${VERSION}`;
  const versionLabel=document.getElementById('appVersionLabel');if(versionLabel)versionLabel.textContent=`${VERSION} / ${LABEL}`;
@@ -3674,5 +3676,71 @@ document.querySelectorAll('.tutorial-course').forEach(b=>b.onclick=()=>{startTut
  renderBattleView=function(){prev();requestAnimationFrame(()=>{bindCards();const l=document.getElementById('appVersionLabel');if(l)l.textContent=`${VERSION} / ${LABEL}`;document.title=`ルナオルタ ${VERSION}`})};
  // Initial screen can already be visible when this patch loads.
  requestAnimationFrame(bindCards);
+})();
+</script>
+
+<script id="la-070-firebase-online">
+/* LUNA ALTER 0.7.0 — Firebase Realtime Database transport */
+(function(){
+ const CFG={
+  apiKey:"AIzaSyD_mWP_9L8skXxnSdcu0rzHCCruocw5_qQ",
+  authDomain:"luna-alter.firebaseapp.com",
+  databaseURL:"https://luna-alter-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"luna-alter",
+  storageBucket:"luna-alter.firebasestorage.app",
+  messagingSenderId:"228339866594",
+  appId:"1:228339866594:web:8c0f7591def7356d71f7bb"
+ };
+ let fbApp=null,fbAuth=null,fbDb=null,fbUid=null,fbReadyPromise=null,fbRoomRef=null,fbInboxRef=null,fbPresenceRef=null;
+ let fbHandlers=[];
+ function fbDiag(a,b='',k='info'){try{netDiag(a,b,k)}catch(_){}}
+ function fbReady(){
+  if(fbReadyPromise)return fbReadyPromise;
+  fbReadyPromise=(async()=>{
+   if(typeof firebase==='undefined')throw new Error('Firebase SDKを読み込めませんでした');
+   fbApp=firebase.apps.length?firebase.app():firebase.initializeApp(CFG);fbAuth=firebase.auth();fbDb=firebase.database();
+   if(!fbAuth.currentUser)await fbAuth.signInAnonymously();fbUid=fbAuth.currentUser.uid;
+   fbDiag('Firebase認証成功',`uid: ${fbUid.slice(0,8)}…`,'ok');return true;
+  })().catch(e=>{fbDiag('Firebase接続エラー',e?.message||String(e),'bad');const st=document.getElementById('roomStatus');if(st){st.textContent='Firebaseへの接続に失敗しました。通信環境を確認してください。';st.className='notice bad'};throw e});
+  return fbReadyPromise;
+ }
+ function fbOffAll(){for(const [r,e,h] of fbHandlers){try{r.off(e,h)}catch(_){}}fbHandlers=[];try{fbPresenceRef?.onDisconnect().cancel()}catch(_){}fbRoomRef=fbInboxRef=fbPresenceRef=null}
+ function onRef(r,e,h){r.on(e,h);fbHandlers.push([r,e,h])}
+ function makeFirebaseConn(){return {open:true,peer:'firebase',close(){this.open=false},send(m){if(!this.open||!fbRoomRef)return;const target=roomRole==='host'?'guestInbox':'hostInbox';fbRoomRef.child(target).push({payload:m,ts:firebase.database.ServerValue.TIMESTAMP,sender:fbUid}).catch(e=>fbDiag('送信エラー',e.message,'bad'))}}}
+ function listenInbox(which){fbInboxRef=fbRoomRef.child(which);const h=snap=>{const v=snap.val();snap.ref.remove().catch(()=>{});if(!v||v.sender===fbUid)return;try{handleNetworkMessage(v.payload)}catch(e){fbDiag('受信処理エラー',e.message,'bad')}};onRef(fbInboxRef,'child_added',h)}
+ async function setPresence(role){fbPresenceRef=fbRoomRef.child(`presence/${role}`);await fbPresenceRef.set({online:true,uid:fbUid,at:firebase.database.ServerValue.TIMESTAMP});fbPresenceRef.onDisconnect().set({online:false,uid:fbUid,at:firebase.database.ServerValue.TIMESTAMP});}
+ function watchPresence(otherRole){const r=fbRoomRef.child(`presence/${otherRole}`);const h=s=>{const online=!!s.val()?.online;if(otherRole==='guest')document.getElementById('guestDot')?.classList.toggle('on',online);else document.getElementById('hostDot')?.classList.toggle('on',online);if((game||currentView)&&!((game||currentView)?.over))setNetworkPaused(!online)};onRef(r,'value',h)}
+ function watchConnected(){const r=fbDb.ref('.info/connected');const h=s=>{const ok=s.val()===true;fbDiag(ok?'Firebase接続中':'Firebase切断',ok?'Realtime Database':'再接続を待っています',ok?'ok':'bad');if(matchMode==='online'&&(game||currentView)&&!(game?.over||currentView?.over))setNetworkPaused(!ok)};onRef(r,'value',h)}
+ async function hostCreate(){
+  await fbReady();let tries=0,code='';
+  while(tries++<12){code=randomCode();const r=fbDb.ref(`rooms/${code}/meta`);const tx=await r.transaction(cur=>{if(cur&&Date.now()-Number(cur.createdAt||0)<12*60*60*1000)return;return {hostUid:fbUid,createdAt:Date.now(),version:'0.7.0'}});if(tx.committed)break;code=''}
+  if(!code)throw new Error('空いているルーム番号を取得できませんでした');
+  roomCode=code;setupLobby(code);fbRoomRef=fbDb.ref(`rooms/${code}`);await setPresence('host');listenInbox('hostInbox');watchPresence('guest');watchConnected();conn=makeFirebaseConn();peer={open:true,disconnected:false,destroyed:false,reconnect(){},destroy(){}};
+  const name=cleanName('hostName'),deck=getDeck(document.getElementById('hostDeck').value);document.getElementById('hostLabel').textContent=name;document.getElementById('hostReady').textContent=deck.name;document.getElementById('roomStatus').textContent='友達の参加を待っています…';fbDiag('ルーム作成成功',`番号 ${code}`,'ok');
+ }
+ async function guestJoin(code){
+  await fbReady();const rr=fbDb.ref(`rooms/${code}`),meta=(await rr.child('meta').once('value')).val();if(!meta?.hostUid)throw new Error('ルームが見つかりません。番号を確認してください。');
+  fbRoomRef=rr;roomCode=code;setupLobby(code);await setPresence('guest');listenInbox('guestInbox');watchPresence('host');watchConnected();conn=makeFirebaseConn();peer={open:true,disconnected:false,destroyed:false,reconnect(){},destroy(){}};
+  const name=cleanName('guestName'),deck=getDeck(document.getElementById('guestDeck').value);guestReconnectInfo={name,deck:{name:deck.name,character:deck.character,counts:deck.counts}};document.getElementById('guestLabel').textContent=name;document.getElementById('guestReady').textContent=deck.name;document.getElementById('hostReady').textContent='接続中';document.getElementById('roomStatus').textContent='ホストに接続しています…';
+  fbDiag('ルーム参加成功',`番号 ${code}`,'ok');setNetworkPaused(false);sendGuestHello();
+ }
+ // Compatibility layer: existing game/state code keeps using conn.send / handleNetworkMessage.
+ peerAvailable=function(){return typeof firebase!=='undefined'};
+ startHostPeer=function(){if(roomRole==='host'&&fbRoomRef){conn=conn?.open?conn:makeFirebaseConn();setNetworkPaused(false)}};
+ initGuestPeer=function(){if(roomRole==='guest'&&fbRoomRef){conn=conn?.open?conn:makeFirebaseConn();setNetworkPaused(false);sendGuestHello()}};
+ openGuestConnection=function(){initGuestPeer()};
+ scheduleGuestReconnect=function(){if(roomRole==='guest'&&matchMode==='online'&&fbRoomRef){setTimeout(()=>{if(roomRole==='guest'&&fbRoomRef){conn=makeFirebaseConn();setNetworkPaused(false);sendGuestHello()}},700)}};
+ scheduleHostPeerRetry=function(){if(roomRole==='host'&&fbRoomRef)setTimeout(()=>{conn=makeFirebaseConn();setNetworkPaused(false)},700)};
+ bindConnection=function(){};
+ peerError=function(e){fbDiag('Firebase通信エラー',e?.message||String(e||''),'bad')};
+ document.getElementById('createRoom').onclick=async()=>{try{leaveRoom(false);fbOffAll();roomRole='host';localPid='p1';matchMode='online';await hostCreate()}catch(e){fbDiag('ルーム作成失敗',e.message,'bad');alert(e.message)}};
+ document.getElementById('joinRoom').onclick=async()=>{const code=document.getElementById('joinCode').value.replace(/\D/g,'').slice(0,4);if(code.length!==4)return alert('数字4桁のルーム番号を入力してください。');try{leaveRoom(false);fbOffAll();roomRole='guest';localPid='p2';matchMode='online';await guestJoin(code)}catch(e){fbDiag('ルーム参加失敗',e.message,'bad');document.getElementById('roomStatus').textContent=e.message;document.getElementById('roomStatus').className='notice bad'}};
+ const oldLeave=leaveRoom;leaveRoom=function(reset=true){const code=roomCode,role=roomRole,wasOnline=matchMode==='online',r=fbRoomRef;fbOffAll();if(wasOnline&&r&&role){try{r.child(`presence/${role}`).set({online:false,uid:fbUid,at:firebase.database.ServerValue.TIMESTAMP})}catch(_){}if(role==='host'&&!game){setTimeout(()=>r.remove().catch(()=>{}),0)}}oldLeave(reset)};
+ // Host recovery from localStorage now reconnects to the Firebase room rather than PeerJS.
+ const oldRestore=restoreHostRecovery;restoreHostRecovery=function(){const x=readHostRecovery();if(!x)return false;roomRole='host';localPid='p1';matchMode='online';roomCode=String(x.roomCode);game=x.game;guestInfo=x.guestInfo||{name:game.players.p2.name,deck:{name:'復帰中',character:game.players.p2.character,counts:{}}};uidSeq=Number(x.uidSeq)||1;actionSeq=Number(x.actionSeq)||1;networkPaused=true;lastShownAction=game.lastAction?.seq||0;lastShownDamage=game.damageSeq||0;lastShownDraw=game.drawSeq||0;setupLobby(roomCode);document.getElementById('hostLabel').textContent=game.players.p1.name;document.getElementById('hostReady').textContent='対戦復帰';document.getElementById('guestLabel').textContent=game.players.p2.name;document.getElementById('guestReady').textContent='再接続待ち';document.getElementById('roomStatus').textContent='対戦を復元しました。Firebaseへ再接続しています…';currentView=makeView('p1');showScreen('battle');renderBattleView();fbReady().then(async()=>{fbRoomRef=fbDb.ref(`rooms/${roomCode}`);await fbRoomRef.child('meta').update({hostUid:fbUid,createdAt:Date.now(),version:'0.7.0'});await setPresence('host');listenInbox('hostInbox');watchPresence('guest');watchConnected();conn=makeFirebaseConn();setNetworkPaused(false);saveHostRecovery()}).catch(()=>{});return true};
+ // Update copy/help text that still mentions direct P2P.
+ document.querySelectorAll('.connection-help li').forEach(li=>{li.innerHTML=li.innerHTML.replace(/通信にはインターネット接続が必要です。.*$/,'通信にはインターネット接続が必要です。対戦通信はFirebase経由で同期されます。')});
+ const pw=document.getElementById('peerWarning');if(pw)pw.classList.add('hidden');
+ fbReady().catch(()=>{});
 })();
 </script>
