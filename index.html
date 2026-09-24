@@ -905,8 +905,8 @@ ruby{ruby-position:over}rt{font-size:.58em;font-weight:700;line-height:1;color:v
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version: '0.11.0',
-  label: '盤面レスポンシブ基盤再構築'
+  version: '0.11.1',
+  label: '手札可読性・共有3枠レイアウト修正'
 });
 </script>
 </head>
@@ -3654,17 +3654,87 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
 #battleScreen #myHand>.card.la-hand-enter{visibility:hidden!important;opacity:0!important}
 @media(prefers-reduced-motion:reduce){.la-draw-card,.la-draw-card-inner{transition:none!important}}
 </style>
+<style id="la-0111-readable-hand">
+/* 0.11.1 — the battlefield scales as one board, but the hand is a readable interaction layer. */
+@media (max-width:760px) and (orientation:portrait){
+  #battleScreen .battle-main{
+    display:block!important;
+    width:100%!important;min-width:0!important;max-width:none!important;
+    height:var(--la-total-h,640px)!important;
+    transform:none!important;
+  }
+  #battleScreen .combat-stage{
+    position:absolute!important;left:0!important;top:0!important;
+    width:390px!important;height:392px!important;
+    transform:scale(var(--la-board-scale,1))!important;
+    transform-origin:0 0!important;
+  }
+  /* Reserve the leader columns. The shared row's entire 3-slot grid stays between them. */
+  #battleScreen .center-board{
+    left:88px!important;right:88px!important;top:27px!important;
+    width:auto!important;box-sizing:border-box!important;
+  }
+  #battleScreen #sharedZone{
+    display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;
+    gap:3px!important;width:100%!important;min-width:0!important;max-width:100%!important;
+  }
+  #battleScreen #sharedZone .slot{
+    width:100%!important;min-width:0!important;max-width:100%!important;
+    height:65px!important;min-height:65px!important;padding:3px!important;
+    overflow:hidden!important;box-sizing:border-box!important;
+  }
+  #battleScreen #sharedZone .slot .name{font-size:7.7px!important;line-height:1.05!important;padding-right:15px!important}
+  #battleScreen #sharedZone .slot .owner{font-size:6.4px!important}
+  /* Bottom board row still belongs to the scaled board. */
+  #battleScreen .center-board .zones>div:last-child.la-self-zone{
+    grid-template-columns:minmax(0,1fr) 36px 36px!important;column-gap:4px!important;
+  }
+  #battleScreen .la-pile-shelf{width:76px!important;grid-template-columns:36px 36px!important;gap:4px!important}
+  #battleScreen .la-pile-box{width:36px!important}.battle-main .la-pile-box .la-pile-icon{width:33px!important;height:47px!important}
+
+  /* Hand: not scaled with the battlefield. Text is always readable at rest. */
+  #battleScreen .hand-wrap{
+    position:absolute!important;left:0!important;top:var(--la-stage-h,392px)!important;
+    width:100%!important;height:230px!important;min-height:230px!important;
+    margin:4px 0 0!important;padding:0 4px!important;box-sizing:border-box!important;
+    overflow:visible!important;
+  }
+  #battleScreen .hand-wrap>.zone-title{top:0!important;right:10px!important;font-size:9px!important;height:18px!important;z-index:95!important}
+  #battleScreen .hand{
+    --hand-card-w:118px;--hand-step:70px;
+    width:100%!important;min-width:0!important;max-width:none!important;height:226px!important;
+    padding:20px 5px 0!important;display:flex!important;justify-content:flex-start!important;align-items:flex-start!important;
+    overflow:visible!important;box-sizing:border-box!important;
+  }
+  #battleScreen .hand[data-count="1"],#battleScreen .hand[data-count="2"],#battleScreen .hand[data-count="3"]{justify-content:center!important}
+  #battleScreen .hand .card{
+    flex:0 0 var(--hand-card-w)!important;width:var(--hand-card-w)!important;max-width:var(--hand-card-w)!important;
+    height:202px!important;min-height:202px!important;max-height:202px!important;
+    margin-left:calc(var(--hand-step) - var(--hand-card-w))!important;
+    transform:none!important;padding:6px!important;overflow:hidden!important;
+  }
+  #battleScreen .hand .card:first-child{margin-left:0!important}
+  #battleScreen .hand .card:not(.expanded) .text{
+    display:block!important;opacity:1!important;pointer-events:none!important;
+    font-size:8.4px!important;line-height:1.22!important;margin-top:4px!important;
+    max-height:58px!important;overflow:hidden!important;
+  }
+  #battleScreen .hand .card:not(.expanded) .card-actions{opacity:0!important;pointer-events:none!important}
+  #battleScreen .hand .card:not(.expanded) .head{min-height:38px!important}
+  #battleScreen .hand .card .cname{font-size:10px!important;line-height:1.08!important}
+  #battleScreen .hand .card .type{font-size:7.5px!important}
+  #battleScreen .hand .card .card-art{height:67px!important;min-height:67px!important;max-height:67px!important;margin-top:2px!important}
+  #battleScreen .hand .card.expanded{height:auto!important;max-height:330px!important;overflow:visible!important}
+}
+</style>
 <script id="la-0110-board-scale">
 (function(){
-  const DESIGN_W=390, DESIGN_H=570;
+  const DESIGN_W=390, STAGE_H=392, HAND_H=234;
   function ensureStructure(){
     const myPersonal=document.getElementById('myPersonal');
     const selfZone=myPersonal?.parentElement;
     const shelf=document.getElementById('laPileShelf');
-    if(selfZone){
-      selfZone.classList.add('la-self-zone');
-      if(shelf&&shelf.parentElement!==selfZone)selfZone.appendChild(shelf);
-    }
+    if(selfZone){selfZone.classList.add('la-self-zone');if(shelf&&shelf.parentElement!==selfZone)selfZone.appendChild(shelf)}
     const deck=document.getElementById('laDeckBox'),discard=document.getElementById('laDiscardBox');
     if(deck&&!deck.querySelector('.la-pile-icon'))deck.innerHTML='<span class="la-pile-icon" aria-hidden="true"></span><strong>山札</strong>';
     if(discard&&!discard.querySelector('.la-pile-icon'))discard.innerHTML='<span class="la-pile-icon" aria-hidden="true"></span><strong>捨て札</strong>';
@@ -3672,19 +3742,21 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
   function fitBoard(){
     const screen=document.getElementById('battleScreen'),area=screen?.querySelector('.battle-area'),main=screen?.querySelector('.battle-main');
     if(!screen||!area||!main||!matchMedia('(max-width:760px) and (orientation:portrait)').matches){
-      if(main){main.style.removeProperty('--la-board-scale');main.style.transform=''}
+      if(main){main.style.removeProperty('--la-board-scale');main.style.removeProperty('--la-stage-h');main.style.removeProperty('--la-total-h')}
       if(area){area.style.width='';area.style.height=''}
       return;
     }
     ensureStructure();
-    const notice=document.getElementById('battleNotice');
-    const cs=getComputedStyle(screen);const horizontal=(parseFloat(cs.paddingLeft)||0)+(parseFloat(cs.paddingRight)||0);
+    const cs=getComputedStyle(screen),horizontal=(parseFloat(cs.paddingLeft)||0)+(parseFloat(cs.paddingRight)||0);
     const availableW=Math.max(280,screen.clientWidth-horizontal);
-    const availableH=Math.max(420,screen.clientHeight-(notice?.offsetHeight||32)-4);
-    const scale=Math.min(availableW/DESIGN_W,availableH/DESIGN_H);
+    /* Only the battlefield is scaled. The hand keeps a readable physical size. */
+    const scale=Math.min(1.12,availableW/DESIGN_W);
+    const stageH=STAGE_H*scale,totalH=stageH+HAND_H;
     main.style.setProperty('--la-board-scale',String(scale));
-    area.style.width=(DESIGN_W*scale)+'px';
-    area.style.height=(DESIGN_H*scale)+'px';
+    main.style.setProperty('--la-stage-h',stageH+'px');
+    main.style.setProperty('--la-total-h',totalH+'px');
+    area.style.width=availableW+'px';
+    area.style.height=totalH+'px';
   }
   let raf=0;function schedule(){cancelAnimationFrame(raf);raf=requestAnimationFrame(fitBoard)}
   window.addEventListener('resize',schedule,{passive:true});window.addEventListener('orientationchange',schedule,{passive:true});
