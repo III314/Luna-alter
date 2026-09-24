@@ -3657,7 +3657,7 @@ document.querySelectorAll('.tutorial-course').forEach(b=>b.onclick=()=>{startTut
 /* ===== authoritative app metadata: single source of truth ===== */
 (function(){
   const APP_META = Object.freeze({
-    version: '0.8.4',
+    version: '0.8.5',
     label: 'Firebaseオンライン対戦'
   });
   window.LUNA_ALTER_APP_META = APP_META;
@@ -3712,7 +3712,7 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
 }
 </style>
 <style id="la-084-hand-clarity">
-/* 0.8.4: keep unplayable cards readable; communicate availability through the cost badge. */
+/* 0.8.5: keep unplayable cards readable; communicate availability through the cost badge. */
 #battleScreen #myHand .card.disabled{
   opacity:.88;
   filter:saturate(.72) brightness(.96);
@@ -3735,9 +3735,50 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
   #battleScreen .hand .card.expanded{transform:translateY(-30px) scale(1.36)}
 }
 </style>
+
+<style id="la-085-mobile-hand-layout">
+/* 0.8.5: phone hand is a readable game surface, not a cropped tab strip. */
+@media (max-width:760px) and (orientation:portrait){
+  #battleScreen .battle-main{position:relative!important;display:block!important;height:100%!important;}
+  /* Reserve the lower part of the battle screen for the hand and keep it clear of iOS Home. */
+  #battleScreen .combat-stage{position:absolute!important;inset:0 0 224px 0!important;height:auto!important;min-height:0!important;}
+  #battleScreen .hand-wrap{
+    position:absolute!important;left:0!important;right:0!important;bottom:max(20px,env(safe-area-inset-bottom))!important;
+    height:204px!important;min-height:204px!important;max-height:204px!important;
+    margin:0!important;padding:0 6px!important;overflow:visible!important;z-index:70!important;
+  }
+  #battleScreen .hand-wrap>.zone-title{height:14px!important;font-size:8px!important;margin:0 0 2px 12px!important;}
+  #battleScreen .hand{
+    height:188px!important;min-height:188px!important;max-height:188px!important;
+    padding:0 8px 4px!important;align-items:flex-end!important;justify-content:flex-start!important;overflow:visible!important;
+    --hand-card-w:112px;--hand-step:70px;
+  }
+  #battleScreen .hand[data-count="1"],#battleScreen .hand[data-count="2"],#battleScreen .hand[data-count="3"]{justify-content:center!important;}
+  #battleScreen .hand .card{
+    flex:0 0 var(--hand-card-w)!important;width:var(--hand-card-w)!important;max-width:var(--hand-card-w)!important;
+    height:176px!important;min-height:176px!important;max-height:176px!important;
+    margin-left:calc(var(--hand-step) - var(--hand-card-w))!important;
+    transform:none!important;overflow:hidden!important;padding:5px!important;
+  }
+  #battleScreen .hand .card:first-child{margin-left:0!important;}
+  #battleScreen .hand .card:not(.expanded) .head{min-height:48px!important;}
+  #battleScreen .hand .card:not(.expanded) .card-art{height:48px!important;min-height:48px!important;margin:2px -1px 2px!important;}
+  /* Effects stay readable even before expanding the card. */
+  #battleScreen .hand .card:not(.expanded) .text{
+    display:block!important;opacity:1!important;pointer-events:none!important;
+    font-size:7.4px!important;line-height:1.18!important;max-height:55px!important;overflow:hidden!important;margin-top:2px!important;
+  }
+  #battleScreen .hand .card.expanded{
+    width:174px!important;max-width:46vw!important;height:auto!important;min-height:230px!important;max-height:320px!important;
+    transform:translateY(-72px) scale(1.03)!important;overflow:visible!important;z-index:120!important;
+  }
+  #battleScreen .hand .card.expanded .text{font-size:10.5px!important;line-height:1.38!important;max-height:none!important;overflow:visible!important;}
+  #battleScreen .hand .card.expanded .card-art{height:82px!important;min-height:82px!important;}
+}
+</style>
 <script id="la-062-swipe-script">
 (function(){
- const VERSION='0.8.4', LABEL='手札視認性・誤操作防止';
+ const VERSION='0.8.5', LABEL='モバイル手札レイアウト再調整';
  window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});
  document.title=`ルナオルタ ${VERSION}`;
  const versionLabel=document.getElementById('appVersionLabel');if(versionLabel)versionLabel.textContent=`${VERSION} / ${LABEL}`;
