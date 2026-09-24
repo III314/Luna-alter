@@ -3657,7 +3657,7 @@ document.querySelectorAll('.tutorial-course').forEach(b=>b.onclick=()=>{startTut
 /* ===== authoritative app metadata: single source of truth ===== */
 (function(){
   const APP_META = Object.freeze({
-    version: '0.8.5',
+    version: '0.8.6',
     label: 'Firebaseオンライン対戦'
   });
   window.LUNA_ALTER_APP_META = APP_META;
@@ -3712,7 +3712,7 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
 }
 </style>
 <style id="la-084-hand-clarity">
-/* 0.8.5: keep unplayable cards readable; communicate availability through the cost badge. */
+/* 0.8.6: keep unplayable cards readable; communicate availability through the cost badge. */
 #battleScreen #myHand .card.disabled{
   opacity:.88;
   filter:saturate(.72) brightness(.96);
@@ -3737,7 +3737,7 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
 </style>
 
 <style id="la-085-mobile-hand-layout">
-/* 0.8.5: phone hand is a readable game surface, not a cropped tab strip. */
+/* 0.8.6: phone hand is a readable game surface, not a cropped tab strip. */
 @media (max-width:760px) and (orientation:portrait){
   #battleScreen .battle-main{position:relative!important;display:block!important;height:100%!important;}
   /* Reserve the lower part of the battle screen for the hand and keep it clear of iOS Home. */
@@ -3778,7 +3778,7 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
 </style>
 <script id="la-062-swipe-script">
 (function(){
- const VERSION='0.8.5', LABEL='モバイル手札レイアウト再調整';
+ const VERSION='0.8.6', LABEL='ドロップ領域判定修正';
  window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});
  document.title=`ルナオルタ ${VERSION}`;
  const versionLabel=document.getElementById('appVersionLabel');if(versionLabel)versionLabel.textContent=`${VERSION} / ${LABEL}`;
@@ -3809,14 +3809,24 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
  function makeGhost(cardEl,x,y){const w=document.createElement('div');w.id='laSwipeGhost';const clone=cardEl.cloneNode(true);clone.classList.remove('expanded','disabled','la-dragging');clone.querySelectorAll('button').forEach(b=>b.remove());w.appendChild(clone);document.body.appendChild(w);moveGhost(x,y)}
  function moveGhost(x,y){const w=document.getElementById('laSwipeGhost');if(w){w.style.left=x+'px';w.style.top=y+'px'}}
  function clearGhost(){document.getElementById('laSwipeGhost')?.remove()}
+ function pointInside(el,x,y){
+   if(!el)return false;
+   const r=el.getBoundingClientRect();
+   return x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom;
+ }
  function activeZone(x,y,c){
    document.querySelectorAll('#laDropGuide .la-drop-zone').forEach(z=>z.classList.remove('active'));
-   if(!drag||drag.dy>-72)return null;
+   if(!drag)return null;
    if(c.type==='setup'){
-     const dest=x<innerWidth/2?'personal':'shared',z=document.querySelector(`#laDropGuide [data-dest="${dest}"]`);
-     if(z&&!z.classList.contains('invalid')){z.classList.add('active');return dest}return null;
+     for(const dest of ['personal','shared']){
+       const z=document.querySelector(`#laDropGuide [data-dest="${dest}"]`);
+       if(z&&!z.classList.contains('invalid')&&pointInside(z,x,y)){z.classList.add('active');return dest}
+     }
+     return null;
    }
-   const z=document.querySelector('#laDropGuide [data-dest="use"]');if(z){z.classList.add('active');return 'use'}return null;
+   const z=document.querySelector('#laDropGuide [data-dest="use"]');
+   if(z&&pointInside(z,x,y)){z.classList.add('active');return 'use'}
+   return null;
  }
  function begin(e,el,c){
    if(e.button!==undefined&&e.button!==0)return;
@@ -3841,8 +3851,14 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
    window.getSelection?.()?.removeAllRanges?.();
    d.el.classList.remove('la-dragging');clearGhost();clearGuide();
    if(d.moved){suppressClickUntil=Date.now()+350;e.preventDefault();e.stopPropagation()}
-   if(cancel||!d.moved||!d.dest||!playableNow(d.c))return;
-   if(d.c.type==='setup')dispatchAction({type:'play',uid:d.c.uid,dest:d.dest});else dispatchAction({type:'play',uid:d.c.uid});
+   // Pointer-up itself is authoritative: only release INSIDE a visible drop zone plays the card.
+   // This prevents a tiny upward flick (or stale pointermove destination) from firing a play.
+   drag=d;
+   const releaseDest=(!cancel&&d.moved&&playableNow(d.c))?activeZone(e.clientX,e.clientY,d.c):null;
+   drag=null;
+   document.querySelectorAll('#laDropGuide .la-drop-zone').forEach(z=>z.classList.remove('active'));
+   if(cancel||!d.moved||!releaseDest||!playableNow(d.c))return;
+   if(d.c.type==='setup')dispatchAction({type:'play',uid:d.c.uid,dest:releaseDest});else dispatchAction({type:'play',uid:d.c.uid});
  }
  function bindCards(){
    const v=currentView;if(!v)return;
