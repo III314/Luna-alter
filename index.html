@@ -974,6 +974,7 @@ ruby{ruby-position:over}rt{font-size:.58em;font-weight:700;line-height:1;color:v
       <div id="lobbyPanel" class="panel hidden">
         <div class="page-title"><div><div class="small">ルーム番号</div><div id="roomCodeView" class="room-code">----</div></div><button id="copyCode" class="btn">番号をコピー</button></div>
         <div id="roomStatus" class="notice">接続を準備しています…</div>
+        <details id="netDiag" class="panel" style="margin:8px 0;padding:9px 11px"><summary style="font-weight:900;cursor:pointer">通信診断 <span id="netDiagState" class="small">待機中</span></summary><div id="netDiagLog" class="small" style="margin-top:8px;white-space:pre-wrap;line-height:1.55;max-height:180px;overflow:auto">まだ通信を開始していません。</div></details>
         <div class="lobby">
           <div class="lobby-row"><span><i id="hostDot" class="dot"></i><span id="hostLabel">ホスト</span></span><span id="hostReady" class="small">準備中</span></div>
           <div class="lobby-row"><span><i id="guestDot" class="dot"></i><span id="guestLabel">ゲスト</span></span><span id="guestReady" class="small">待機中</span></div>
@@ -1196,10 +1197,33 @@ function refreshDeckSelects(){
  $('startCpu').disabled=!options;$('createRoom').disabled=!options;$('joinRoom').disabled=!options;
 }
 function cleanName(id){const n=$(id).value.trim().slice(0,16)||'ジョバンニ';localStorage.setItem(STORAGE_NAME,n);return n}
+function netDiag(stage,detail='',kind='info'){
+ const box=$('netDiagLog'),state=$('netDiagState');if(!box||!state)return;
+ const now=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+ if(box.textContent==='まだ通信を開始していません。')box.textContent='';
+ box.textContent+=`${box.textContent?'\n':''}[${now}] ${stage}${detail?` — ${detail}`:''}`;
+ box.scrollTop=box.scrollHeight;state.textContent=stage;
+ state.style.color=kind==='bad'?'#a12620':kind==='ok'?'#28723b':'';
+}
+function peerErrorDetail(e){
+ const t=e?.type||'unknown',m=e?.message||String(e||'詳細なし');
+ const hints={
+  'peer-unavailable':'指定したホストIDが見つかりません。番号違い、またはホストがPeerServerへ未接続の可能性があります。',
+  'unavailable-id':'同じルームIDがすでにPeerServer上で使用されています。',
+  'network':'PeerServerへのネットワーク接続に失敗しました。回線・VPN・広告/追跡防止・WebSocket制限を確認してください。',
+  'server-error':'PeerServer側でエラーが発生しました。',
+  'socket-error':'PeerServerとのWebSocket通信でエラーが発生しました。',
+  'socket-closed':'PeerServerとのWebSocketが閉じました。',
+  'webrtc':'WebRTCのP2P接続確立に失敗しました。ネットワーク/NATの組み合わせが原因の可能性があります。',
+  'browser-incompatible':'このブラウザでは必要なWebRTC機能が利用できません。',
+  'ssl-unavailable':'安全な接続(SSL)を利用できません。'
+ };
+ return {type:t,message:m,hint:hints[t]||'未分類の通信エラーです。診断ログのtype/messageを確認してください。'};
+}
 function randomCode(){return String(Math.floor(Math.random()*10000)).padStart(4,'0')}
 function peerAvailable(){if(typeof Peer==='undefined'){$('peerWarning').textContent='通信機能を読み込めませんでした。インターネット接続を確認して、ページを再読み込みしてください。';$('peerWarning').classList.remove('hidden');return false}return true}
 function resetLobby(){$('lobbyPanel').classList.add('hidden');$('hostDot').classList.remove('on');$('guestDot').classList.remove('on');$('startOnline').classList.add('hidden');guestInfo=null}
-function setupLobby(code){roomCode=code;$('roomCodeView').textContent=code;$('lobbyPanel').classList.remove('hidden');$('hostDot').classList.add('on');$('roomStatus').className='notice';$('startOnline').classList.add('hidden')}
+function setupLobby(code){roomCode=code;netDiag('ルーム準備',`番号 ${code}`);$('roomCodeView').textContent=code;$('lobbyPanel').classList.remove('hidden');$('hostDot').classList.add('on');$('roomStatus').className='notice';$('startOnline').classList.add('hidden')}
 function clearReconnectTimers(){if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null}if(hostPeerRetryTimer){clearTimeout(hostPeerRetryTimer);hostPeerRetryTimer=null}}
 function clearHostRecovery(){try{localStorage.removeItem(ONLINE_RECOVERY_KEY)}catch(e){}}
 function saveHostRecovery(){
@@ -1213,8 +1237,8 @@ function setNetworkPaused(paused){networkPaused=!!paused;if(currentView&&!curren
 function bindConnection(c){
  const bound=c;conn=c;
  bound.on('data',handleNetworkMessage);
- bound.on('close',()=>{if(conn!==bound)return;conn=null;connectionLost('相手との接続が切れました。')});
- bound.on('error',()=>{if(conn!==bound)return;connectionLost('通信エラーが発生しました。')});
+ bound.on('close',()=>{netDiag('P2P接続終了',`peer: ${bound.peer||'unknown'}`,'bad');if(conn!==bound)return;conn=null;connectionLost('相手との接続が切れました。')});
+ bound.on('error',e=>{netDiag('P2P通信エラー',e?.message||String(e||''),'bad');if(conn!==bound)return;connectionLost('通信エラーが発生しました。')});
 }
 function scheduleHostPeerRetry(delay=1600){
  if(hostPeerRetryTimer||roomRole!=='host'||matchMode!=='online'||!game||game.over)return;
@@ -1224,17 +1248,17 @@ function startHostPeer(recovering=false){
  if(roomRole!=='host'||matchMode!=='online'||!roomCode||!peerAvailable())return;
  recoveryBooting=recovering;
  try{if(peer&&!peer.destroyed)peer.destroy()}catch(e){}
- peer=new Peer(`giovanni-${roomCode}`,{debug:0});
- peer.on('open',()=>{recoveryBooting=false;if(hostPeerRetryTimer){clearTimeout(hostPeerRetryTimer);hostPeerRetryTimer=null}if(conn?.open&&game&&!game.over)setNetworkPaused(false);saveHostRecovery()});
- peer.on('connection',c=>{
+ netDiag('PeerServerへ接続中',`host id: giovanni-${roomCode}`);peer=new Peer(`giovanni-${roomCode}`,{debug:2});
+ peer.on('open',id=>{netDiag('PeerServer接続成功',`host id: ${id}`,'ok');recoveryBooting=false;if(hostPeerRetryTimer){clearTimeout(hostPeerRetryTimer);hostPeerRetryTimer=null}if(conn?.open&&game&&!game.over)setNetworkPaused(false);saveHostRecovery()});
+ peer.on('connection',c=>{netDiag('ゲストから接続要求',`peer: ${c.peer||'unknown'}`);
    if(conn?.open){c.close();return}
    bindConnection(c);
-   c.on('open',()=>{
+   c.on('open',()=>{netDiag('P2P接続成功','ホスト ↔ ゲスト','ok');
      if(game&&!game.over){setNetworkPaused(false);$('guestDot').classList.add('on');$('roomStatus').textContent='再接続しました。対戦を続行できます。';$('roomStatus').className='notice ok';currentView=makeView('p1');c.send({type:'state',view:makeView('p2'),resumed:true});renderBattleView();saveHostRecovery()}
      else c.send({type:'hello-request'});
    });
  });
- peer.on('disconnected',()=>{if(roomRole!=='host'||matchMode!=='online')return;if(game&&!game.over){setNetworkPaused(true);saveHostRecovery()}try{peer.reconnect()}catch(e){}scheduleHostPeerRetry()});
+ peer.on('disconnected',()=>{netDiag('PeerServer切断','ホスト側。再接続を試みます','bad');if(roomRole!=='host'||matchMode!=='online')return;if(game&&!game.over){setNetworkPaused(true);saveHostRecovery()}try{peer.reconnect()}catch(e){}scheduleHostPeerRetry()});
  peer.on('error',e=>{
    if(roomRole==='host'&&matchMode==='online'&&game&&!game.over&&(e?.type==='unavailable-id'||e?.type==='network'||e?.type==='server-error')){setNetworkPaused(true);saveHostRecovery();if(e?.type==='unavailable-id'){try{peer?.destroy()}catch(_e){}peer=null}scheduleHostPeerRetry(e?.type==='unavailable-id'?1800:1400);return}
    peerError(e);
@@ -1248,17 +1272,17 @@ function sendGuestHello(){
 }
 function openGuestConnection(){
  if(roomRole!=='guest'||matchMode!=='online'||!peer?.open||conn?.open)return;
- const c=peer.connect(`giovanni-${roomCode}`,{reliable:true});bindConnection(c);
- c.on('open',()=>{if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null}setNetworkPaused(false);sendGuestHello()});
+ netDiag('ホストを検索中',`giovanni-${roomCode}`);const c=peer.connect(`giovanni-${roomCode}`,{reliable:true});bindConnection(c);
+ c.on('open',()=>{netDiag('P2P接続成功','ゲスト ↔ ホスト','ok');if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null}setNetworkPaused(false);sendGuestHello()});
  c.on('error',()=>scheduleGuestReconnect());
  setTimeout(()=>{if(roomRole==='guest'&&matchMode==='online'&&!c.open&&!conn?.open)scheduleGuestReconnect()},2200);
 }
 function initGuestPeer(){
  if(roomRole!=='guest'||matchMode!=='online'||!peerAvailable())return;
  try{if(peer&&!peer.destroyed)peer.destroy()}catch(e){}
- peer=new Peer(undefined,{debug:0});
- peer.on('open',()=>{if(conn?.open){setNetworkPaused(false);return}openGuestConnection()});
- peer.on('disconnected',()=>{if(roomRole!=='guest'||matchMode!=='online')return;setNetworkPaused(true);try{peer.reconnect()}catch(e){}scheduleGuestReconnect()});
+ netDiag('PeerServerへ接続中','ゲストIDを取得中');peer=new Peer(undefined,{debug:2});
+ peer.on('open',id=>{netDiag('PeerServer接続成功',`guest id: ${id}`,'ok');if(conn?.open){setNetworkPaused(false);return}openGuestConnection()});
+ peer.on('disconnected',()=>{netDiag('PeerServer切断','ゲスト側。再接続を試みます','bad');if(roomRole!=='guest'||matchMode!=='online')return;setNetworkPaused(true);try{peer.reconnect()}catch(e){}scheduleGuestReconnect()});
  peer.on('error',e=>{if(roomRole==='guest'&&matchMode==='online'&&currentView&&!currentView.over){setNetworkPaused(true);scheduleGuestReconnect();return}peerError(e)});
 }
 function scheduleGuestReconnect(delay=1400){
@@ -1282,7 +1306,7 @@ $('joinRoom').onclick=()=>{
  if(!peerAvailable())return;const code=$('joinCode').value.replace(/\D/g,'').slice(0,4);if(code.length!==4)return alert('数字4桁のルーム番号を入力してください。');leaveRoom(false);roomRole='guest';localPid='p2';matchMode='online';setupLobby(code);const name=cleanName('guestName'),deck=getDeck($('guestDeck').value);guestReconnectInfo={name,deck:{name:deck.name,character:deck.character,counts:deck.counts}};$('guestLabel').textContent=name;$('guestReady').textContent=deck.name;$('hostReady').textContent='接続中';$('roomStatus').textContent='ホストに接続しています…';initGuestPeer();
 };
 $('joinCode').addEventListener('input',()=>{$('joinCode').value=$('joinCode').value.replace(/\D/g,'').slice(0,4)});
-function peerError(e){const msg=e?.type==='peer-unavailable'?'ルームが見つかりません。番号を確認してください。':e?.type==='unavailable-id'?'同じ番号のルームが既にあります。もう一度作成してください。':'接続に失敗しました。少し待って再度お試しください。';$('roomStatus').textContent=msg;$('roomStatus').className='notice bad'}
+function peerError(e){const d=peerErrorDetail(e);netDiag(`エラー: ${d.type}`,`${d.message} / ${d.hint}`,'bad');const msg=d.type==='peer-unavailable'?'ルームが見つかりません。番号を確認してください。':d.type==='unavailable-id'?'同じ番号のルームが既にあります。もう一度作成してください。':`接続エラー（${d.type}）。下の「通信診断」を開いてください。`;$('roomStatus').textContent=msg;$('roomStatus').className='notice bad';const x=$('netDiag');if(x)x.open=true}
 function connectionLost(msg){
  if(matchMode!=='online')return;setNetworkPaused(true);
  if(roomRole==='host'&&game&&!game.over)saveHostRecovery();
@@ -3298,6 +3322,7 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
 </script>
 <!-- ===== end v60 ===== -->
 
+<!-- LUNA ALTER 0.6.3 room diagnostics -->
 </body>
 </html>
 
@@ -3525,8 +3550,8 @@ document.querySelectorAll('.tutorial-course').forEach(b=>b.onclick=()=>{startTut
 /* ===== authoritative app metadata: single source of truth ===== */
 (function(){
   const APP_META = Object.freeze({
-    version: 'v61',
-    label: 'ジョバンニ全カードイラスト実装'
+    version: '0.6.3',
+    label: 'ルーム通信診断'
   });
   window.LUNA_ALTER_APP_META = APP_META;
   document.title = `ルナオルタ ${APP_META.version}`;
@@ -3574,7 +3599,7 @@ document.querySelectorAll('.tutorial-course').forEach(b=>b.onclick=()=>{startTut
 </style>
 <script id="la-062-swipe-script">
 (function(){
- const VERSION='0.6.2', LABEL='上スワイプ操作・カード効果表示改善';
+ const VERSION='0.6.3', LABEL='ルーム通信診断';
  window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});
  document.title=`ルナオルタ ${VERSION}`;
  const versionLabel=document.getElementById('appVersionLabel');if(versionLabel)versionLabel.textContent=`${VERSION} / ${LABEL}`;
