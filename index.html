@@ -3447,7 +3447,7 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
 }
 </style>
 
-<!-- LUNA ALTER 0.10.0: battle piles, clearer X text, pile animations, reliable tap controls -->
+<!-- LUNA ALTER 0.10.3: current build -->
 <style id="la-090-style">
 @media (max-width:760px) and (orientation:portrait){
   #battleScreen .center-board{position:relative!important}
@@ -4244,7 +4244,7 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
 .la-hand-enter{visibility:hidden!important}
 @media(prefers-reduced-motion:reduce){.la-draw-card,.la-draw-card-inner{transition:none!important}}
 </style>
-<script id="la-0102-patch">
+<script id="la-0102-patch" type="text/plain">
 (function(){
  const VERSION='0.10.2',LABEL='盤面配置・ドロー演出再設計';
  window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});document.title=`ルナオルタ ${VERSION}`;
@@ -4284,5 +4284,80 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
    prevHand=now;
  };
  if(currentView){prevHand=(currentView.me.hand||[]).map(x=>({...x}));renderBattleView()}
+})();
+</script>
+
+
+<!-- LUNA ALTER 0.10.3: self-zone rebuild + deck-to-hand reveal -->
+<style id="la-0103-layout-draw">
+@media (max-width:760px) and (orientation:portrait){
+  /* Keep the whole utility row inside the board, away from the right control panel. */
+  #battleScreen .center-board .zones>div:last-child.la-self-zone{
+    width:min(440px,calc(100vw - 225px))!important;
+    min-width:0!important;
+    max-width:440px!important;
+    display:grid!important;
+    grid-template-columns:minmax(120px,1fr) 46px 46px!important;
+    grid-template-rows:auto 126px!important;
+    column-gap:8px!important;
+    align-items:end!important;
+    justify-content:start!important;
+    overflow:visible!important;
+  }
+  #battleScreen .center-board .zones>div:last-child.la-self-zone>.zone-title{grid-column:1!important;grid-row:1!important}
+  #battleScreen .center-board .zones>div:last-child.la-self-zone>#myPersonal{
+    grid-column:1!important;grid-row:2!important;width:auto!important;min-width:0!important;height:118px!important;
+  }
+  #battleScreen .center-board .zones>div:last-child.la-self-zone>#myPersonal .slot{min-height:104px!important;height:104px!important}
+  #battleScreen .la-pile-shelf{
+    position:static!important;grid-column:2/4!important;grid-row:2!important;
+    width:100px!important;height:118px!important;display:grid!important;
+    grid-template-columns:46px 46px!important;gap:8px!important;align-items:end!important;justify-content:start!important;
+    margin:0!important;padding:0!important;transform:none!important;inset:auto!important;overflow:visible!important;
+  }
+  #battleScreen .la-pile-box{width:46px!important;height:92px!important;padding:0!important;display:flex!important;flex-direction:column!important;justify-content:flex-end!important;gap:4px!important;background:transparent!important;border:0!important;box-shadow:none!important}
+  #battleScreen .la-pile-box .la-pile-icon{width:42px!important;height:60px!important;flex:none!important}
+  #battleScreen .la-pile-box strong{display:block!important;font-size:10px!important;line-height:1.1!important;text-align:center!important;color:#2d281f!important;margin:0!important}
+}
+/* A drawn hand card stays invisible until the travelling card actually arrives. */
+#battleScreen #myHand>.card.la-hand-enter{visibility:hidden!important;opacity:0!important}
+.la-draw-card{z-index:10030!important}
+.la-draw-card-inner{transition:transform .34s cubic-bezier(.2,.75,.2,1)!important}
+</style>
+<script id="la-0103-patch">
+(function(){
+ const VERSION='0.10.3',LABEL='盤面下部・ドロー導線再調整';
+ window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});document.title=`ルナオルタ ${VERSION}`;
+ const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${VERSION} / ${LABEL}`;
+ // Replace 0.10.2's draw renderer with a slower, readable deck -> left edge -> reveal sequence.
+ const oldRender=renderBattleView; let previous=(currentView?.me?.hand||[]).map(c=>({...c}));
+ function center(el){const r=el?.getBoundingClientRect();return r?{x:r.left+r.width/2,y:r.top+r.height/2}:null}
+ function art(c){try{return CARD_ART?.[c.id]||''}catch(_){return''}}
+ function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+ function animateDraw(c,target,delay){
+   setTimeout(()=>{
+     const a=center(document.querySelector('#laDeckBox .la-pile-icon')||document.getElementById('laDeckBox'));
+     const hr=document.getElementById('myHand')?.getBoundingClientRect();
+     if(!a||!hr){target?.classList.remove('la-hand-enter');return}
+     const b={x:hr.left+46,y:hr.top+68};
+     const el=document.createElement('div');el.className='la-draw-card';
+     const src=art(c);const artHtml=src?`<div class="la-draw-art"><img src="${src}" alt=""></div>`:'<div class="la-draw-art"></div>';
+     el.innerHTML=`<div class="la-draw-card-inner"><div class="la-draw-face la-draw-back">L</div><div class="la-draw-face la-draw-front ${esc(c.type)}"><div class="la-draw-head"><div class="la-draw-name">${esc(c.name)}</div><div class="la-draw-cost">${esc(viewCost(currentView,c))}</div></div>${artHtml}<div class="la-draw-text">${esc(cardText(c,currentView?.me?.turnSkillDraws))}</div></div></div>`;
+     document.body.appendChild(el);el.style.left=(a.x-39)+'px';el.style.top=(a.y-58)+'px';el.style.transform='scale(.78) rotate(-4deg)';el.style.opacity='1';
+     requestAnimationFrame(()=>{el.style.transition='left .78s cubic-bezier(.18,.7,.18,1),top .78s cubic-bezier(.18,.7,.18,1),transform .78s cubic-bezier(.18,.7,.18,1),opacity .18s linear';el.style.left=(b.x-39)+'px';el.style.top=(b.y-58)+'px';el.style.transform='scale(1) rotate(0deg)'});
+     setTimeout(()=>el.classList.add('flipped'),560);
+     setTimeout(()=>{target?.classList.remove('la-hand-enter');el.style.opacity='0';setTimeout(()=>el.remove(),190)},930);
+   },delay)
+ }
+ renderBattleView=function(){
+   const before=previous.map(c=>({...c})); oldRender();
+   const v=currentView;if(!v)return; const now=(v.me.hand||[]).map(c=>({...c}));
+   const oldIds=new Set(before.map(c=>Number(c.uid)));const added=now.filter(c=>!oldIds.has(Number(c.uid)));
+   if(added.length){
+     const els=[...document.querySelectorAll('#myHand>.card')];
+     added.forEach((c,i)=>{const idx=now.findIndex(x=>Number(x.uid)===Number(c.uid));const target=els[idx];if(target)target.classList.add('la-hand-enter');animateDraw(c,target,i*210)});
+   }
+   previous=now;
+ };
 })();
 </script>
