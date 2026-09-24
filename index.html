@@ -940,10 +940,18 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version: '0.13.1',
-  label: '横画面バトル配置改善'
+  version: '0.13.3',
+  label: '横画面バトル盤面再構築'
 });
 </script>
+
+<style id="la-title-transition-style">
+/* 0.13.2 — deliberate title -> home fade. */
+#laTitleFade{position:fixed;inset:0;background:#020204;opacity:0;pointer-events:none;z-index:100000;transition:opacity 720ms cubic-bezier(.4,0,.2,1);will-change:opacity}
+#laTitleFade.is-dark{opacity:1;pointer-events:auto}
+#titleScreen.title-leaving .title-hint{opacity:0;transition:opacity 260ms ease}
+@media (prefers-reduced-motion:reduce){#laTitleFade{transition-duration:180ms}}
+</style>
 </head>
 <body>
 <div class="app">
@@ -1228,7 +1236,25 @@ const HOME_LINES={giovanni:['さて、始めましょうか。','紳士らしく
 let homeCharacter='giovanni',homeSpeechTimer=null;
 function renderHomeLeader(){const img=$('homeLeaderImg');if(!img)return;img.src=LEADER_SKINS[homeCharacter]||'';img.alt=CHARACTER_LABELS[homeCharacter]||homeCharacter}
 function tapHomeLeader(){const lines=HOME_LINES[homeCharacter]||['……'];const box=$('homeSpeech');box.textContent=lines[Math.floor(Math.random()*lines.length)];box.classList.add('show');clearTimeout(homeSpeechTimer);homeSpeechTimer=setTimeout(()=>box.classList.remove('show'),1800)}
-$('titleStart').onclick=()=>{showScreen('home');renderHomeLeader()};
+let titleTransitionBusy=false;
+$('titleStart').onclick=()=>{
+ if(titleTransitionBusy)return;
+ titleTransitionBusy=true;
+ const title=$('titleScreen');
+ let fade=$('laTitleFade');
+ if(!fade){fade=document.createElement('div');fade.id='laTitleFade';fade.setAttribute('aria-hidden','true');document.body.appendChild(fade)}
+ title?.classList.add('title-leaving');
+ requestAnimationFrame(()=>requestAnimationFrame(()=>fade.classList.add('is-dark')));
+ const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+ const fadeInMs=reduced?190:760,holdMs=reduced?30:180,fadeOutMs=reduced?190:680;
+ setTimeout(()=>{
+   showScreen('home');renderHomeLeader();
+   setTimeout(()=>{
+     fade.classList.remove('is-dark');
+     setTimeout(()=>{title?.classList.remove('title-leaving');titleTransitionBusy=false},fadeOutMs+40);
+   },holdMs);
+ },fadeInMs);
+};
 $('homeLeaderImg').onclick=()=>tapHomeLeader();
 $('navHome').onclick=()=>{};$('navDeck').onclick=()=>showScreen('deck');$('navBattle').onclick=()=>showScreen('battleMenu');$('navSettings').onclick=()=>alert('設定は準備中です。');
 const goBattle=$('goBattle'),goDecks=$('goDecks'),goTutorial=$('goTutorial');if(goBattle)goBattle.onclick=()=>showScreen('battleMenu');if(goDecks)goDecks.onclick=()=>showScreen('deck');if(goTutorial)goTutorial.onclick=()=>{showScreen('tutorial');showTutorialSelect()};$('goRoom').onclick=()=>showScreen('room');$('backHome').onclick=()=>{leaveRoom();showScreen('home');renderHomeLeader()};
@@ -3956,6 +3982,7 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',addBuildBadge,{once:true}); else addBuildBadge();
 })();
 </script>
+\n<style id="la-0133-landscape-rebuild">\n/* 0.13.3 — one 1280x720 board, rebuilt as three explicit horizontal bands. */\n#battleScreen .combat-stage{--edge:20px;--leader-w:174px;--pile-w:72px;--pile-h:110px;--control-w:272px}\n/* top opponent rail: deck -> hand -> discard -> leader */\n#battleScreen #laOppDeckBox{left:24px!important;top:18px!important;width:72px!important;height:112px!important}\n#battleScreen #laOppHandZone{left:118px!important;top:18px!important;width:640px!important;height:112px!important}\n#battleScreen #laOppDiscardBox{left:786px!important;top:18px!important;width:72px!important;height:112px!important}\n#battleScreen .leader-unit.opponent{left:auto!important;right:20px!important;top:16px!important;bottom:auto!important;width:174px!important}\n#battleScreen .leader-unit.opponent .leader-portrait{height:126px!important}\n#battleScreen #oppHandBacks{height:92px!important;align-items:flex-start!important}\n#battleScreen #oppHandBacks .card-back{width:62px!important;height:88px!important;flex-basis:62px!important;margin-left:-27px!important}\n#battleScreen #oppHandBacks .card-back:first-child{margin-left:0!important}\n/* central arena. Personal slots flank the shared three-card row. */\n#battleScreen .center-board{left:126px!important;right:126px!important;top:166px!important;height:310px!important;width:auto!important}\n#battleScreen .center-board .zones{display:grid!important;grid-template-columns:178px minmax(0,1fr) 178px!important;column-gap:30px!important;align-items:center!important;height:100%!important}\n#battleScreen .center-board .zones>div{height:auto!important;min-width:0!important;justify-content:center!important}\n#battleScreen #oppPersonal .slot,#battleScreen #myPersonal .slot{height:190px!important;min-height:190px!important}\n#battleScreen #sharedZone{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:14px!important;width:100%!important}\n#battleScreen #sharedZone .slot{height:232px!important;min-height:232px!important;width:auto!important;min-width:0!important}\n#battleScreen .center-board .zone-title{margin-bottom:7px!important;font-size:12px!important}\n/* bottom player rail: leader -> discard -> hand -> deck -> controls */\n#battleScreen .leader-unit.self{left:20px!important;bottom:16px!important;top:auto!important;width:174px!important}\n#battleScreen .leader-unit.self .leader-portrait{height:126px!important}\n#battleScreen #laDiscardBox{left:210px!important;bottom:18px!important;width:72px!important;height:112px!important}\n#battleScreen .hand-wrap{left:300px!important;bottom:12px!important;width:552px!important;height:202px!important;min-height:202px!important}\n#battleScreen .hand{--hand-card-w:132px;--hand-step:104px;height:188px!important;padding:0!important;justify-content:flex-start!important}\n#battleScreen .hand .card{width:132px!important;flex-basis:132px!important;height:184px!important;min-height:184px!important;max-height:184px!important;margin-left:-28px!important}\n#battleScreen .hand .card:first-child{margin-left:0!important}\n#battleScreen .hand .card .card-art{height:70px!important;min-height:70px!important}\n#battleScreen .hand .card:not(.expanded) .text{font-size:8.5px!important;line-height:1.2!important;max-height:49px!important}\n#battleScreen #laDeckBox{left:870px!important;bottom:18px!important;width:72px!important;height:112px!important}\n#battleScreen .battle-controls{left:auto!important;right:20px!important;bottom:16px!important;width:286px!important;height:174px!important;grid-template-columns:76px 1fr!important}\n#battleScreen #openLog{left:0!important;top:50%!important;transform:translateY(-50%)!important;width:72px!important;height:54px!important;border-radius:0 12px 12px 0!important}\n/* keep notice compact and out of the actual board */\n#battleScreen.active>#battleNotice{top:7px!important;max-width:360px!important;padding:5px 13px!important}\n/* no legacy pile shelf geometry participates in layout */\n#battleScreen #laPileShelf{display:contents!important}\n</style>\n
 </body>
 </html>
 
@@ -4645,7 +4672,7 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
 
 <!-- LUNA ALTER 0.10.6: mobile battle layout cleanup -->
 
-<!-- LUNA ALTER 0.13.1: landscape battle board composition rebuild -->
+<!-- LUNA ALTER 0.13.2: title fade transition + landscape battle board -->
 <style id="la-0131-landscape-battle">
 /* 0.13.1 — landscape board rebuilt from the approved composition.
    One 1280x720 canvas; only the whole canvas scales between devices. */
@@ -4734,7 +4761,7 @@ body:has(#battleScreen.active) .topbar{display:none!important}
 (function(){
   const META=window.LUNA_ALTER_APP_META;
   // update only the single metadata source object used by every existing version label
-  try{window.LUNA_ALTER_APP_META=Object.freeze({version:'0.13.1',label:'横画面バトル配置改善'});}catch(_){ }
+  /* build metadata is defined once in #luna-alter-build-meta */
   const stage=document.querySelector('#battleScreen .combat-stage');
   if(!stage)return;
   const handWrap=document.querySelector('#battleScreen .hand-wrap');
@@ -4772,7 +4799,7 @@ body:has(#battleScreen.active) .topbar{display:none!important}
   addEventListener('resize',schedule,{passive:true});addEventListener('orientationchange',schedule,{passive:true});visualViewport?.addEventListener('resize',schedule,{passive:true});
   const old=window.renderBattleView;if(typeof old==='function')window.renderBattleView=function(){const r=old.apply(this,arguments);schedule();return r};
   // Keep build labels in sync after older patches render.
-  const applyMeta=()=>{document.title='ルナオルタ 0.13.1';const e=document.getElementById('appVersionLabel');if(e)e.textContent='0.13.1 / 横画面バトル配置改善'};
+  const applyMeta=()=>{const m=window.LUNA_ALTER_APP_META;document.title=`ルナオルタ ${m.version}`;const e=document.getElementById('appVersionLabel');if(e)e.textContent=`${m.version} / ${m.label}`};
   applyMeta();schedule();setTimeout(schedule,50);
 })();
 </script>
