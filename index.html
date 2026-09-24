@@ -1593,7 +1593,7 @@ const SHIRANUI_CARD_DEFS=[
  {id:'s15',name:'化粧直し',type:'skill',cost:1,text:'山札のカード1枚を狐火に変化させ、その後シャッフルする。',pool:'shiranui'},
  {id:'s16',name:'終わらぬ宴',type:'attack',cost:1,text:'3ダメージを与える。このカードは使用後、直接自分の手札に戻る。',pool:'shiranui'},
  {id:'s17',name:'花魁道中',type:'setup',cost:2,text:'自分のターン開始時、カードを1枚引く。その後、手札から1枚を廃棄する。',pool:'shiranui'},
- {id:'s18',name:'十六夜',type:'setup',cost:3,text:'手札を任意の枚数廃棄する。次に受けるダメージをX回、7軽減する。Xは廃棄した手札の枚数。軽減回数はターンをまたいで残る。',pool:'shiranui'},
+ {id:'s18',name:'十六夜',type:'setup',cost:3,text:'手札を好きな枚数廃棄する。廃棄した枚数と同じ回数、次に受けるダメージを7軽減する。残り回数は☾で表示する。0枚なら設置されず捨て札へ。',pool:'shiranui'},
  {id:'s19',name:'数珠繋ぎ',type:'skill',cost:3,text:'カードを2枚引く。このカードがこのターン5枚目にプレイされる場合、コストは0。',pool:'shiranui'},
  {id:'s20',name:'玉藻の顕現',type:'skill',cost:10,text:'このターン中にカードを使用するたび、このカードのコストを1下げる。このターン終了後、もう一度自分のターンを行う。',pool:'shiranui'},
  {id:'s21',name:'逢魔時',type:'setup',cost:3,text:'自分がカードを廃棄するたび、3ダメージを与える。',pool:'shiranui'},
@@ -3430,6 +3430,22 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
 })();
 </script>
 
+
+<style id="la-089-mobile-status-fix">
+/* 0.8.9: keep the hand-count label away from the self leader energy panel. */
+@media (max-width:760px) and (orientation:portrait){
+  #battleScreen .hand-wrap>.zone-title{
+    position:absolute!important;
+    top:0!important;right:14px!important;left:auto!important;
+    width:auto!important;height:16px!important;
+    margin:0!important;text-align:right!important;
+    padding:1px 5px!important;border-radius:6px!important;
+    background:rgba(255,253,248,.90)!important;
+    z-index:76!important;
+  }
+  #battleScreen .hand{padding-top:16px!important;}
+}
+</style>
 </body>
 </html>
 
@@ -3657,7 +3673,7 @@ document.querySelectorAll('.tutorial-course').forEach(b=>b.onclick=()=>{startTut
 /* ===== authoritative app metadata: single source of truth ===== */
 (function(){
   const APP_META = Object.freeze({
-    version: '0.8.6',
+    version: '0.8.9',
     label: 'Firebaseオンライン対戦'
   });
   window.LUNA_ALTER_APP_META = APP_META;
@@ -3778,7 +3794,7 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
 </style>
 <script id="la-062-swipe-script">
 (function(){
- const VERSION='0.8.8', LABEL='ターン終了確認・長押し解除';
+ const VERSION='0.8.9', LABEL='十六夜説明・手札表示調整';
  window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});
  document.title=`ルナオルタ ${VERSION}`;
  const versionLabel=document.getElementById('appVersionLabel');if(versionLabel)versionLabel.textContent=`${VERSION} / ${LABEL}`;
@@ -3982,7 +3998,7 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
 </style>
 <script id="v088-controls">
 (function(){
-  const VERSION='0.8.8', LABEL='ターン終了確認・長押し解除';
+  const VERSION='0.8.9', LABEL='十六夜説明・手札表示調整';
   window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});
   document.title=`ルナオルタ ${VERSION}`;
   const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${VERSION} / ${LABEL}`;
