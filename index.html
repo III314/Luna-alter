@@ -957,8 +957,8 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version: '0.13.14',
-  label: '対戦メニュー収まり調整'
+  version: '0.15.0',
+  label: '大規模リファクタリング'
 });
 </script>
 
@@ -3537,32 +3537,6 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
 <!-- ===== end v60 ===== -->
 
 <!-- LUNA ALTER 0.8.8 Firebase online multiplayer + compact sync -->
-
-<script>
-(function(){
-  function bindLongPress(el, action, ms=650){
-    if(!el)return;
-    let timer=null,fired=false,oldText='';
-    const reset=()=>{if(timer){clearTimeout(timer);timer=null}el.classList.remove('hold-active');if(oldText){el.textContent=oldText;oldText=''}};
-    const start=e=>{
-      if(el.disabled)return;
-      fired=false;reset();oldText=el.textContent;el.classList.add('hold-active');el.textContent='長押し…';
-      timer=setTimeout(()=>{timer=null;fired=true;const text=oldText;oldText='';el.classList.remove('hold-active');el.textContent=text;action()},ms);
-      if(e.pointerType==='touch')e.preventDefault();
-    };
-    el.onclick=null;
-    el.addEventListener('pointerdown',start);
-    ['pointerup','pointercancel','pointerleave'].forEach(t=>el.addEventListener(t,()=>{if(!fired)reset()}));
-    el.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation()});
-    el.addEventListener('contextmenu',e=>e.preventDefault());
-  }
-  bindLongPress(document.getElementById('endTurn'),()=>dispatchAction({type:'end'}));
-  bindLongPress(document.getElementById('backHome'),()=>{leaveRoom();showScreen('home')});
-})();
-</script>
-
-
-
 <!-- LUNA ALTER current build: metadata is centralized in #luna-alter-build-meta -->
 <script id="la-090-patch">
 (function(){
@@ -3703,330 +3677,6 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
 
 
 <!-- LUNA ALTER 0.11.0: canonical mobile battle board. One design canvas, scaled as a whole. -->
-<style id="la-0110-canonical-board">
-/* The mobile battlefield has ONE coordinate system (390px design width).
-   Device differences change only --la-board-scale; child coordinates never change. */
-@media (max-width:760px) and (orientation:portrait){
-  #battleScreen{
-    height:calc(100dvh - 49px)!important;min-height:0!important;overflow:hidden!important;
-    padding:5px!important;
-  }
-  #battleScreen #battleNotice{height:32px!important;margin:0 0 4px!important;padding:6px 8px!important;font-size:10px!important;overflow:hidden!important;white-space:nowrap!important;text-overflow:ellipsis!important}
-  #battleScreen .battle-area{display:block!important;position:relative!important;margin:0 auto!important;overflow:visible!important;min-width:0!important;max-width:none!important}
-  #battleScreen .battle-main{
-    position:absolute!important;left:0!important;top:0!important;width:390px!important;height:570px!important;
-    min-width:390px!important;max-width:390px!important;display:grid!important;grid-template-rows:392px 176px!important;gap:2px!important;
-    transform:scale(var(--la-board-scale,1))!important;transform-origin:0 0!important;
-  }
-  #battleScreen .combat-stage{position:relative!important;width:390px!important;height:392px!important;min-height:392px!important;border-radius:13px!important;overflow:hidden!important}
-
-  /* Leaders: fixed coordinates inside the design canvas. */
-  #battleScreen .leader-unit{width:78px!important;min-width:78px!important;max-width:78px!important;gap:2px!important}
-  #battleScreen .leader-unit.self{left:5px!important;right:auto!important;bottom:5px!important}
-  #battleScreen .leader-unit.opponent{right:5px!important;left:auto!important;top:5px!important}
-  #battleScreen .leader-portrait{height:72px!important;border-radius:10px!important}
-  #battleScreen .leader-unit.opponent .leader-portrait{height:68px!important}
-  #battleScreen .leader-nameplate{font-size:7.5px!important;line-height:1.05!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
-  #battleScreen .leader-meta{font-size:7px!important;padding:1px 2px!important}
-  #battleScreen .leader-meta>span[id$="Energy"]{font-size:18px!important;font-weight:1000!important;color:#7a5412!important;line-height:1!important}
-  #battleScreen .leader-meta>span[id$="MaxEnergy"]{font-size:12px!important;font-weight:900!important}
-  #battleScreen .hpbar{height:17px!important} #battleScreen .hpbar-text{font-size:9px!important}
-
-  /* Board center. No viewport units, no device-specific offsets. */
-  #battleScreen .center-board{position:absolute!important;left:88px!important;right:7px!important;top:27px!important;bottom:auto!important;width:auto!important;margin:0!important;padding:5px 5px 4px!important;background:rgba(255,253,248,.76)!important}
-  #battleScreen .center-board .zones{display:grid!important;grid-template-columns:1fr!important;grid-template-rows:auto auto auto!important;height:auto!important;gap:5px!important;padding:0!important;margin:0!important}
-  #battleScreen .center-board .zones>div{width:100%!important;min-width:0!important;max-width:none!important;position:relative!important;transform:none!important;margin:0!important}
-  #battleScreen .center-board .zone-title{font-size:8px!important;line-height:1.05!important;margin:0 0 2px!important;overflow:visible!important}
-  #battleScreen #oppPersonal .slot{height:54px!important;min-height:54px!important}
-  #battleScreen #sharedZone{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:4px!important;width:100%!important;min-width:0!important}
-  #battleScreen #sharedZone .slot{width:auto!important;min-width:0!important;height:65px!important;min-height:65px!important;padding:4px!important;overflow:hidden!important}
-  #battleScreen #sharedZone .slot .name{font-size:8.5px!important;padding-right:18px!important;white-space:normal!important;overflow-wrap:anywhere!important}
-  #battleScreen #sharedZone .slot .owner{font-size:7px!important}
-  #battleScreen .center-board .setup-state-badge{right:3px!important;top:3px!important;min-width:21px!important;height:21px!important;font-size:10px!important}
-  #battleScreen .setup-state-badge.shield{background:#6336a3!important;min-width:30px!important}
-
-  /* One real bottom row: personal setup | deck | discard. */
-  #battleScreen .center-board .zones>div:last-child.la-self-zone{display:grid!important;grid-template-columns:minmax(0,1fr) 42px 42px!important;grid-template-rows:auto 72px!important;column-gap:5px!important;align-items:end!important;width:100%!important;overflow:visible!important}
-  #battleScreen .center-board .zones>div:last-child.la-self-zone>.zone-title{grid-column:1!important;grid-row:1!important}
-  #battleScreen .center-board .zones>div:last-child.la-self-zone>#myPersonal{grid-column:1!important;grid-row:2!important;width:auto!important;min-width:0!important;height:68px!important}
-  #battleScreen #myPersonal .slot{height:60px!important;min-height:60px!important;padding:4px!important}
-  #battleScreen .la-pile-shelf{position:static!important;inset:auto!important;transform:none!important;grid-column:2/4!important;grid-row:1/3!important;width:89px!important;height:76px!important;display:grid!important;grid-template-columns:42px 42px!important;gap:5px!important;margin:0!important;padding:0!important;align-items:end!important;justify-content:start!important;overflow:visible!important;z-index:10!important;pointer-events:auto!important}
-  #battleScreen .la-pile-box{width:42px!important;height:74px!important;min-width:0!important;padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:flex-end!important;gap:2px!important;color:#3c3427!important}
-  #battleScreen .la-pile-box .la-pile-icon{display:block!important;width:38px!important;height:53px!important;border-radius:7px!important;background:linear-gradient(145deg,#201d28,#3b3147 55%,#17151c)!important;border:1.5px solid #d7b96d!important;box-shadow:2px 3px 0 rgba(215,185,109,.55),0 3px 7px rgba(0,0,0,.24)!important;position:relative!important}
-  #battleScreen .la-pile-box .la-pile-icon:before{content:'L';position:absolute;inset:6px;display:grid;place-items:center;border:1px solid rgba(215,185,109,.65);border-radius:4px;color:#d7b96d;font:900 18px/1 Georgia,serif;text-shadow:0 1px 2px #000}
-  #battleScreen .la-pile-box .la-pile-icon:after{content:'';position:absolute;left:50%;top:50%;width:10px;height:10px;border:1px solid #d7b96d;transform:translate(-50%,-50%) rotate(45deg);opacity:.7}
-  #battleScreen .la-pile-box strong{display:block!important;font-size:8px!important;line-height:1!important;font-weight:900!important;white-space:nowrap!important;margin:0!important}
-  #battleScreen .la-pile-count{display:none!important}
-
-  /* Controls are part of the same canvas, so they scale with everything else. */
-  #battleScreen .battle-controls{position:absolute!important;right:6px!important;bottom:6px!important;width:132px!important;padding:6px!important;border-radius:13px!important;z-index:30!important}
-  #battleScreen .battle-turnline{margin-bottom:2px!important} #battleScreen .battle-turnline .turn-badge{font-size:7.5px!important}
-  #battleScreen .battle-controls .status{display:block!important} #battleScreen .battle-controls .small{font-size:6.8px!important;line-height:1.2!important}
-  #battleScreen .battle-controls .battle-actions{display:grid!important;grid-template-columns:1fr!important;gap:5px!important;margin-top:5px!important}
-  #battleScreen .battle-controls .btn{width:100%!important;padding:5px 4px!important;font-size:8px!important;line-height:1.1!important}
-  #battleScreen #endTurn{height:48px!important;padding:9px 6px!important;font-size:13px!important;font-weight:1000!important;border-radius:12px!important}
-  #battleScreen #openLog{position:absolute!important;right:calc(100% + 7px)!important;bottom:0!important;width:72px!important;height:38px!important;padding:6px!important;font-size:10px!important;border-radius:11px!important;background:#fffdf8!important;box-shadow:0 4px 12px rgba(0,0,0,.12)!important}
-
-  /* Hand belongs to the same 390px canvas. */
-  #battleScreen .hand-wrap{position:relative!important;width:390px!important;height:176px!important;min-height:176px!important;margin:0!important;padding:0!important;overflow:visible!important;box-sizing:border-box!important}
-  #battleScreen .hand-wrap>.zone-title{position:absolute!important;top:0!important;right:14px!important;left:auto!important;width:auto!important;height:16px!important;margin:0!important;padding:1px 5px!important;border-radius:6px!important;background:rgba(255,253,248,.90)!important;z-index:76!important;font-size:8px!important;text-align:right!important}
-  #battleScreen .hand{--hand-card-w:110px;--hand-step:70px;width:390px!important;height:160px!important;min-width:390px!important;max-width:390px!important;padding:16px 8px 0!important;box-sizing:border-box!important;justify-content:flex-start!important;align-items:flex-end!important;overflow:visible!important}
-  #battleScreen .hand[data-count="1"],#battleScreen .hand[data-count="2"],#battleScreen .hand[data-count="3"]{justify-content:center!important}
-  #battleScreen .hand .card{box-sizing:border-box!important;flex:0 0 var(--hand-card-w)!important;width:var(--hand-card-w)!important;max-width:var(--hand-card-w)!important;min-height:112px!important;margin-left:calc(var(--hand-step) - var(--hand-card-w))!important;transform:translateY(22px)!important;transform-origin:center bottom!important;-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important}
-  #battleScreen .hand .card:first-child{margin-left:0!important} #battleScreen .hand .card.disabled{opacity:.88!important;filter:saturate(.78) brightness(.94)!important}
-  #battleScreen .hand .card.expanded{width:132px!important;max-width:none!important;flex-basis:132px!important;transform:translateY(-22px) scale(1.32)!important;z-index:90!important}
-  #battleScreen .hand-tip{display:none!important}
-
-  #battleScreen .played-stage{top:58px!important;width:126px!important}
-}
-
-/* Draw ghost styles were previously scattered across two version patches. */
-.la-draw-card{position:fixed;z-index:10030;width:78px;height:116px;pointer-events:none;perspective:700px;will-change:left,top,transform,opacity}
-.la-draw-card-inner{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .34s cubic-bezier(.2,.75,.2,1)}
-.la-draw-card.flipped .la-draw-card-inner{transform:rotateY(180deg)}
-.la-draw-face{position:absolute;inset:0;border-radius:9px;overflow:hidden;backface-visibility:hidden;box-shadow:0 9px 24px rgba(0,0,0,.28)}
-.la-draw-back{border:2px solid #d7b96d;background:linear-gradient(145deg,#201d28,#3b3147 55%,#17151c);display:grid;place-items:center;color:#d7b96d;font:900 27px/1 Georgia,serif}
-.la-draw-back:after{content:'';position:absolute;inset:9px;border:1px solid rgba(215,185,109,.65);border-radius:5px}
-.la-draw-front{transform:rotateY(180deg);border:2px solid #bda45c;background:#f6edd9;color:#28231c;padding:5px;display:flex;flex-direction:column;gap:3px}
-.la-draw-front.attack{background:#efd9d6}.la-draw-front.skill{background:#dce9ef}.la-draw-front.setup{background:#eee2bf}.la-draw-front.spell{background:#e7dced}
-.la-draw-head{display:flex;align-items:center;justify-content:space-between;gap:3px;min-height:20px}.la-draw-name{font:800 8px/1.05 system-ui;overflow:hidden;max-height:18px}.la-draw-cost{flex:none;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:#fff;border:2px solid #9a7c39;font:900 12px/1 system-ui}
-.la-draw-art{height:55px;border-radius:5px;overflow:hidden;background:#201d28;border:1px solid rgba(80,60,35,.3)}.la-draw-art img{width:100%;height:100%;display:block;object-fit:cover;image-rendering:pixelated}.la-draw-text{font:600 6.5px/1.2 system-ui;overflow:hidden;max-height:26px}
-#battleScreen #myHand>.card.la-hand-enter{visibility:hidden!important;opacity:0!important}
-@media(prefers-reduced-motion:reduce){.la-draw-card,.la-draw-card-inner{transition:none!important}}
-</style>
-<style id="la-0111-readable-hand">
-/* 0.11.1 — the battlefield scales as one board, but the hand is a readable interaction layer. */
-@media (max-width:760px) and (orientation:portrait){
-  #battleScreen .battle-main{
-    display:block!important;
-    width:100%!important;min-width:0!important;max-width:none!important;
-    height:var(--la-total-h,640px)!important;
-    transform:none!important;
-  }
-  #battleScreen .combat-stage{
-    position:absolute!important;left:0!important;top:0!important;
-    width:390px!important;height:392px!important;
-    transform:scale(var(--la-board-scale,1))!important;
-    transform-origin:0 0!important;
-  }
-  /* Reserve the leader columns. The shared row's entire 3-slot grid stays between them. */
-  #battleScreen .center-board{
-    left:88px!important;right:88px!important;top:27px!important;
-    width:auto!important;box-sizing:border-box!important;
-  }
-  #battleScreen #sharedZone{
-    display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;
-    gap:3px!important;width:100%!important;min-width:0!important;max-width:100%!important;
-  }
-  #battleScreen #sharedZone .slot{
-    width:100%!important;min-width:0!important;max-width:100%!important;
-    height:65px!important;min-height:65px!important;padding:3px!important;
-    overflow:hidden!important;box-sizing:border-box!important;
-  }
-  #battleScreen #sharedZone .slot .name{font-size:7.7px!important;line-height:1.05!important;padding-right:15px!important}
-  #battleScreen #sharedZone .slot .owner{font-size:6.4px!important}
-  /* Bottom board row still belongs to the scaled board. */
-  #battleScreen .center-board .zones>div:last-child.la-self-zone{
-    grid-template-columns:minmax(0,1fr) 36px 36px!important;column-gap:4px!important;
-  }
-  #battleScreen .la-pile-shelf{width:76px!important;grid-template-columns:36px 36px!important;gap:4px!important}
-  #battleScreen .la-pile-box{width:36px!important}.battle-main .la-pile-box .la-pile-icon{width:33px!important;height:47px!important}
-
-  /* Hand: not scaled with the battlefield. Text is always readable at rest. */
-  #battleScreen .hand-wrap{
-    position:absolute!important;left:0!important;top:var(--la-stage-h,392px)!important;
-    width:100%!important;height:230px!important;min-height:230px!important;
-    margin:4px 0 0!important;padding:0 4px!important;box-sizing:border-box!important;
-    overflow:visible!important;
-  }
-  #battleScreen .hand-wrap>.zone-title{top:0!important;right:10px!important;font-size:9px!important;height:18px!important;z-index:95!important}
-  #battleScreen .hand{
-    --hand-card-w:118px;--hand-step:70px;
-    width:100%!important;min-width:0!important;max-width:none!important;height:226px!important;
-    padding:20px 5px 0!important;display:flex!important;justify-content:flex-start!important;align-items:flex-start!important;
-    overflow:visible!important;box-sizing:border-box!important;
-  }
-  #battleScreen .hand[data-count="1"],#battleScreen .hand[data-count="2"],#battleScreen .hand[data-count="3"]{justify-content:center!important}
-  #battleScreen .hand .card{
-    flex:0 0 var(--hand-card-w)!important;width:var(--hand-card-w)!important;max-width:var(--hand-card-w)!important;
-    height:202px!important;min-height:202px!important;max-height:202px!important;
-    margin-left:calc(var(--hand-step) - var(--hand-card-w))!important;
-    transform:none!important;padding:6px!important;overflow:hidden!important;
-  }
-  #battleScreen .hand .card:first-child{margin-left:0!important}
-  #battleScreen .hand .card:not(.expanded) .text{
-    display:block!important;opacity:1!important;pointer-events:none!important;
-    font-size:8.4px!important;line-height:1.22!important;margin-top:4px!important;
-    max-height:58px!important;overflow:hidden!important;
-  }
-  #battleScreen .hand .card:not(.expanded) .card-actions{opacity:0!important;pointer-events:none!important}
-  #battleScreen .hand .card:not(.expanded) .head{min-height:38px!important}
-  #battleScreen .hand .card .cname{font-size:10px!important;line-height:1.08!important}
-  #battleScreen .hand .card .type{font-size:7.5px!important}
-  #battleScreen .hand .card .card-art{height:67px!important;min-height:67px!important;max-height:67px!important;margin-top:2px!important}
-  #battleScreen .hand .card.expanded{height:auto!important;max-height:330px!important;overflow:visible!important}
-}
-</style>
-<script id="la-0110-board-scale">
-(function(){
-  const DESIGN_W=390, STAGE_H=392, HAND_H=234;
-  function ensureStructure(){
-    const myPersonal=document.getElementById('myPersonal');
-    const selfZone=myPersonal?.parentElement;
-    const shelf=document.getElementById('laPileShelf');
-    if(selfZone){selfZone.classList.add('la-self-zone');if(shelf&&shelf.parentElement!==selfZone)selfZone.appendChild(shelf)}
-    const deck=document.getElementById('laDeckBox'),discard=document.getElementById('laDiscardBox');
-    if(deck&&!deck.querySelector('.la-pile-icon'))deck.innerHTML='<span class="la-pile-icon" aria-hidden="true"></span><strong>山札</strong>';
-    if(discard&&!discard.querySelector('.la-pile-icon'))discard.innerHTML='<span class="la-pile-icon" aria-hidden="true"></span><strong>捨て札</strong>';
-  }
-  function fitBoard(){
-    const screen=document.getElementById('battleScreen'),area=screen?.querySelector('.battle-area'),main=screen?.querySelector('.battle-main');
-    if(!screen||!area||!main||!matchMedia('(max-width:760px) and (orientation:portrait)').matches){
-      if(main){main.style.removeProperty('--la-board-scale');main.style.removeProperty('--la-stage-h');main.style.removeProperty('--la-total-h')}
-      if(area){area.style.width='';area.style.height=''}
-      return;
-    }
-    ensureStructure();
-    const cs=getComputedStyle(screen),horizontal=(parseFloat(cs.paddingLeft)||0)+(parseFloat(cs.paddingRight)||0);
-    const availableW=Math.max(280,screen.clientWidth-horizontal);
-    /* Only the battlefield is scaled. The hand keeps a readable physical size. */
-    const scale=Math.min(1.12,availableW/DESIGN_W);
-    const stageH=STAGE_H*scale,totalH=stageH+HAND_H;
-    main.style.setProperty('--la-board-scale',String(scale));
-    main.style.setProperty('--la-stage-h',stageH+'px');
-    main.style.setProperty('--la-total-h',totalH+'px');
-    area.style.width=availableW+'px';
-    area.style.height=totalH+'px';
-  }
-  let raf=0;function schedule(){cancelAnimationFrame(raf);raf=requestAnimationFrame(fitBoard)}
-  window.addEventListener('resize',schedule,{passive:true});window.addEventListener('orientationchange',schedule,{passive:true});
-  if(window.visualViewport)visualViewport.addEventListener('resize',schedule,{passive:true});
-  const oldRender=window.renderBattleView;
-  if(typeof oldRender==='function')window.renderBattleView=function(){const r=oldRender.apply(this,arguments);schedule();return r};
-  document.addEventListener('DOMContentLoaded',schedule);setTimeout(schedule,0);
-  const meta=window.LUNA_ALTER_APP_META;document.title=`ルナオルタ ${meta.version}`;const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${meta.version} / ${meta.label}`;
-})();
-</script>
-
-
-<style id="la-0112-ui-reflow">
-@media (max-width:760px) and (orientation:portrait){
-  /* 0.11.2 — one bottom board row: personal | piles | turn controls. */
-  #battleScreen .center-board .zones>div:last-child.la-self-zone{
-    display:grid!important;
-    grid-template-columns:minmax(0,1fr) 76px 112px!important;
-    grid-template-rows:18px 78px!important;
-    column-gap:5px!important;row-gap:0!important;
-    align-items:stretch!important;width:100%!important;overflow:visible!important;
-  }
-  #battleScreen .center-board .zones>div:last-child.la-self-zone>.zone-title{grid-column:1!important;grid-row:1!important}
-  #battleScreen .center-board .zones>div:last-child.la-self-zone>#myPersonal{grid-column:1!important;grid-row:2!important;height:76px!important}
-  #battleScreen #myPersonal .slot{height:72px!important;min-height:72px!important}
-  #battleScreen .la-pile-shelf{
-    grid-column:2!important;grid-row:1/3!important;width:76px!important;height:96px!important;
-    grid-template-columns:36px 36px!important;gap:4px!important;align-items:end!important;
-  }
-  #battleScreen .la-pile-box{width:36px!important;height:78px!important}
-  #battleScreen .battle-controls{
-    position:static!important;inset:auto!important;transform:none!important;
-    grid-column:3!important;grid-row:1/3!important;width:112px!important;height:96px!important;
-    box-sizing:border-box!important;padding:5px!important;margin:0!important;border-radius:10px!important;
-    display:flex!important;flex-direction:column!important;justify-content:space-between!important;z-index:20!important;
-  }
-  #battleScreen .battle-turnline{margin:0!important;min-height:25px!important}
-  #battleScreen .battle-turnline .turn-badge{font-size:7.2px!important;line-height:1.12!important;white-space:normal!important}
-  #battleScreen .battle-controls .status{display:none!important}
-  #battleScreen .battle-controls .battle-actions{display:grid!important;grid-template-columns:1fr!important;gap:3px!important;margin:2px 0 0!important}
-  #battleScreen .battle-controls #movePersonal{font-size:6.8px!important;padding:3px 2px!important;min-height:20px!important}
-  #battleScreen .battle-controls #endTurn{font-size:11px!important;font-weight:1000!important;min-height:38px!important;padding:6px 3px!important}
-
-  /* Log belongs to the leader, not to the turn-control box. */
-  #battleScreen #openLog{
-    position:absolute!important;left:12px!important;bottom:170px!important;width:72px!important;height:34px!important;
-    z-index:45!important;border-radius:10px!important;font-size:10px!important;font-weight:900!important;
-    box-shadow:0 5px 12px rgba(0,0,0,.14)!important;background:#fffdf8!important;
-  }
-
-  /* Five-card opening hands should breathe; overlap increases only as the hand fills. */
-  #battleScreen .hand{justify-content:flex-start!important}
-  #battleScreen .hand[data-count="1"],#battleScreen .hand[data-count="2"],#battleScreen .hand[data-count="3"]{justify-content:center!important}
-
-  /* Playability: keep the art/text readable and communicate state at the cost badge. */
-  #battleScreen .hand .card.disabled{opacity:.94!important;filter:saturate(.84) brightness(.97)!important}
-  #battleScreen .hand .card:not(.disabled) .cost{border:2px solid #16884a!important;color:#0d6e3a!important;box-shadow:0 0 0 2px rgba(22,136,74,.10),0 1px 4px rgba(0,0,0,.12)!important}
-  #battleScreen .hand .card.disabled .cost{border:2px solid #b34747!important;color:#9b3434!important;background:#fff5f3!important;box-shadow:0 0 0 2px rgba(179,71,71,.08),0 1px 4px rgba(0,0,0,.10)!important}
-
-  /* Setup cards show their illustration on the battlefield. */
-  #battleScreen .slot.occupied{position:relative!important;overflow:hidden!important;padding:0!important;background:#29251f!important;text-align:left!important}
-  #battleScreen .slot.occupied .setup-art-bg{position:absolute;inset:0;z-index:0;background:#302b25}
-  #battleScreen .slot.occupied .setup-art-bg img{width:100%;height:100%;display:block;object-fit:cover;object-position:center}
-  #battleScreen .slot.occupied .setup-art-bg:after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.04) 28%,rgba(0,0,0,.76) 100%)}
-  #battleScreen .slot.occupied .setup-caption{position:absolute;left:4px;right:4px;bottom:4px;z-index:2;color:white;text-shadow:0 1px 3px #000;min-width:0}
-  #battleScreen .slot.occupied .setup-caption .name{font-size:8.5px!important;line-height:1.05!important;font-weight:1000!important;padding:0 22px 0 0!important;color:white!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
-  #battleScreen .slot.occupied .setup-caption .owner{font-size:6.5px!important;line-height:1!important;color:rgba(255,255,255,.9)!important}
-  #battleScreen .slot.occupied .mini-effect{display:none!important}
-}
-</style>
-<script id="la-0112-ui-reflow-script">
-(function(){
-  function arrangeBattleUi(){
-    // 0.13.8: the landscape rebuild owns battle DOM placement.
-    // Keep this legacy helper only for screens before the landscape rails exist.
-    if(document.querySelector('#battleScreen .la-top-rail')) return;
-    const myPersonal=document.getElementById('myPersonal');
-    const selfZone=myPersonal?.parentElement;
-    const shelf=document.getElementById('laPileShelf');
-    const controls=document.querySelector('#battleScreen .battle-controls');
-    const log=document.getElementById('openLog');
-    const stage=document.querySelector('#battleScreen .combat-stage');
-    if(selfZone){
-      selfZone.classList.add('la-self-zone');
-      if(shelf&&shelf.parentElement!==selfZone)selfZone.appendChild(shelf);
-      if(controls&&controls.parentElement!==selfZone)selfZone.appendChild(controls);
-    }
-    if(log&&stage&&log.parentElement!==stage)stage.appendChild(log);
-  }
-
-  /* Opening five cards: expose most of each card. Only dense hands overlap heavily. */
-  window.layoutHandFan=function(){
-    const hand=document.getElementById('myHand');if(!hand)return;
-    const count=hand.children.length;hand.dataset.count=String(count);
-    if(window.innerWidth>760||count===0){hand.style.removeProperty('--hand-card-w');hand.style.removeProperty('--hand-step');return}
-    const vw=(window.visualViewport&&window.visualViewport.width)||window.innerWidth;
-    const rowWidth=Math.max(250,Math.min(vw-10,hand.parentElement?.clientWidth||vw)-12);
-    let w,step;
-    if(count===1){w=Math.min(158,rowWidth);step=w}
-    else if(count===2){w=Math.min(148,(rowWidth-10)/2);step=w+6}
-    else if(count===3){w=Math.min(118,(rowWidth-14)/3);step=w+5}
-    else if(count===4){w=100;step=Math.min(90,(rowWidth-w)/3)}
-    else if(count===5){w=94;step=Math.min(72,(rowWidth-w)/4)}
-    else if(count===6){w=90;step=Math.max(53,(rowWidth-w)/5)}
-    else if(count===7){w=88;step=Math.max(45,(rowWidth-w)/6)}
-    else if(count===8){w=86;step=Math.max(39,(rowWidth-w)/7)}
-    else if(count===9){w=84;step=Math.max(35,(rowWidth-w)/8)}
-    else {w=82;step=Math.max(31,(rowWidth-w)/Math.max(1,count-1))}
-    hand.style.setProperty('--hand-card-w',`${Math.round(w*10)/10}px`);
-    hand.style.setProperty('--hand-step',`${Math.round(step*10)/10}px`);
-  };
-
-  /* Battlefield setup renderer: same data, now with the registered lightweight card art. */
-  window.setupSlot=function(x,mePid){
-    if(!x)return '<div class="slot"></div>';
-    const c=x.card,owner=x.owner===mePid?'自分':'相手';
-    let src='';try{src=CARD_ART?.[c.id]||''}catch(_){src=''}
-    const art=src?`<div class="setup-art-bg"><img src="${src}" alt=""></div>`:'<div class="setup-art-bg"></div>';
-    let badge='';try{badge=typeof setupStateBadge==='function'?setupStateBadge(x,mePid):''}catch(_){badge=''}
-    return `<button type="button" class="slot occupied setup-detail-trigger" data-setup-uid="${c.uid}" aria-label="${escapeHtml(c.name)}の詳細を見る">${art}<div class="setup-caption"><div class="name">${escapeHtml(c.name)}</div><div class="owner">${owner}</div></div>${badge}</button>`;
-  };
-
-  const oldRender=renderBattleView;
-  renderBattleView=function(){arrangeBattleUi();oldRender();arrangeBattleUi();requestAnimationFrame(window.layoutHandFan)};
-  arrangeBattleUi();requestAnimationFrame(window.layoutHandFan);
-  window.addEventListener('resize',()=>{arrangeBattleUi();requestAnimationFrame(window.layoutHandFan)});
-})();
-</script>
-
-
 <!-- LUNA ALTER 0.12.2: development cache busting for Home Screen/PWA -->
 <script id="la-0122-dev-cache">
 (function(){
@@ -4274,74 +3924,6 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
 
 
 <!-- LUNA ALTER 0.13.12: battle board visibility + setup art -->
-<style id="la-01312-battle-visibility">
-/* Remove the old arena split. The board is one continuous field. */
-#battleScreen .combat-stage{background:#f5efe3!important}
-#battleScreen .combat-stage:before{display:none!important;content:none!important}
-
-/* Keep both leaders completely inside the 720px logical board. */
-#battleScreen .la-top-rail{align-items:start!important}
-#battleScreen .leader-unit.opponent{height:140px!important;grid-template-rows:16px 100px 22px!important;align-self:start!important}
-#battleScreen .leader-unit.self{height:188px!important;grid-template-rows:16px 148px 22px!important;align-self:end!important}
-#battleScreen .leader-unit.opponent .leader-portrait{height:100px!important;min-height:100px!important}
-#battleScreen .leader-unit.self .leader-portrait{height:148px!important;min-height:148px!important}
-#battleScreen .leader-unit .hpbar{height:22px!important;min-height:22px!important;position:relative!important;z-index:40!important}
-#battleScreen .leader-unit .hpbar-text{font-size:11px!important;line-height:22px!important}
-
-/* Setups live in the middle without invading either HP bar. */
-#battleScreen .center-board{inset:8px 78px 8px!important}
-#battleScreen .center-board .zones{grid-template-columns:150px minmax(0,1fr) 150px!important;gap:24px!important}
-#battleScreen #oppPersonal,#battleScreen #myPersonal{height:168px!important}
-#battleScreen #oppPersonal .slot,#battleScreen #myPersonal .slot{height:168px!important;min-height:168px!important}
-#battleScreen #sharedZone{height:190px!important;gap:14px!important}
-#battleScreen #sharedZone .slot{height:190px!important;min-height:190px!important}
-
-/* Setup art: full-bleed illustration with a small readable caption. */
-#battleScreen .slot.occupied{position:relative!important;padding:0!important;overflow:hidden!important;background:#2b2722!important}
-#battleScreen .slot.occupied .setup-art-bg{display:block!important;position:absolute!important;inset:0!important;z-index:0!important;background:#302b25!important}
-#battleScreen .slot.occupied .setup-art-bg img{display:block!important;width:100%!important;height:100%!important;object-fit:cover!important;object-position:center!important}
-#battleScreen .slot.occupied .setup-art-bg:after{content:""!important;position:absolute!important;inset:0!important;background:linear-gradient(to bottom,rgba(0,0,0,0) 45%,rgba(0,0,0,.78) 100%)!important}
-#battleScreen .slot.occupied .setup-caption{display:block!important;position:absolute!important;left:7px!important;right:7px!important;bottom:7px!important;z-index:2!important;color:#fff!important;text-shadow:0 1px 3px #000!important}
-#battleScreen .slot.occupied .setup-caption .name{font-size:10px!important;color:#fff!important;font-weight:900!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
-#battleScreen .slot.occupied .setup-caption .owner{font-size:7px!important;color:rgba(255,255,255,.9)!important}
-
-/* Dedicated, always-visible energy readout. */
-#battleScreen .battle-controls .status{display:grid!important;place-items:center!important;overflow:hidden!important}
-#battleScreen .battle-controls .status>.la-energy-readout{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;color:#fff!important;font-weight:900!important;line-height:1!important}
-#battleScreen .la-energy-bolt{font-size:25px!important;margin-bottom:7px!important}
-#battleScreen .la-energy-value{font-size:15px!important;letter-spacing:.02em!important;white-space:nowrap!important}
-#battleScreen .battle-controls .status>div:not(.la-energy-readout){display:none!important}
-</style>
-<script id="la-01312-battle-visibility-js">
-(function(){
-  function setupSlot01312(x,mePid){
-    if(!x)return '<div class="slot"></div>';
-    const c=x.card, owner=x.owner===mePid?'自分':'相手';
-    const src=window.LUNA_CARD_ART?.[c.id]||'';
-    const art=src?`<div class="setup-art-bg"><img src="${src}" alt="" draggable="false"></div>`:'<div class="setup-art-bg"></div>';
-    let badge='';try{badge=typeof setupStateBadge==='function'?setupStateBadge(x,mePid):''}catch(_){badge=''}
-    return `<button type="button" class="slot occupied setup-detail-trigger" data-setup-uid="${c.uid}" aria-label="${escapeHtml(c.name)}の詳細を見る">${art}<div class="setup-caption"><div class="name">${escapeHtml(c.name)}</div><div class="owner">${owner}</div></div>${badge}</button>`;
-  }
-  window.setupSlot=setupSlot01312;
-  try{setupSlot=setupSlot01312}catch(_){}
-
-  function ensureEnergy(){
-    const status=document.querySelector('#battleScreen .battle-controls .status');
-    if(!status)return;
-    let r=status.querySelector('.la-energy-readout');
-    if(!r){r=document.createElement('div');r.className='la-energy-readout';r.innerHTML='<span class="la-energy-bolt">⚡</span><span class="la-energy-value">0 / 0</span>';status.appendChild(r)}
-    const e=document.getElementById('myEnergy')?.textContent||'0';
-    const m=document.getElementById('myMaxEnergy')?.textContent||'0';
-    r.querySelector('.la-energy-value').textContent=`${e} / ${m}`;
-  }
-  const prev=window.renderBattleView;
-  if(typeof prev==='function')window.renderBattleView=function(){const r=prev.apply(this,arguments);ensureEnergy();return r};
-  ensureEnergy();
-})();
-</script>
-
-
-
 <!-- LUNA ALTER 0.13.13: full-height battle setup + visible Firebase room creation -->
 <style id="la-01313-battle-room-fix">
 /* CPU setup is an in-app subview: persistent bottom nav is enough navigation. */
@@ -4431,7 +4013,7 @@ body.la-battle-subview #roomScreen{height:100vh!important;min-height:100vh!impor
 <script id="la-01314-setup-detail-js">
 (()=>{
   function esc(v){try{return escapeHtml(String(v??''))}catch(_){return String(v??'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]))}}
-  function artFor(c){try{return (window.CARD_ART&&window.CARD_ART[c.id])||''}catch(_){return ''}}
+  function artFor(c){try{return (window.LUNA_CARD_ART&&window.LUNA_CARD_ART[c.id])||''}catch(_){return ''}}
   function effectFor(c){try{return cardText(c)||''}catch(_){return c?.text||''}}
   function setupSlot01314(x,mePid){
     if(!x)return '<div class="slot"></div>';
@@ -4470,9 +4052,190 @@ body.la-battle-subview #roomScreen{height:100vh!important;min-height:100vh!impor
 })();
 </script>
 
-</body>
-</html>
+<!-- LUNA ALTER 0.13.4: definitive landscape battle rebuild -->
+<style id="la-0134-landscape-battle">
+/* The battle screen is landscape-first. Legacy portrait geometry is intentionally ignored here. */
+body:has(#battleScreen.active){overflow:hidden!important;background:#e9e1d3!important}
+body:has(#battleScreen.active) .topbar{display:none!important}
+#battleScreen.active{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;min-height:0!important;margin:0!important;padding:0!important;overflow:hidden!important;background:#e9e1d3!important;z-index:200!important}
+#battleScreen .battle-area,#battleScreen .battle-main{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;margin:0!important;padding:0!important;display:block!important;overflow:visible!important}
+#battleScreen .combat-stage{position:absolute!important;left:50%!important;top:50%!important;width:1280px!important;height:720px!important;min-height:720px!important;margin:0!important;padding:18px 20px!important;box-sizing:border-box!important;display:grid!important;grid-template-rows:145px minmax(0,1fr) 205px!important;gap:12px!important;border:1px solid #cfc4b3!important;border-radius:20px!important;overflow:hidden!important;background:linear-gradient(180deg,#fbf8f0 0 49.9%,#e9e0d1 50% 100%)!important;box-shadow:0 18px 55px rgba(48,37,23,.16)!important;transform-origin:center center!important}
+#battleScreen .combat-stage:before{content:""!important;position:absolute!important;left:0!important;right:0!important;top:50%!important;height:1px!important;background:rgba(126,105,76,.15)!important;pointer-events:none!important}
+#battleScreen .la-top-rail,#battleScreen .la-center-rail,#battleScreen .la-bottom-rail{position:relative!important;min-width:0!important;min-height:0!important;z-index:5!important}
+#battleScreen .la-top-rail{display:grid!important;grid-template-columns:84px minmax(0,1fr) 84px 180px!important;gap:18px!important;align-items:start!important}
+#battleScreen .la-center-rail{display:block!important}
+#battleScreen .la-bottom-rail{display:grid!important;grid-template-columns:180px 84px minmax(0,1fr) 84px 250px!important;gap:16px!important;align-items:end!important}
 
+/* Leaders: always visible, no inherited absolute positioning. */
+#battleScreen .leader-unit,#battleScreen .leader-unit.self,#battleScreen .leader-unit.opponent{position:relative!important;inset:auto!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;width:180px!important;height:100%!important;margin:0!important;display:grid!important;grid-template-rows:18px 1fr 24px!important;gap:2px!important;z-index:12!important}
+#battleScreen .leader-unit.opponent{grid-column:4!important;grid-row:1!important}
+#battleScreen .leader-unit.self{grid-column:1!important;grid-row:1!important}
+#battleScreen .leader-nameplate{font-size:11px!important;line-height:18px!important;text-align:left!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+#battleScreen .leader-portrait,#battleScreen .leader-unit.opponent .leader-portrait,#battleScreen .leader-unit.self .leader-portrait{height:auto!important;min-height:0!important;width:100%!important;border-radius:11px!important;overflow:hidden!important}
+#battleScreen .leader-img{width:100%!important;height:100%!important;object-fit:cover!important}
+#battleScreen .hpbar{height:24px!important}.hpbar-text{font-size:12px!important}.leader-meta{display:none!important}
+
+/* Physical piles. */
+#battleScreen .la-opp-pile,#battleScreen .la-pile-box{position:relative!important;inset:auto!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;width:84px!important;height:126px!important;margin:0!important;padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:flex-start!important;gap:4px!important;color:#332d25!important;font-size:10px!important;font-weight:900!important}
+#battleScreen .la-opp-pile .la-pile-icon,#battleScreen .la-pile-box .la-pile-icon{display:block!important;width:66px!important;height:94px!important;flex:0 0 94px!important;border-radius:8px!important;background:linear-gradient(145deg,#201d28,#3b3147 55%,#17151c)!important;border:2px solid #d7b96d!important;box-shadow:3px 4px 0 rgba(215,185,109,.42),0 6px 13px rgba(0,0,0,.18)!important;position:relative!important}
+#battleScreen .la-opp-pile .la-pile-icon:before,#battleScreen .la-pile-box .la-pile-icon:before{content:'L'!important;position:absolute!important;inset:9px!important;display:grid!important;place-items:center!important;border:1px solid rgba(215,185,109,.65)!important;border-radius:6px!important;color:#d7b96d!important;font:900 27px/1 Georgia,serif!important}
+#battleScreen .la-opp-pile .la-pile-icon:after,#battleScreen .la-pile-box .la-pile-icon:after{content:''!important;position:absolute!important;left:50%!important;top:50%!important;width:16px!important;height:16px!important;border:1px solid #d7b96d!important;transform:translate(-50%,-50%) rotate(45deg)!important;opacity:.7!important}
+#battleScreen .la-opp-pile .pile-n{position:absolute!important;right:2px!important;top:70px!important;margin:0!important;background:#25211d!important;color:#fff!important;border-radius:999px!important;min-width:23px!important;height:23px!important;display:grid!important;place-items:center!important;font-size:9px!important;border:2px solid #fff!important}
+#battleScreen .la-pile-count{display:none!important}
+#battleScreen #laOppDeckBox{grid-column:1!important;grid-row:1!important}
+#battleScreen #laOppDiscardBox{grid-column:3!important;grid-row:1!important}
+#battleScreen #laDiscardBox{grid-column:2!important;grid-row:1!important}
+#battleScreen #laDeckBox{grid-column:4!important;grid-row:1!important}
+
+/* Opponent hand is a real visible rail of hidden card backs. */
+#battleScreen #laOppHandZone{position:relative!important;inset:auto!important;grid-column:2!important;grid-row:1!important;width:auto!important;height:130px!important;min-width:0!important;margin:0!important;padding:0!important;overflow:hidden!important}
+#battleScreen #laOppHandZone>.zone-title{height:18px!important;margin:0 0 3px!important;font-size:10px!important;color:#5d554b!important}
+#battleScreen #oppHandBacks{display:flex!important;align-items:flex-start!important;justify-content:center!important;height:104px!important;min-width:0!important;margin:0!important;padding:0 10px!important;overflow:hidden!important}
+#battleScreen #oppHandBacks .card-back{display:block!important;flex:0 0 64px!important;width:64px!important;height:92px!important;margin-left:-25px!important;border-radius:8px!important;background:linear-gradient(145deg,#201d28,#3b3147 55%,#17151c)!important;border:2px solid #d7b96d!important;box-shadow:2px 3px 0 rgba(215,185,109,.35),0 5px 10px rgba(0,0,0,.15)!important}
+#battleScreen #oppHandBacks .card-back:first-child{margin-left:0!important}
+
+/* Center = personal | shared x3 | personal. Nothing else is allowed to float here. */
+#battleScreen .center-board{position:absolute!important;inset:0 80px!important;left:80px!important;right:80px!important;top:0!important;bottom:0!important;width:auto!important;height:auto!important;margin:0!important;padding:0!important;background:transparent!important;border:0!important;box-shadow:none!important;backdrop-filter:none!important;z-index:6!important}
+#battleScreen .center-board .zones{width:100%!important;height:100%!important;display:grid!important;grid-template-columns:170px minmax(0,1fr) 170px!important;gap:30px!important;align-items:center!important}
+#battleScreen .center-board .zones>div{position:relative!important;inset:auto!important;width:auto!important;height:auto!important;min-width:0!important;margin:0!important;padding:0!important;display:flex!important;flex-direction:column!important;justify-content:center!important;overflow:visible!important}
+#battleScreen .center-board .zones>div:nth-child(1){grid-column:1!important;grid-row:1!important}
+#battleScreen .center-board .zones>div:nth-child(2){grid-column:2!important;grid-row:1!important}
+#battleScreen .center-board .zones>div:nth-child(3){grid-column:3!important;grid-row:1!important}
+#battleScreen .center-board .zone-title{height:20px!important;margin:0 0 6px!important;text-align:center!important;font-size:11px!important;line-height:20px!important;color:#6d6458!important}
+#battleScreen #oppPersonal,#battleScreen #myPersonal{width:100%!important;height:196px!important}
+#battleScreen #oppPersonal .slot,#battleScreen #myPersonal .slot{width:100%!important;height:196px!important;min-height:196px!important;margin:0!important;padding:7px!important;box-sizing:border-box!important;border-radius:12px!important;overflow:hidden!important}
+#battleScreen #sharedZone{width:100%!important;height:230px!important;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:16px!important;margin:0!important;padding:0!important;overflow:visible!important}
+#battleScreen #sharedZone .slot{width:auto!important;min-width:0!important;height:230px!important;min-height:230px!important;margin:0!important;padding:8px!important;box-sizing:border-box!important;border-radius:12px!important;overflow:hidden!important}
+#battleScreen .slot .setup-art{display:block!important;width:100%!important;height:112px!important;min-height:112px!important;object-fit:cover!important;border-radius:7px!important}
+#battleScreen .slot .name{font-size:11px!important}.slot .owner{font-size:8px!important}.slot .mini-effect{font-size:8.5px!important;line-height:1.18!important}
+
+/* Player hand owns the central width of the bottom rail. */
+#battleScreen .hand-wrap{position:relative!important;inset:auto!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;grid-column:3!important;grid-row:1!important;width:auto!important;height:202px!important;min-height:202px!important;margin:0!important;padding:0!important;overflow:visible!important;z-index:20!important}
+#battleScreen .hand-wrap>.zone-title{position:absolute!important;right:2px!important;top:0!important;left:auto!important;width:auto!important;margin:0!important;padding:3px 7px!important;border-radius:7px!important;background:rgba(255,253,248,.9)!important;font-size:9px!important;z-index:80!important}
+#battleScreen .hand{position:absolute!important;left:0!important;right:0!important;bottom:0!important;width:100%!important;height:190px!important;display:flex!important;justify-content:center!important;align-items:flex-end!important;padding:0!important;overflow:visible!important}
+#battleScreen .hand .card{flex:0 0 126px!important;width:126px!important;height:184px!important;min-height:184px!important;max-height:184px!important;margin-left:-28px!important;padding:6px!important;box-sizing:border-box!important;transform:none!important;overflow:hidden!important}
+#battleScreen .hand .card:first-child{margin-left:0!important}
+#battleScreen .hand .card .card-art{height:70px!important;min-height:70px!important;max-height:70px!important}
+#battleScreen .hand .card:not(.expanded) .text{display:block!important;opacity:1!important;font-size:8.2px!important;line-height:1.18!important;max-height:50px!important;overflow:hidden!important}
+#battleScreen .hand .card:not(.expanded) .card-actions{opacity:0!important;pointer-events:none!important}
+#battleScreen .hand .card.expanded{z-index:100!important;transform:translateY(-78px) scale(1.42)!important;height:auto!important;max-height:300px!important;overflow:visible!important}
+#battleScreen .hand-tip{display:none!important}
+
+/* Controls are a compact dedicated column, never part of the arena. */
+#battleScreen .battle-controls{position:relative!important;inset:auto!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;grid-column:5!important;grid-row:1!important;width:250px!important;height:184px!important;margin:0!important;padding:9px!important;box-sizing:border-box!important;border-radius:14px!important;display:grid!important;grid-template-columns:66px 1fr!important;grid-template-rows:42px 1fr!important;gap:7px!important;background:rgba(255,253,248,.96)!important;box-shadow:0 7px 18px rgba(48,37,23,.12)!important;z-index:18!important}
+#battleScreen .battle-turnline{grid-column:2!important;grid-row:1!important;margin:0!important;min-height:0!important;overflow:hidden!important}.battle-turnline .turn-badge{font-size:10px!important;line-height:1.25!important}.battle-turnline .winner{font-size:10px!important}
+#battleScreen .battle-controls .status{grid-column:1!important;grid-row:1/3!important;display:grid!important;place-items:center!important;padding:6px!important;border-radius:10px!important;background:#27231f!important;color:#fff!important}
+#battleScreen .battle-controls .status .small{font-size:0!important;color:#fff!important}.battle-controls .status .small:before{content:'⚡'!important;display:block!important;font-size:23px!important;text-align:center!important}.battle-controls .status .small:after{content:attr(data-energy)!important;display:block!important;margin-top:4px!important;font-size:16px!important;font-weight:900!important;text-align:center!important}
+#battleScreen .battle-controls .status .pile-link{display:none!important}
+#battleScreen .battle-actions{grid-column:2!important;grid-row:2!important;display:grid!important;grid-template-rows:44px 1fr!important;gap:7px!important;margin:0!important;padding:0!important}
+#battleScreen #movePersonal{min-height:0!important;padding:5px!important;font-size:9px!important}
+#battleScreen #endTurn{min-height:0!important;padding:8px!important;font-size:15px!important;font-weight:1000!important;background:#9b2c2c!important;border-color:#9b2c2c!important}
+#battleScreen #openLog{position:absolute!important;left:-20px!important;top:50%!important;transform:translateY(-50%)!important;width:62px!important;height:48px!important;margin:0!important;padding:0!important;border-radius:0 11px 11px 0!important;background:#292621!important;color:#fff!important;border-color:#51493f!important;font-size:11px!important;font-weight:900!important;z-index:40!important}
+
+/* Notice and transient layers. */
+#battleScreen.active>#battleNotice{position:fixed!important;left:50%!important;top:7px!important;transform:translateX(-50%)!important;width:auto!important;max-width:360px!important;margin:0!important;padding:5px 13px!important;font-size:10px!important;z-index:500!important;pointer-events:none!important;opacity:.92!important}
+#battleScreen .played-stage{top:220px!important;width:190px!important;z-index:60!important}.draw-fx-layer{z-index:70!important}
+#battleScreen .card.play-denied{animation:laDenied0134 .34s ease!important;filter:saturate(.72)!important}@keyframes laDenied0134{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+</style>
+<script id="la-0134-landscape-battle-js">
+(function(){
+  const stage=document.querySelector('#battleScreen .combat-stage');
+  if(!stage)return;
+  // Create three structural rails and MOVE the live game nodes into them. IDs stay unchanged,
+  // so gameplay/render/network code continues to address the same elements.
+  const top=document.createElement('div');top.className='la-top-rail';
+  const center=document.createElement('div');center.className='la-center-rail';
+  const bottom=document.createElement('div');bottom.className='la-bottom-rail';
+  stage.append(top,center,bottom);
+  const move=(el,parent)=>{if(el&&el.parentElement!==parent)parent.appendChild(el)};
+  const oppLeader=document.getElementById('oppLeaderUnit');
+  const myLeader=document.getElementById('myLeaderUnit');
+  const centerBoard=stage.querySelector('.center-board');
+  const handWrap=document.querySelector('#battleScreen .hand-wrap');
+  const controls=document.querySelector('#battleScreen .battle-controls');
+  const log=document.getElementById('openLog');
+  // Physical self piles were created by the existing animation patch. Detach them from its legacy shelf.
+  const myDeck=document.getElementById('laDeckBox'),myDiscard=document.getElementById('laDiscardBox');
+  const shelf=document.getElementById('laPileShelf');
+  if(shelf){ if(myDeck)stage.appendChild(myDeck); if(myDiscard)stage.appendChild(myDiscard); shelf.remove(); }
+  // Mirrored opponent zones.
+  let oppDeck=document.getElementById('laOppDeckBox');
+  if(!oppDeck){oppDeck=document.createElement('div');oppDeck.id='laOppDeckBox';oppDeck.className='la-opp-pile';oppDeck.innerHTML='<span class="la-pile-icon"></span><span class="pile-n" id="laOppDeckCount">0</span><strong>相手の山札</strong>';}
+  let oppDiscard=document.getElementById('laOppDiscardBox');
+  if(!oppDiscard){oppDiscard=document.createElement('div');oppDiscard.id='laOppDiscardBox';oppDiscard.className='la-opp-pile';oppDiscard.innerHTML='<span class="la-pile-icon"></span><span class="pile-n" id="laOppDiscardCount">0</span><strong>相手の捨て札</strong>';}
+  let oppHand=document.getElementById('laOppHandZone');
+  if(!oppHand){oppHand=document.createElement('div');oppHand.id='laOppHandZone';oppHand.innerHTML='<div class="zone-title">相手の手札 <span id="laOppHandCount"></span></div>';}
+  const backs=document.getElementById('oppHandBacks');if(backs)oppHand.appendChild(backs);
+  move(oppDeck,top);move(oppHand,top);move(oppDiscard,top);move(oppLeader,top);
+  function arrangeLandscape(){
+    move(oppDeck,top);move(oppHand,top);move(oppDiscard,top);move(oppLeader,top);
+    move(centerBoard,center);move(log,center);
+    move(myLeader,bottom);move(myDiscard,bottom);move(handWrap,bottom);move(myDeck,bottom);move(controls,bottom);
+  }
+  arrangeLandscape();
+  // Scaling is applied only to the complete 1280x720 board. Portrait devices rotate the whole board.
+  function fit(){
+    if(!document.getElementById('battleScreen')?.classList.contains('active'))return;
+    const portrait=innerHeight>innerWidth;
+    const scale=portrait?Math.min(innerWidth/720,innerHeight/1280):Math.min(innerWidth/1280,innerHeight/720);
+    stage.style.transform=`translate(-50%,-50%) ${portrait?'rotate(90deg) ':''}scale(${Math.max(.2,scale)})`;
+  }
+  function sync(){
+    const v=window.currentView;if(!v)return;
+    const set=(id,val)=>{const e=document.getElementById(id);if(e)e.textContent=val};
+    set('laOppDeckCount',v.op?.drawCount??0);set('laOppDiscardCount',v.op?.discardCount??0);set('laOppHandCount',`${v.op?.handCount??0}/10`);
+    const st=controls?.querySelector('.status .small');if(st)st.dataset.energy=`${v.me?.energy??0}/${v.me?.maxEnergy??0}`;
+  }
+  let raf=0;const schedule=()=>{cancelAnimationFrame(raf);raf=requestAnimationFrame(()=>{fit();sync()})};
+  addEventListener('resize',schedule,{passive:true});addEventListener('orientationchange',schedule,{passive:true});visualViewport?.addEventListener('resize',schedule,{passive:true});
+  const old=window.renderBattleView;if(typeof old==='function')window.renderBattleView=function(){const r=old.apply(this,arguments);arrangeLandscape();schedule();return r};
+  const meta=window.LUNA_ALTER_APP_META;document.title=`ルナオルタ ${meta.version}`;const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${meta.version} / ${meta.label}`;
+  schedule();setTimeout(schedule,60);
+})();
+</script>
+<style id="la-0140-canonical-ui">
+/* 0.14.0 — canonical UI layer. This is intentionally LAST: legacy portrait geometry must not win. */
+body:has(#battleScreen.active){overflow:hidden!important;background:#eee7da!important}
+#battleScreen .combat-stage{background:#f4efe5!important;grid-template-rows:150px minmax(0,1fr) 205px!important;gap:8px!important;padding:14px 18px!important}
+#battleScreen .combat-stage:before{display:none!important}
+#battleScreen .la-top-rail{grid-template-columns:76px minmax(0,1fr) 76px 170px!important;gap:14px!important;align-items:start!important}
+#battleScreen .la-bottom-rail{grid-template-columns:170px 76px minmax(0,1fr) 76px 220px!important;gap:12px!important;align-items:end!important}
+#battleScreen .leader-unit,#battleScreen .leader-unit.self,#battleScreen .leader-unit.opponent{width:170px!important;max-width:170px!important;overflow:visible!important}
+#battleScreen .leader-unit.opponent{height:145px!important;grid-template-rows:16px 105px 24px!important}
+#battleScreen .leader-unit.self{height:195px!important;grid-template-rows:16px 153px 24px!important}
+#battleScreen .leader-portrait{min-height:0!important;overflow:hidden!important}
+#battleScreen .leader-img{object-fit:cover!important;object-position:center 20%!important}
+#battleScreen .hpbar{display:block!important;position:relative!important;height:24px!important;min-height:24px!important;z-index:20!important;overflow:hidden!important}
+#battleScreen .hpbar-text{display:grid!important;place-items:center!important;position:absolute!important;inset:0!important;z-index:2!important;color:#fff!important;font-weight:1000!important;text-shadow:0 1px 2px #000!important}
+#battleScreen .center-board{left:115px!important;right:115px!important;inset-block:0!important}
+#battleScreen .center-board .zones{grid-template-columns:155px minmax(0,1fr) 155px!important;gap:22px!important}
+#battleScreen #oppPersonal,#battleScreen #myPersonal{height:190px!important}
+#battleScreen #oppPersonal .slot,#battleScreen #myPersonal .slot{height:190px!important;min-height:190px!important}
+#battleScreen #sharedZone{height:220px!important;gap:12px!important}
+#battleScreen #sharedZone .slot{height:220px!important;min-height:220px!important}
+#battleScreen .slot.occupied{position:relative!important;padding:0!important;border:1px solid rgba(105,86,56,.28)!important;background:#fff!important;overflow:hidden!important}
+#battleScreen .slot.occupied .setup-art-bg{position:absolute!important;inset:0!important;display:block!important;z-index:0!important}
+#battleScreen .slot.occupied .setup-art-bg img{width:100%!important;height:100%!important;object-fit:cover!important;display:block!important}
+#battleScreen .slot.occupied .setup-art-bg:after{content:''!important;position:absolute!important;inset:0!important;background:linear-gradient(to bottom,rgba(0,0,0,.02) 20%,rgba(0,0,0,.22) 48%,rgba(0,0,0,.9) 100%)!important}
+#battleScreen .slot.occupied .setup-caption{position:absolute!important;z-index:2!important;left:7px!important;right:7px!important;bottom:7px!important;color:#fff!important;text-shadow:0 1px 3px #000!important;display:flex!important;flex-direction:column!important;gap:2px!important}
+#battleScreen .slot.occupied .setup-caption .name{color:#fff!important;font-size:11px!important;font-weight:1000!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+#battleScreen .slot.occupied .setup-caption .owner{font-size:7px!important;color:rgba(255,255,255,.82)!important}
+#battleScreen .slot.occupied .setup-caption .mini-effect{display:-webkit-box!important;-webkit-box-orient:vertical!important;-webkit-line-clamp:4!important;overflow:hidden!important;color:#fff!important;font-size:8.5px!important;line-height:1.18!important;white-space:normal!important}
+#battleScreen .battle-controls{height:195px!important;min-height:195px!important;padding:9px!important;box-sizing:border-box!important;display:grid!important;grid-template-rows:auto 1fr auto!important;gap:6px!important;overflow:hidden!important}
+#battleScreen .battle-controls .status{position:relative!important;display:flex!important;flex-direction:column!important;justify-content:center!important;min-height:0!important;padding-left:62px!important}
+#battleScreen .la-energy-readout{display:flex!important;position:absolute!important;left:0!important;top:0!important;bottom:0!important;width:54px!important;border-radius:10px!important;background:#27231e!important;color:#fff!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:5px!important;z-index:4!important}
+#battleScreen .la-energy-bolt{font-size:25px!important}.la-energy-value{font-size:13px!important;font-weight:1000!important;white-space:nowrap!important}
+#battleScreen .battle-actions{display:grid!important;grid-template-columns:1fr!important;gap:5px!important}.battle-actions #openLog{display:none!important}
+#battleScreen #endTurn{min-height:48px!important}
+#battleScreen #openLog{display:block!important}
+#battleScreen .hand-wrap{min-width:0!important;overflow:visible!important}
+#battleScreen #myHand{min-width:0!important;overflow:visible!important}
+/* setup detail modal must always sit above swipe/play layers */
+#setupDetailModal{z-index:100500!important}
+/* Persistent subview nav is authoritative; no old topbar in CPU/room screens. */
+body.la-battle-subview .topbar{display:none!important}
+#cpuSetupScreen,#roomScreen{box-sizing:border-box!important}
+</style>
 <script>
 
 /* ===== v58: interactive tutorials ===== */
@@ -5159,147 +4922,94 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
 
 <!-- LUNA ALTER 0.10.6: mobile battle layout cleanup -->
 
-
-
-
-<!-- LUNA ALTER 0.13.4: definitive landscape battle rebuild -->
-<style id="la-0134-landscape-battle">
-/* The battle screen is landscape-first. Legacy portrait geometry is intentionally ignored here. */
-body:has(#battleScreen.active){overflow:hidden!important;background:#e9e1d3!important}
-body:has(#battleScreen.active) .topbar{display:none!important}
-#battleScreen.active{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;min-height:0!important;margin:0!important;padding:0!important;overflow:hidden!important;background:#e9e1d3!important;z-index:200!important}
-#battleScreen .battle-area,#battleScreen .battle-main{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;margin:0!important;padding:0!important;display:block!important;overflow:visible!important}
-#battleScreen .combat-stage{position:absolute!important;left:50%!important;top:50%!important;width:1280px!important;height:720px!important;min-height:720px!important;margin:0!important;padding:18px 20px!important;box-sizing:border-box!important;display:grid!important;grid-template-rows:145px minmax(0,1fr) 205px!important;gap:12px!important;border:1px solid #cfc4b3!important;border-radius:20px!important;overflow:hidden!important;background:linear-gradient(180deg,#fbf8f0 0 49.9%,#e9e0d1 50% 100%)!important;box-shadow:0 18px 55px rgba(48,37,23,.16)!important;transform-origin:center center!important}
-#battleScreen .combat-stage:before{content:""!important;position:absolute!important;left:0!important;right:0!important;top:50%!important;height:1px!important;background:rgba(126,105,76,.15)!important;pointer-events:none!important}
-#battleScreen .la-top-rail,#battleScreen .la-center-rail,#battleScreen .la-bottom-rail{position:relative!important;min-width:0!important;min-height:0!important;z-index:5!important}
-#battleScreen .la-top-rail{display:grid!important;grid-template-columns:84px minmax(0,1fr) 84px 180px!important;gap:18px!important;align-items:start!important}
-#battleScreen .la-center-rail{display:block!important}
-#battleScreen .la-bottom-rail{display:grid!important;grid-template-columns:180px 84px minmax(0,1fr) 84px 250px!important;gap:16px!important;align-items:end!important}
-
-/* Leaders: always visible, no inherited absolute positioning. */
-#battleScreen .leader-unit,#battleScreen .leader-unit.self,#battleScreen .leader-unit.opponent{position:relative!important;inset:auto!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;width:180px!important;height:100%!important;margin:0!important;display:grid!important;grid-template-rows:18px 1fr 24px!important;gap:2px!important;z-index:12!important}
-#battleScreen .leader-unit.opponent{grid-column:4!important;grid-row:1!important}
-#battleScreen .leader-unit.self{grid-column:1!important;grid-row:1!important}
-#battleScreen .leader-nameplate{font-size:11px!important;line-height:18px!important;text-align:left!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
-#battleScreen .leader-portrait,#battleScreen .leader-unit.opponent .leader-portrait,#battleScreen .leader-unit.self .leader-portrait{height:auto!important;min-height:0!important;width:100%!important;border-radius:11px!important;overflow:hidden!important}
-#battleScreen .leader-img{width:100%!important;height:100%!important;object-fit:cover!important}
-#battleScreen .hpbar{height:24px!important}.hpbar-text{font-size:12px!important}.leader-meta{display:none!important}
-
-/* Physical piles. */
-#battleScreen .la-opp-pile,#battleScreen .la-pile-box{position:relative!important;inset:auto!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;width:84px!important;height:126px!important;margin:0!important;padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:flex-start!important;gap:4px!important;color:#332d25!important;font-size:10px!important;font-weight:900!important}
-#battleScreen .la-opp-pile .la-pile-icon,#battleScreen .la-pile-box .la-pile-icon{display:block!important;width:66px!important;height:94px!important;flex:0 0 94px!important;border-radius:8px!important;background:linear-gradient(145deg,#201d28,#3b3147 55%,#17151c)!important;border:2px solid #d7b96d!important;box-shadow:3px 4px 0 rgba(215,185,109,.42),0 6px 13px rgba(0,0,0,.18)!important;position:relative!important}
-#battleScreen .la-opp-pile .la-pile-icon:before,#battleScreen .la-pile-box .la-pile-icon:before{content:'L'!important;position:absolute!important;inset:9px!important;display:grid!important;place-items:center!important;border:1px solid rgba(215,185,109,.65)!important;border-radius:6px!important;color:#d7b96d!important;font:900 27px/1 Georgia,serif!important}
-#battleScreen .la-opp-pile .la-pile-icon:after,#battleScreen .la-pile-box .la-pile-icon:after{content:''!important;position:absolute!important;left:50%!important;top:50%!important;width:16px!important;height:16px!important;border:1px solid #d7b96d!important;transform:translate(-50%,-50%) rotate(45deg)!important;opacity:.7!important}
-#battleScreen .la-opp-pile .pile-n{position:absolute!important;right:2px!important;top:70px!important;margin:0!important;background:#25211d!important;color:#fff!important;border-radius:999px!important;min-width:23px!important;height:23px!important;display:grid!important;place-items:center!important;font-size:9px!important;border:2px solid #fff!important}
-#battleScreen .la-pile-count{display:none!important}
-#battleScreen #laOppDeckBox{grid-column:1!important;grid-row:1!important}
-#battleScreen #laOppDiscardBox{grid-column:3!important;grid-row:1!important}
-#battleScreen #laDiscardBox{grid-column:2!important;grid-row:1!important}
-#battleScreen #laDeckBox{grid-column:4!important;grid-row:1!important}
-
-/* Opponent hand is a real visible rail of hidden card backs. */
-#battleScreen #laOppHandZone{position:relative!important;inset:auto!important;grid-column:2!important;grid-row:1!important;width:auto!important;height:130px!important;min-width:0!important;margin:0!important;padding:0!important;overflow:hidden!important}
-#battleScreen #laOppHandZone>.zone-title{height:18px!important;margin:0 0 3px!important;font-size:10px!important;color:#5d554b!important}
-#battleScreen #oppHandBacks{display:flex!important;align-items:flex-start!important;justify-content:center!important;height:104px!important;min-width:0!important;margin:0!important;padding:0 10px!important;overflow:hidden!important}
-#battleScreen #oppHandBacks .card-back{display:block!important;flex:0 0 64px!important;width:64px!important;height:92px!important;margin-left:-25px!important;border-radius:8px!important;background:linear-gradient(145deg,#201d28,#3b3147 55%,#17151c)!important;border:2px solid #d7b96d!important;box-shadow:2px 3px 0 rgba(215,185,109,.35),0 5px 10px rgba(0,0,0,.15)!important}
-#battleScreen #oppHandBacks .card-back:first-child{margin-left:0!important}
-
-/* Center = personal | shared x3 | personal. Nothing else is allowed to float here. */
-#battleScreen .center-board{position:absolute!important;inset:0 80px!important;left:80px!important;right:80px!important;top:0!important;bottom:0!important;width:auto!important;height:auto!important;margin:0!important;padding:0!important;background:transparent!important;border:0!important;box-shadow:none!important;backdrop-filter:none!important;z-index:6!important}
-#battleScreen .center-board .zones{width:100%!important;height:100%!important;display:grid!important;grid-template-columns:170px minmax(0,1fr) 170px!important;gap:30px!important;align-items:center!important}
-#battleScreen .center-board .zones>div{position:relative!important;inset:auto!important;width:auto!important;height:auto!important;min-width:0!important;margin:0!important;padding:0!important;display:flex!important;flex-direction:column!important;justify-content:center!important;overflow:visible!important}
-#battleScreen .center-board .zones>div:nth-child(1){grid-column:1!important;grid-row:1!important}
-#battleScreen .center-board .zones>div:nth-child(2){grid-column:2!important;grid-row:1!important}
-#battleScreen .center-board .zones>div:nth-child(3){grid-column:3!important;grid-row:1!important}
-#battleScreen .center-board .zone-title{height:20px!important;margin:0 0 6px!important;text-align:center!important;font-size:11px!important;line-height:20px!important;color:#6d6458!important}
-#battleScreen #oppPersonal,#battleScreen #myPersonal{width:100%!important;height:196px!important}
-#battleScreen #oppPersonal .slot,#battleScreen #myPersonal .slot{width:100%!important;height:196px!important;min-height:196px!important;margin:0!important;padding:7px!important;box-sizing:border-box!important;border-radius:12px!important;overflow:hidden!important}
-#battleScreen #sharedZone{width:100%!important;height:230px!important;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:16px!important;margin:0!important;padding:0!important;overflow:visible!important}
-#battleScreen #sharedZone .slot{width:auto!important;min-width:0!important;height:230px!important;min-height:230px!important;margin:0!important;padding:8px!important;box-sizing:border-box!important;border-radius:12px!important;overflow:hidden!important}
-#battleScreen .slot .setup-art{display:block!important;width:100%!important;height:112px!important;min-height:112px!important;object-fit:cover!important;border-radius:7px!important}
-#battleScreen .slot .name{font-size:11px!important}.slot .owner{font-size:8px!important}.slot .mini-effect{font-size:8.5px!important;line-height:1.18!important}
-
-/* Player hand owns the central width of the bottom rail. */
-#battleScreen .hand-wrap{position:relative!important;inset:auto!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;grid-column:3!important;grid-row:1!important;width:auto!important;height:202px!important;min-height:202px!important;margin:0!important;padding:0!important;overflow:visible!important;z-index:20!important}
-#battleScreen .hand-wrap>.zone-title{position:absolute!important;right:2px!important;top:0!important;left:auto!important;width:auto!important;margin:0!important;padding:3px 7px!important;border-radius:7px!important;background:rgba(255,253,248,.9)!important;font-size:9px!important;z-index:80!important}
-#battleScreen .hand{position:absolute!important;left:0!important;right:0!important;bottom:0!important;width:100%!important;height:190px!important;display:flex!important;justify-content:center!important;align-items:flex-end!important;padding:0!important;overflow:visible!important}
-#battleScreen .hand .card{flex:0 0 126px!important;width:126px!important;height:184px!important;min-height:184px!important;max-height:184px!important;margin-left:-28px!important;padding:6px!important;box-sizing:border-box!important;transform:none!important;overflow:hidden!important}
-#battleScreen .hand .card:first-child{margin-left:0!important}
-#battleScreen .hand .card .card-art{height:70px!important;min-height:70px!important;max-height:70px!important}
-#battleScreen .hand .card:not(.expanded) .text{display:block!important;opacity:1!important;font-size:8.2px!important;line-height:1.18!important;max-height:50px!important;overflow:hidden!important}
-#battleScreen .hand .card:not(.expanded) .card-actions{opacity:0!important;pointer-events:none!important}
-#battleScreen .hand .card.expanded{z-index:100!important;transform:translateY(-78px) scale(1.42)!important;height:auto!important;max-height:300px!important;overflow:visible!important}
-#battleScreen .hand-tip{display:none!important}
-
-/* Controls are a compact dedicated column, never part of the arena. */
-#battleScreen .battle-controls{position:relative!important;inset:auto!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;grid-column:5!important;grid-row:1!important;width:250px!important;height:184px!important;margin:0!important;padding:9px!important;box-sizing:border-box!important;border-radius:14px!important;display:grid!important;grid-template-columns:66px 1fr!important;grid-template-rows:42px 1fr!important;gap:7px!important;background:rgba(255,253,248,.96)!important;box-shadow:0 7px 18px rgba(48,37,23,.12)!important;z-index:18!important}
-#battleScreen .battle-turnline{grid-column:2!important;grid-row:1!important;margin:0!important;min-height:0!important;overflow:hidden!important}.battle-turnline .turn-badge{font-size:10px!important;line-height:1.25!important}.battle-turnline .winner{font-size:10px!important}
-#battleScreen .battle-controls .status{grid-column:1!important;grid-row:1/3!important;display:grid!important;place-items:center!important;padding:6px!important;border-radius:10px!important;background:#27231f!important;color:#fff!important}
-#battleScreen .battle-controls .status .small{font-size:0!important;color:#fff!important}.battle-controls .status .small:before{content:'⚡'!important;display:block!important;font-size:23px!important;text-align:center!important}.battle-controls .status .small:after{content:attr(data-energy)!important;display:block!important;margin-top:4px!important;font-size:16px!important;font-weight:900!important;text-align:center!important}
-#battleScreen .battle-controls .status .pile-link{display:none!important}
-#battleScreen .battle-actions{grid-column:2!important;grid-row:2!important;display:grid!important;grid-template-rows:44px 1fr!important;gap:7px!important;margin:0!important;padding:0!important}
-#battleScreen #movePersonal{min-height:0!important;padding:5px!important;font-size:9px!important}
-#battleScreen #endTurn{min-height:0!important;padding:8px!important;font-size:15px!important;font-weight:1000!important;background:#9b2c2c!important;border-color:#9b2c2c!important}
-#battleScreen #openLog{position:absolute!important;left:-20px!important;top:50%!important;transform:translateY(-50%)!important;width:62px!important;height:48px!important;margin:0!important;padding:0!important;border-radius:0 11px 11px 0!important;background:#292621!important;color:#fff!important;border-color:#51493f!important;font-size:11px!important;font-weight:900!important;z-index:40!important}
-
-/* Notice and transient layers. */
-#battleScreen.active>#battleNotice{position:fixed!important;left:50%!important;top:7px!important;transform:translateX(-50%)!important;width:auto!important;max-width:360px!important;margin:0!important;padding:5px 13px!important;font-size:10px!important;z-index:500!important;pointer-events:none!important;opacity:.92!important}
-#battleScreen .played-stage{top:220px!important;width:190px!important;z-index:60!important}.draw-fx-layer{z-index:70!important}
-#battleScreen .card.play-denied{animation:laDenied0134 .34s ease!important;filter:saturate(.72)!important}@keyframes laDenied0134{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+<style id="la-0150-ui-contract">
+/* 0.15.0 — canonical landscape UI contract. */
+body.la-screen-battle .topbar, body.la-screen-cpuSetup .topbar, body.la-screen-room .topbar{display:none!important}
+body.la-screen-battle .app>main,body.la-screen-cpuSetup .app>main,body.la-screen-room .app>main{height:100%!important}
+/* Battle is one uninterrupted field: no inherited center divider / panel seam. */
+#battleScreen .combat-stage,#battleScreen .la-center-rail,#battleScreen .center-board,#battleScreen .center-board .zones{border:0!important;box-shadow:none!important;background-color:transparent!important}
+#battleScreen .combat-stage:before,#battleScreen .combat-stage:after,#battleScreen .la-center-rail:before,#battleScreen .la-center-rail:after,#battleScreen .center-board:before,#battleScreen .center-board:after{display:none!important;content:none!important}
+/* HP and energy are non-negotiable persistent information. */
+#battleScreen .leader-unit{overflow:visible!important}
+#battleScreen .hpbar{display:block!important;visibility:visible!important;opacity:1!important;height:24px!important;min-height:24px!important;overflow:hidden!important}
+#battleScreen .hpbar-text{display:grid!important;visibility:visible!important;opacity:1!important;place-items:center!important}
+#battleScreen .la-energy-readout{display:flex!important;visibility:visible!important;opacity:1!important;z-index:30!important}
+/* Setup = art + name + readable effect; entire card remains a detail target. */
+#battleScreen .slot.occupied.setup-detail-trigger{display:block!important;position:relative!important;cursor:pointer!important;touch-action:manipulation!important;-webkit-tap-highlight-color:transparent!important}
+#battleScreen .slot.occupied .setup-art-bg{display:block!important;position:absolute!important;inset:0!important}
+#battleScreen .slot.occupied .setup-caption{display:flex!important;position:absolute!important;z-index:3!important;left:7px!important;right:7px!important;bottom:7px!important;pointer-events:none!important}
+#battleScreen .slot.occupied .setup-caption .mini-effect{display:-webkit-box!important;-webkit-box-orient:vertical!important;-webkit-line-clamp:4!important;white-space:normal!important;overflow:hidden!important}
+/* Hand: no horizontal scrolling; compress/overlap instead. No old USE button. */
+#battleScreen .hand-wrap,#battleScreen #myHand{overflow:visible!important;touch-action:none!important}
+#battleScreen #myHand{overflow-x:visible!important}
+#battleScreen #myHand .card .card-actions,#battleScreen #myHand .card button.use-card,#battleScreen #myHand .card .use-btn{display:none!important}
+/* Opponent hand remains concealed but visibly represented by LUNA ALTER backs. */
+#battleScreen #laOppHandZone,#battleScreen #oppHandBacks{display:flex!important;visibility:visible!important}
+#battleScreen #laOppHandZone{flex-direction:column!important}
+/* Persistent nav on every non-battle selection/editor subview requested by the player. */
+#battleMenuScreen .section-bottom-nav,#cpuSetupScreen .section-bottom-nav,#roomScreen .section-bottom-nav,#deckScreen .section-bottom-nav{display:grid!important;visibility:visible!important;opacity:1!important;z-index:500!important}
+/* Log is an edge tab, never a floating center panel. */
+#battleScreen #openLog{display:block!important;z-index:90!important}
+/* No long-press affordance survives visually. */
+#endTurn.hold-active,#backHome.hold-active{transform:none!important;filter:none!important}
 </style>
-<script id="la-0134-landscape-battle-js">
-(function(){
-  const stage=document.querySelector('#battleScreen .combat-stage');
-  if(!stage)return;
-  // Create three structural rails and MOVE the live game nodes into them. IDs stay unchanged,
-  // so gameplay/render/network code continues to address the same elements.
-  const top=document.createElement('div');top.className='la-top-rail';
-  const center=document.createElement('div');center.className='la-center-rail';
-  const bottom=document.createElement('div');bottom.className='la-bottom-rail';
-  stage.append(top,center,bottom);
-  const move=(el,parent)=>{if(el&&el.parentElement!==parent)parent.appendChild(el)};
-  const oppLeader=document.getElementById('oppLeaderUnit');
-  const myLeader=document.getElementById('myLeaderUnit');
-  const centerBoard=stage.querySelector('.center-board');
-  const handWrap=document.querySelector('#battleScreen .hand-wrap');
-  const controls=document.querySelector('#battleScreen .battle-controls');
-  const log=document.getElementById('openLog');
-  // Physical self piles were created by the existing animation patch. Detach them from its legacy shelf.
-  const myDeck=document.getElementById('laDeckBox'),myDiscard=document.getElementById('laDiscardBox');
-  const shelf=document.getElementById('laPileShelf');
-  if(shelf){ if(myDeck)stage.appendChild(myDeck); if(myDiscard)stage.appendChild(myDiscard); shelf.remove(); }
-  // Mirrored opponent zones.
-  let oppDeck=document.getElementById('laOppDeckBox');
-  if(!oppDeck){oppDeck=document.createElement('div');oppDeck.id='laOppDeckBox';oppDeck.className='la-opp-pile';oppDeck.innerHTML='<span class="la-pile-icon"></span><span class="pile-n" id="laOppDeckCount">0</span><strong>相手の山札</strong>';}
-  let oppDiscard=document.getElementById('laOppDiscardBox');
-  if(!oppDiscard){oppDiscard=document.createElement('div');oppDiscard.id='laOppDiscardBox';oppDiscard.className='la-opp-pile';oppDiscard.innerHTML='<span class="la-pile-icon"></span><span class="pile-n" id="laOppDiscardCount">0</span><strong>相手の捨て札</strong>';}
-  let oppHand=document.getElementById('laOppHandZone');
-  if(!oppHand){oppHand=document.createElement('div');oppHand.id='laOppHandZone';oppHand.innerHTML='<div class="zone-title">相手の手札 <span id="laOppHandCount"></span></div>';}
-  const backs=document.getElementById('oppHandBacks');if(backs)oppHand.appendChild(backs);
-  move(oppDeck,top);move(oppHand,top);move(oppDiscard,top);move(oppLeader,top);
-  function arrangeLandscape(){
-    move(oppDeck,top);move(oppHand,top);move(oppDiscard,top);move(oppLeader,top);
-    move(centerBoard,center);move(log,center);
-    move(myLeader,bottom);move(myDiscard,bottom);move(handWrap,bottom);move(myDeck,bottom);move(controls,bottom);
+
+<script id="la-0150-canonical-runtime">
+(()=>{
+  const meta=window.LUNA_ALTER_APP_META;
+  const screenClass={home:'la-screen-home',deck:'la-screen-deck',battleMenu:'la-screen-battleMenu',cpuSetup:'la-screen-cpuSetup',room:'la-screen-room',battle:'la-screen-battle',settings:'la-screen-settings'};
+  function markScreen(name){Object.values(screenClass).forEach(c=>document.body.classList.remove(c));if(screenClass[name])document.body.classList.add(screenClass[name])}
+  const priorShow=window.showScreen;
+  if(typeof priorShow==='function')window.showScreen=function(name){const out=priorShow.apply(this,arguments);markScreen(name);return out};
+
+  function ensureEnergy(){
+    const status=document.querySelector('#battleScreen .battle-controls .status');if(!status)return;
+    let r=status.querySelector('.la-energy-readout');
+    if(!r){r=document.createElement('div');r.className='la-energy-readout';r.innerHTML='<span class="la-energy-bolt">⚡</span><span class="la-energy-value">0 / 0</span>';status.appendChild(r)}
+    const v=window.currentView||((typeof currentView!=='undefined')?currentView:null);
+    r.querySelector('.la-energy-value').textContent=`${v?.me?.energy??0} / ${v?.me?.maxEnergy??0}`;
   }
-  arrangeLandscape();
-  // Scaling is applied only to the complete 1280x720 board. Portrait devices rotate the whole board.
-  function fit(){
-    if(!document.getElementById('battleScreen')?.classList.contains('active'))return;
-    const portrait=innerHeight>innerWidth;
-    const scale=portrait?Math.min(innerWidth/720,innerHeight/1280):Math.min(innerWidth/1280,innerHeight/720);
-    stage.style.transform=`translate(-50%,-50%) ${portrait?'rotate(90deg) ':''}scale(${Math.max(.2,scale)})`;
+  function keepNav(){document.querySelectorAll('#battleMenuScreen .section-bottom-nav,#cpuSetupScreen .section-bottom-nav,#roomScreen .section-bottom-nav,#deckScreen .section-bottom-nav').forEach(n=>n.classList.remove('hidden'))}
+
+  // One hand-layout implementation. Legacy portrait reflow code was removed in 0.15.0.
+  window.layoutHandFan=function(){
+    const hand=document.getElementById('myHand');if(!hand)return;
+    const count=hand.children.length;hand.dataset.count=String(count);if(!count)return;
+    const rowWidth=Math.max(360,hand.parentElement?.clientWidth||720);
+    const maxW=112,minW=72;let w=Math.min(maxW,Math.max(minW,rowWidth/Math.min(count,5)-8));
+    let step=count<=5?w+6:Math.max(34,(rowWidth-w)/Math.max(1,count-1));
+    hand.style.setProperty('--hand-card-w',`${Math.round(w)}px`);hand.style.setProperty('--hand-step',`${Math.round(step)}px`);
+  };
+
+  // Final room handlers are installed late (after Firebase), so feedback is wrapped once here.
+  function wrapRoomButton(id,busy){
+    const b=document.getElementById(id);if(!b||b.dataset.la0150Wrapped==='1'||typeof b.onclick!=='function')return;
+    b.dataset.la0150Wrapped='1';const fn=b.onclick;
+    b.onclick=async function(ev){
+      if(b.classList.contains('la-working'))return;
+      const old=b.textContent;b.classList.add('la-working');b.textContent=busy;
+      let p=b.parentElement?.querySelector('.la-room-progress');if(!p){p=document.createElement('div');p.className='la-room-progress';b.insertAdjacentElement('afterend',p)}p.textContent='通信を準備しています…';
+      try{return await fn.call(this,ev)}finally{b.classList.remove('la-working');b.textContent=old;if(!document.getElementById('roomScreen')?.classList.contains('la-room-lobby'))p.textContent=''}
+    };
   }
-  function sync(){
-    const v=window.currentView;if(!v)return;
-    const set=(id,val)=>{const e=document.getElementById(id);if(e)e.textContent=val};
-    set('laOppDeckCount',v.op?.drawCount??0);set('laOppDiscardCount',v.op?.discardCount??0);set('laOppHandCount',`${v.op?.handCount??0}/10`);
-    const st=controls?.querySelector('.status .small');if(st)st.dataset.energy=`${v.me?.energy??0}/${v.me?.maxEnergy??0}`;
+
+  // Home arrows and swipe share the same button path.
+  const home=document.getElementById('homeScreen'),prev=document.getElementById('homeScenePrev'),next=document.getElementById('homeSceneNext');
+  if(home&&prev&&next&&!home.dataset.la0150Swipe){
+    home.dataset.la0150Swipe='1';let sx=0,sy=0,tracking=false;
+    home.addEventListener('pointerdown',e=>{if(e.target.closest('button,.home-nav,.home-profile-hit'))return;tracking=true;sx=e.clientX;sy=e.clientY},{passive:true});
+    home.addEventListener('pointerup',e=>{if(!tracking)return;tracking=false;const dx=e.clientX-sx,dy=e.clientY-sy;if(Math.abs(dx)>=55&&Math.abs(dx)>Math.abs(dy)*1.25)(dx<0?next:prev).click()},{passive:true});
+    home.addEventListener('pointercancel',()=>tracking=false,{passive:true});
   }
-  let raf=0;const schedule=()=>{cancelAnimationFrame(raf);raf=requestAnimationFrame(()=>{fit();sync()})};
-  addEventListener('resize',schedule,{passive:true});addEventListener('orientationchange',schedule,{passive:true});visualViewport?.addEventListener('resize',schedule,{passive:true});
-  const old=window.renderBattleView;if(typeof old==='function')window.renderBattleView=function(){const r=old.apply(this,arguments);arrangeLandscape();schedule();return r};
-  const meta=window.LUNA_ALTER_APP_META;document.title=`ルナオルタ ${meta.version}`;const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${meta.version} / ${meta.label}`;
-  schedule();setTimeout(schedule,60);
+
+  function reconcile(){ensureEnergy();keepNav();window.layoutHandFan();const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${meta.version} / ${meta.label}`}
+  const priorRender=window.renderBattleView;
+  if(typeof priorRender==='function')window.renderBattleView=function(){const out=priorRender.apply(this,arguments);requestAnimationFrame(reconcile);return out};
+  wrapRoomButton('createRoom','ルームを作成中…');wrapRoomButton('joinRoom','接続中…');
+  const active=document.querySelector('main>.screen.active');if(active){const map={battleScreen:'battle',cpuSetupScreen:'cpuSetup',roomScreen:'room',deckScreen:'deck',battleMenuScreen:'battleMenu',homeScreen:'home'};markScreen(map[active.id]||'settings')}
+  reconcile();document.title=`ルナオルタ ${meta.version}`;
 })();
 </script>
+
+</body>
+</html>
