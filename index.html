@@ -957,8 +957,8 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version: '0.13.7',
-  label: 'ホーム背景切替修復・スワイプ対応'
+  version: '0.13.8',
+  label: '横画面バトル競合修復・3列盤面固定'
 });
 </script>
 
@@ -3931,6 +3931,9 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
 <script id="la-0112-ui-reflow-script">
 (function(){
   function arrangeBattleUi(){
+    // 0.13.8: the landscape rebuild owns battle DOM placement.
+    // Keep this legacy helper only for screens before the landscape rails exist.
+    if(document.querySelector('#battleScreen .la-top-rail')) return;
     const myPersonal=document.getElementById('myPersonal');
     const selfZone=myPersonal?.parentElement;
     const shelf=document.getElementById('laPileShelf');
@@ -4851,6 +4854,9 @@ body:has(#battleScreen.active) .topbar{display:none!important}
 #battleScreen .center-board{position:absolute!important;inset:0 80px!important;left:80px!important;right:80px!important;top:0!important;bottom:0!important;width:auto!important;height:auto!important;margin:0!important;padding:0!important;background:transparent!important;border:0!important;box-shadow:none!important;backdrop-filter:none!important;z-index:6!important}
 #battleScreen .center-board .zones{width:100%!important;height:100%!important;display:grid!important;grid-template-columns:170px minmax(0,1fr) 170px!important;gap:30px!important;align-items:center!important}
 #battleScreen .center-board .zones>div{position:relative!important;inset:auto!important;width:auto!important;height:auto!important;min-width:0!important;margin:0!important;padding:0!important;display:flex!important;flex-direction:column!important;justify-content:center!important;overflow:visible!important}
+#battleScreen .center-board .zones>div:nth-child(1){grid-column:1!important;grid-row:1!important}
+#battleScreen .center-board .zones>div:nth-child(2){grid-column:2!important;grid-row:1!important}
+#battleScreen .center-board .zones>div:nth-child(3){grid-column:3!important;grid-row:1!important}
 #battleScreen .center-board .zone-title{height:20px!important;margin:0 0 6px!important;text-align:center!important;font-size:11px!important;line-height:20px!important;color:#6d6458!important}
 #battleScreen #oppPersonal,#battleScreen #myPersonal{width:100%!important;height:196px!important}
 #battleScreen #oppPersonal .slot,#battleScreen #myPersonal .slot{width:100%!important;height:196px!important;min-height:196px!important;margin:0!important;padding:7px!important;box-sizing:border-box!important;border-radius:12px!important;overflow:hidden!important}
@@ -4917,8 +4923,12 @@ body:has(#battleScreen.active) .topbar{display:none!important}
   if(!oppHand){oppHand=document.createElement('div');oppHand.id='laOppHandZone';oppHand.innerHTML='<div class="zone-title">相手の手札 <span id="laOppHandCount"></span></div>';}
   const backs=document.getElementById('oppHandBacks');if(backs)oppHand.appendChild(backs);
   move(oppDeck,top);move(oppHand,top);move(oppDiscard,top);move(oppLeader,top);
-  move(centerBoard,center);move(log,center);
-  move(myLeader,bottom);move(myDiscard,bottom);move(handWrap,bottom);move(myDeck,bottom);move(controls,bottom);
+  function arrangeLandscape(){
+    move(oppDeck,top);move(oppHand,top);move(oppDiscard,top);move(oppLeader,top);
+    move(centerBoard,center);move(log,center);
+    move(myLeader,bottom);move(myDiscard,bottom);move(handWrap,bottom);move(myDeck,bottom);move(controls,bottom);
+  }
+  arrangeLandscape();
   // Scaling is applied only to the complete 1280x720 board. Portrait devices rotate the whole board.
   function fit(){
     if(!document.getElementById('battleScreen')?.classList.contains('active'))return;
@@ -4934,7 +4944,7 @@ body:has(#battleScreen.active) .topbar{display:none!important}
   }
   let raf=0;const schedule=()=>{cancelAnimationFrame(raf);raf=requestAnimationFrame(()=>{fit();sync()})};
   addEventListener('resize',schedule,{passive:true});addEventListener('orientationchange',schedule,{passive:true});visualViewport?.addEventListener('resize',schedule,{passive:true});
-  const old=window.renderBattleView;if(typeof old==='function')window.renderBattleView=function(){const r=old.apply(this,arguments);schedule();return r};
+  const old=window.renderBattleView;if(typeof old==='function')window.renderBattleView=function(){const r=old.apply(this,arguments);arrangeLandscape();schedule();return r};
   const meta=window.LUNA_ALTER_APP_META;document.title=`ルナオルタ ${meta.version}`;const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${meta.version} / ${meta.label}`;
   schedule();setTimeout(schedule,60);
 })();
