@@ -957,8 +957,8 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version: '0.15.4',
-  label: 'ルーム同期基盤修復'
+  version:"0.16.0",
+  label:"オンライン対戦再設計"
 });
 </script>
 
@@ -3653,39 +3653,7 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
 </script>
 
 <!-- LUNA ALTER 0.10.7: robust Firebase authoritative sync -->
-<script id="la-0107-firebase-sync-fix">
-(function(){
- const {version:VERSION,label:LABEL}=window.LUNA_ALTER_APP_META;
- window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});
- document.title=`ルナオルタ ${VERSION}`;
- const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${VERSION} / ${LABEL}`;
 
- // Do not let a transient presence flag discard an already-arrived action.
- const prevHandleNetworkMessage=handleNetworkMessage;
- handleNetworkMessage=function(m){
-   if(roomRole==='host'&&m?.type==='action'){
-     const paused=networkPaused; networkPaused=false;
-     try{return prevHandleNetworkMessage(m)}finally{networkPaused=paused}
-   }
-   return prevHandleNetworkMessage(m);
- };
-
- // Keep the latest authoritative guest view at a persistent Firebase path.
- // Inbox messages remain for compatibility/animations, but correctness no longer
- // depends on a transient push message surviving a presence race.
- const prevBroadcast=broadcastState;
- broadcastState=function(){
-   prevBroadcast();
-   try{
-     if(matchMode==='online'&&roomRole==='host'&&game&&window.__laFbRoomRef?.()){
-       const view=makeView('p2');
-       const packed=window.__laWirePackView?window.__laWirePackView(view):view;
-       window.__laFbRoomRef().child('authoritativeState').set({view:packed,wire:window.__laWirePackView?1:0,rev:Date.now()}).catch(()=>{});
-     }
-   }catch(e){try{console.error('[LUNA ALTER] authoritative sync',e)}catch(_){}}
- };
-})();
-</script>
 
 
 <!-- LUNA ALTER 0.11.0: canonical mobile battle board. One design canvas, scaled as a whole. -->
@@ -4630,99 +4598,50 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
 </script>
 
 <script id="la-070-firebase-online">
-/* LUNA ALTER 0.8.2 — Firebase Realtime Database transport + compact authoritative snapshots */
+/* LUNA ALTER 0.16.0 — canonical Firebase room architecture
+   Host-authoritative: guest -> /actions, host -> /state. Lobby control -> inboxes.
+   Presence is display-only and never blocks gameplay. */
 (function(){
- const CFG={
-  apiKey:"AIzaSyD_mWP_9L8skXxnSdcu0rzHCCruocw5_qQ",
-  authDomain:"luna-alter.firebaseapp.com",
-  databaseURL:"https://luna-alter-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId:"luna-alter",
-  storageBucket:"luna-alter.firebasestorage.app",
-  messagingSenderId:"228339866594",
-  appId:"1:228339866594:web:8c0f7591def7356d71f7bb"
- };
- let fbApp=null,fbAuth=null,fbDb=null,fbUid=null,fbReadyPromise=null,fbRoomRef=null,fbInboxRef=null,fbPresenceRef=null;
- let fbHandlers=[];
- // 0.8.2 compact wire format: card definitions already exist on both clients,
- // so only mutable card state is sent. This keeps each authoritative snapshot
- // self-contained (safe resync) while avoiding repeated names/effect text/cost/type.
- const WIRE_STATIC_CARD_KEYS=new Set(['name','type','cost','text','pool','token']);
- function wirePackCard(c){
-  if(!c)return null;const x={};
-  Object.keys(c).forEach(k=>{if(k!=='id'&&!WIRE_STATIC_CARD_KEYS.has(k)&&c[k]!==undefined)x[k]=c[k]});
-  return [c.id,x];
- }
- function wireUnpackCard(w){
-  if(!w)return null;if(!Array.isArray(w))return w;
-  const id=w[0],extra=w[1]||{},base=(typeof DEF!=='undefined'&&DEF[id])?DEF[id]:{id};
-  return {...base,...extra,id};
- }
- function wirePackPlayer(p){if(!p)return p;return {...p,hand:(p.hand||[]).map(wirePackCard),drawPile:(p.drawPile||[]).map(wirePackCard),discard:(p.discard||[]).map(wirePackCard),exhaust:(p.exhaust||[]).map(wirePackCard),personal:wirePackCard(p.personal)}}
- function wireUnpackPlayer(p){if(!p)return p;return {...p,hand:(p.hand||[]).map(wireUnpackCard),drawPile:(p.drawPile||[]).map(wireUnpackCard),discard:(p.discard||[]).map(wireUnpackCard),exhaust:(p.exhaust||[]).map(wireUnpackCard),personal:wireUnpackCard(p.personal)}}
- function wirePackView(v){
-  if(!v)return v;const pending=v.pending?{...v.pending,cards:(v.pending.cards||[]).map(wirePackCard)}:null;
-  return {...v,me:wirePackPlayer(v.me),opp:wirePackPlayer(v.opp),shared:(v.shared||[]).map(z=>({owner:z.owner,card:wirePackCard(z.card)})),pending,
-   // Old logs/animation events do not affect rules. Keep a useful recent window only.
-   log:(v.log||[]).slice(-48),damageEvents:(v.damageEvents||[]).slice(-12),drawEvents:(v.drawEvents||[]).slice(-12)};
- }
- function wireUnpackView(v){
-  if(!v)return v;const pending=v.pending?{...v.pending,cards:(v.pending.cards||[]).map(wireUnpackCard)}:null;
-  return {...v,me:wireUnpackPlayer(v.me),opp:wireUnpackPlayer(v.opp),shared:(v.shared||[]).map(z=>({owner:z.owner,card:wireUnpackCard(z.card)})),pending};
- }
- function wirePackMessage(m){return m?.type==='state'?{...m,type:'state-compact',view:wirePackView(m.view),wire:1}:m}
- function wireUnpackMessage(m){return m?.type==='state-compact'?{...m,type:'state',view:wireUnpackView(m.view)}:m}
- window.__laWirePackView=wirePackView;window.__laWireUnpackView=wireUnpackView;window.__laFbRoomRef=()=>fbRoomRef;
- function fbDiag(a,b='',k='info'){try{netDiag(a,b,k)}catch(_){}}
- function fbReady(){
-  if(fbReadyPromise)return fbReadyPromise;
-  fbReadyPromise=(async()=>{
-   if(typeof firebase==='undefined')throw new Error('Firebase SDKを読み込めませんでした');
-   fbApp=firebase.apps.length?firebase.app():firebase.initializeApp(CFG);fbAuth=firebase.auth();fbDb=firebase.database();
-   if(!fbAuth.currentUser)await fbAuth.signInAnonymously();fbUid=fbAuth.currentUser.uid;
-   fbDiag('Firebase認証成功',`uid: ${fbUid.slice(0,8)}…`,'ok');return true;
-  })().catch(e=>{fbDiag('Firebase接続エラー',e?.message||String(e),'bad');const st=document.getElementById('roomStatus');if(st){st.textContent='Firebaseへの接続に失敗しました。通信環境を確認してください。';st.className='notice bad'};throw e});
-  return fbReadyPromise;
- }
- function fbOffAll(){for(const [r,e,h] of fbHandlers){try{r.off(e,h)}catch(_){}}fbHandlers=[];try{fbPresenceRef?.onDisconnect().cancel()}catch(_){}fbRoomRef=fbInboxRef=fbPresenceRef=null}
- function onRef(r,e,h){r.on(e,h);fbHandlers.push([r,e,h])}
- function makeFirebaseConn(){return {open:true,peer:'firebase',close(){this.open=false},send(m){if(!this.open||!fbRoomRef)return;const target=roomRole==='host'?'guestInbox':'hostInbox',payload=wirePackMessage(m);fbRoomRef.child(target).push({payload,ts:firebase.database.ServerValue.TIMESTAMP,sender:fbUid}).catch(e=>fbDiag('送信エラー',e.message,'bad'))}}}
- function listenInbox(which){fbInboxRef=fbRoomRef.child(which);const h=snap=>{const v=snap.val();if(!v||v.sender===fbUid){snap.ref.remove().catch(()=>{});return}try{handleNetworkMessage(wireUnpackMessage(v.payload));snap.ref.remove().catch(()=>{})}catch(e){fbDiag('受信処理エラー',e.message,'bad')}};onRef(fbInboxRef,'child_added',h);if(which==='guestInbox'){const sr=fbRoomRef.child('authoritativeState');const sh=snap=>{const x=snap.val();if(!x?.view||roomRole!=='guest')return;try{const v=x.wire?wireUnpackView(x.view):x.view;setNetworkPaused(false);currentView=v;if(!document.getElementById('battleScreen').classList.contains('active'))showScreen('battle');renderBattleView()}catch(e){fbDiag('状態同期エラー',e.message,'bad')}};onRef(sr,'value',sh)}}
- async function setPresence(role){fbPresenceRef=fbRoomRef.child(`presence/${role}`);await fbPresenceRef.set({online:true,uid:fbUid,at:firebase.database.ServerValue.TIMESTAMP});fbPresenceRef.onDisconnect().set({online:false,uid:fbUid,at:firebase.database.ServerValue.TIMESTAMP});}
- function watchPresence(otherRole){const r=fbRoomRef.child(`presence/${otherRole}`);const h=s=>{const online=!!s.val()?.online;if(otherRole==='guest')document.getElementById('guestDot')?.classList.toggle('on',online);else document.getElementById('hostDot')?.classList.toggle('on',online);if((game||currentView)&&!((game||currentView)?.over))setNetworkPaused(!online)};onRef(r,'value',h)}
- function watchConnected(){const r=fbDb.ref('.info/connected');const h=s=>{const ok=s.val()===true;fbDiag(ok?'Firebase接続中':'Firebase切断',ok?'Realtime Database':'再接続を待っています',ok?'ok':'bad');if(matchMode==='online'&&(game||currentView)&&!(game?.over||currentView?.over))setNetworkPaused(!ok)};onRef(r,'value',h)}
- async function hostCreate(){
-  await fbReady();let tries=0,code='';
-  while(tries++<12){code=randomCode();const r=fbDb.ref(`rooms/${code}/meta`);const tx=await r.transaction(cur=>{if(cur&&Date.now()-Number(cur.createdAt||0)<12*60*60*1000)return;return {hostUid:fbUid,createdAt:Date.now(),version:window.LUNA_ALTER_APP_META.version}});if(tx.committed)break;code=''}
-  if(!code)throw new Error('空いているルーム番号を取得できませんでした');
-  roomCode=code;setupLobby(code);fbRoomRef=fbDb.ref(`rooms/${code}`);await setPresence('host');listenInbox('hostInbox');watchPresence('guest');watchConnected();conn=makeFirebaseConn();peer={open:true,disconnected:false,destroyed:false,reconnect(){},destroy(){}};
-  const name=cleanName('hostName'),deck=getDeck(document.getElementById('hostDeck').value);document.getElementById('hostLabel').textContent=name;document.getElementById('hostReady').textContent=deck.name;document.getElementById('roomStatus').textContent='友達の参加を待っています…';fbDiag('ルーム作成成功',`番号 ${code}`,'ok');
- }
- async function guestJoin(code){
-  await fbReady();const rr=fbDb.ref(`rooms/${code}`),meta=(await rr.child('meta').once('value')).val();if(!meta?.hostUid)throw new Error('ルームが見つかりません。番号を確認してください。');
-  fbRoomRef=rr;roomCode=code;setupLobby(code);await setPresence('guest');listenInbox('guestInbox');watchPresence('host');watchConnected();conn=makeFirebaseConn();peer={open:true,disconnected:false,destroyed:false,reconnect(){},destroy(){}};
-  const name=cleanName('guestName'),deck=getDeck(document.getElementById('guestDeck').value);guestReconnectInfo={name,deck:{name:deck.name,character:deck.character,counts:deck.counts}};document.getElementById('guestLabel').textContent=name;document.getElementById('guestReady').textContent=deck.name;document.getElementById('hostReady').textContent='接続中';document.getElementById('roomStatus').textContent='ホストに接続しています…';
-  fbDiag('ルーム参加成功',`番号 ${code}`,'ok');setNetworkPaused(false);sendGuestHello();
- }
- // Compatibility layer: existing game/state code keeps using conn.send / handleNetworkMessage.
- peerAvailable=function(){return typeof firebase!=='undefined'};
- startHostPeer=function(){if(roomRole==='host'&&fbRoomRef){conn=conn?.open?conn:makeFirebaseConn();setNetworkPaused(false)}};
- initGuestPeer=function(){if(roomRole==='guest'&&fbRoomRef){conn=conn?.open?conn:makeFirebaseConn();setNetworkPaused(false);sendGuestHello()}};
- openGuestConnection=function(){initGuestPeer()};
- scheduleGuestReconnect=function(){if(roomRole==='guest'&&matchMode==='online'&&fbRoomRef){setTimeout(()=>{if(roomRole==='guest'&&fbRoomRef){conn=makeFirebaseConn();setNetworkPaused(false);sendGuestHello()}},700)}};
- scheduleHostPeerRetry=function(){if(roomRole==='host'&&fbRoomRef)setTimeout(()=>{conn=makeFirebaseConn();setNetworkPaused(false)},700)};
- bindConnection=function(){};
- peerError=function(e){fbDiag('Firebase通信エラー',e?.message||String(e||''),'bad')};
- document.getElementById('createRoom').onclick=async()=>{try{leaveRoom(false);fbOffAll();roomRole='host';localPid='p1';matchMode='online';await hostCreate()}catch(e){fbDiag('ルーム作成失敗',e.message,'bad');alert(e.message)}};
- document.getElementById('joinRoom').onclick=async()=>{const code=document.getElementById('joinCode').value.replace(/\D/g,'').slice(0,4);if(code.length!==4)return alert('数字4桁のルーム番号を入力してください。');try{leaveRoom(false);fbOffAll();roomRole='guest';localPid='p2';matchMode='online';await guestJoin(code)}catch(e){fbDiag('ルーム参加失敗',e.message,'bad');document.getElementById('roomStatus').textContent=e.message;document.getElementById('roomStatus').className='notice bad'}};
- const oldLeave=leaveRoom;leaveRoom=function(reset=true){const code=roomCode,role=roomRole,wasOnline=matchMode==='online',r=fbRoomRef;fbOffAll();if(wasOnline&&r&&role){try{r.child(`presence/${role}`).set({online:false,uid:fbUid,at:firebase.database.ServerValue.TIMESTAMP})}catch(_){}if(role==='host'&&!game){setTimeout(()=>r.remove().catch(()=>{}),0)}}oldLeave(reset)};
- // Host recovery from localStorage now reconnects to the Firebase room rather than PeerJS.
- const oldRestore=restoreHostRecovery;restoreHostRecovery=function(){const x=readHostRecovery();if(!x)return false;roomRole='host';localPid='p1';matchMode='online';roomCode=String(x.roomCode);game=x.game;guestInfo=x.guestInfo||{name:game.players.p2.name,deck:{name:'復帰中',character:game.players.p2.character,counts:{}}};uidSeq=Number(x.uidSeq)||1;actionSeq=Number(x.actionSeq)||1;networkPaused=true;lastShownAction=game.lastAction?.seq||0;lastShownDamage=game.damageSeq||0;lastShownDraw=game.drawSeq||0;setupLobby(roomCode);document.getElementById('hostLabel').textContent=game.players.p1.name;document.getElementById('hostReady').textContent='対戦復帰';document.getElementById('guestLabel').textContent=game.players.p2.name;document.getElementById('guestReady').textContent='再接続待ち';document.getElementById('roomStatus').textContent='対戦を復元しました。Firebaseへ再接続しています…';currentView=makeView('p1');showScreen('battle');renderBattleView();fbReady().then(async()=>{fbRoomRef=fbDb.ref(`rooms/${roomCode}`);await fbRoomRef.child('meta').update({hostUid:fbUid,createdAt:Date.now(),version:window.LUNA_ALTER_APP_META.version});await setPresence('host');listenInbox('hostInbox');watchPresence('guest');watchConnected();conn=makeFirebaseConn();setNetworkPaused(false);saveHostRecovery()}).catch(()=>{});return true};
- // Update copy/help text that still mentions direct P2P.
- document.querySelectorAll('.connection-help li').forEach(li=>{li.innerHTML=li.innerHTML.replace(/通信にはインターネット接続が必要です。.*$/,'通信にはインターネット接続が必要です。対戦通信はFirebase経由で同期されます。')});
- const pw=document.getElementById('peerWarning');if(pw)pw.classList.add('hidden');
- fbReady().catch(()=>{});
+ const CFG={apiKey:"AIzaSyD_mWP_9L8skXxnSdcu0rzHCCruocw5_qQ",authDomain:"luna-alter.firebaseapp.com",databaseURL:"https://luna-alter-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"luna-alter",storageBucket:"luna-alter.firebasestorage.app",messagingSenderId:"228339866594",appId:"1:228339866594:web:8c0f7591def7356d71f7bb"};
+ let fbApp=null,fbAuth=null,fbDb=null,fbUid=null,fbReadyPromise=null,fbRoomRef=null,fbPresenceRef=null;
+ let listeners=[],localActionSeq=0,stateRev=0;const seenActions=new Set();
+ const STATIC=new Set(['name','type','cost','text','pool','token']);
+ const clean=v=>JSON.parse(JSON.stringify(v));
+ function packCard(c){if(!c)return null;const x={};Object.keys(c).forEach(k=>{if(k!=='id'&&!STATIC.has(k)&&c[k]!==undefined)x[k]=c[k]});return[c.id,x]}
+ function unpackCard(w){if(!w)return null;if(!Array.isArray(w))return w;const id=w[0],base=(typeof DEF!=='undefined'&&DEF[id])?DEF[id]:{id};return{...base,...(w[1]||{}),id}}
+ function packPlayer(p){if(!p)return p;return{...p,hand:(p.hand||[]).map(packCard),drawPile:(p.drawPile||[]).map(packCard),discard:(p.discard||[]).map(packCard),exhaust:(p.exhaust||[]).map(packCard),personal:packCard(p.personal)}}
+ function unpackPlayer(p){if(!p)return p;return{...p,hand:(p.hand||[]).map(unpackCard),drawPile:(p.drawPile||[]).map(unpackCard),discard:(p.discard||[]).map(unpackCard),exhaust:(p.exhaust||[]).map(unpackCard),personal:unpackCard(p.personal)}}
+ function packView(v){if(!v)return v;const pending=v.pending?{...v.pending,cards:(v.pending.cards||[]).map(packCard)}:null;return{...v,me:packPlayer(v.me),opp:packPlayer(v.opp),shared:(v.shared||[]).map(z=>({owner:z.owner,card:packCard(z.card)})),pending,log:(v.log||[]).slice(-48),damageEvents:(v.damageEvents||[]).slice(-12),drawEvents:(v.drawEvents||[]).slice(-12)}}
+ function unpackView(v){if(!v)return v;const pending=v.pending?{...v.pending,cards:(v.pending.cards||[]).map(unpackCard)}:null;return{...v,me:unpackPlayer(v.me),opp:unpackPlayer(v.opp),shared:(v.shared||[]).map(z=>({owner:z.owner,card:unpackCard(z.card)})),pending}}
+ function diag(a,b='',k='info'){try{netDiag(a,b,k)}catch(_){}}
+ function on(ref,event,fn){ref.on(event,fn);listeners.push([ref,event,fn])}
+ function offAll(){for(const [r,e,f] of listeners){try{r.off(e,f)}catch(_){}}listeners=[];try{fbPresenceRef?.onDisconnect().cancel()}catch(_){}fbPresenceRef=null;fbRoomRef=null}
+ async function ready(){if(fbReadyPromise)return fbReadyPromise;fbReadyPromise=(async()=>{if(typeof firebase==='undefined')throw new Error('Firebase SDKを読み込めませんでした');fbApp=firebase.apps.length?firebase.app():firebase.initializeApp(CFG);fbAuth=firebase.auth();fbDb=firebase.database();if(!fbAuth.currentUser)await fbAuth.signInAnonymously();fbUid=fbAuth.currentUser.uid;diag('Firebase認証成功',`uid: ${fbUid.slice(0,8)}…`,'ok');return true})().catch(e=>{diag('Firebase接続エラー',e?.message||String(e),'bad');throw e});return fbReadyPromise}
+ async function presence(role){fbPresenceRef=fbRoomRef.child(`presence/${role}`);await fbPresenceRef.set({online:true,uid:fbUid,at:firebase.database.ServerValue.TIMESTAMP});fbPresenceRef.onDisconnect().set({online:false,uid:fbUid,at:firebase.database.ServerValue.TIMESTAMP})}
+ function watchPresence(role){const r=fbRoomRef.child(`presence/${role}`);on(r,'value',s=>{const online=!!s.val()?.online;document.getElementById(role==='guest'?'guestDot':'hostDot')?.classList.toggle('on',online)})}
+ function watchConnection(){const r=fbDb.ref('.info/connected');on(r,'value',s=>{const ok=s.val()===true;diag(ok?'Firebase接続中':'Firebase再接続中',ok?'Realtime Database':'操作はFirebaseの再接続後に送信されます',ok?'ok':'bad');const n=document.getElementById('battleNotice');if(n&&matchMode==='online'&&!ok&&!currentView?.over&&!game?.over){n.textContent='通信を再接続しています…';n.className='notice bad'}})}
+ function controlTarget(){return roomRole==='host'?'guestInbox':'hostInbox'}
+ function connection(){return{open:true,peer:'firebase',close(){this.open=false},send(m){if(!this.open||!fbRoomRef||!m)return Promise.resolve();if(m.type==='action'&&roomRole==='guest')return sendAction(m.action);if((m.type==='state'||m.type==='state-compact')&&roomRole==='host')return publishState();return fbRoomRef.child(controlTarget()).push({payload:clean(m),sender:fbUid,ts:firebase.database.ServerValue.TIMESTAMP}).catch(e=>diag('送信エラー',e.message,'bad'))}}}
+ function listenControl(which){const r=fbRoomRef.child(which);on(r,'child_added',snap=>{const x=snap.val();if(!x||x.sender===fbUid){snap.ref.remove().catch(()=>{});return}try{handleNetworkMessage(x.payload)}catch(e){diag('制御受信エラー',e.message,'bad')}finally{snap.ref.remove().catch(()=>{})}})}
+ function listenActions(){const r=fbRoomRef.child('actions');on(r,'child_added',snap=>{const x=snap.val();if(!x||x.sender===fbUid){snap.ref.remove().catch(()=>{});return}const key=x.id||snap.key;if(seenActions.has(key)){snap.ref.remove().catch(()=>{});return}seenActions.add(key);if(seenActions.size>512)seenActions.delete(seenActions.values().next().value);try{if(roomRole==='host'&&game&&!game.over){networkPaused=false;handleAction('p2',x.action)}}catch(e){diag('操作受信エラー',e.message,'bad')}finally{snap.ref.remove().catch(()=>{})}})}
+ function listenState(){const r=fbRoomRef.child('state');on(r,'value',snap=>{const x=snap.val();if(!x?.view||roomRole!=='guest')return;try{const rev=Number(x.rev||0);if(rev&&rev<Number(currentView?.syncRev||0))return;const v=unpackView(x.view);v.syncRev=rev;networkPaused=false;currentView=v;if(!document.getElementById('battleScreen').classList.contains('active'))showScreen('battle');renderBattleView()}catch(e){diag('状態同期エラー',e.message,'bad')}})}
+ function publishState(){if(matchMode!=='online'||roomRole!=='host'||!fbRoomRef||!game)return Promise.resolve();const view=packView(makeView('p2'));return fbRoomRef.child('state').set(clean({view,rev:++stateRev,turn:game.current,over:!!game.over,updatedAt:Date.now()})).catch(e=>{diag('状態同期エラー',e.message,'bad');throw e})}
+ function sendAction(action){if(!fbRoomRef||roomRole!=='guest'||!action)return Promise.resolve();const id=`${fbUid}-${Date.now()}-${++localActionSeq}`;return fbRoomRef.child('actions').push(clean({id,sender:fbUid,action,ts:Date.now()})).catch(e=>{diag('操作送信エラー',e.message,'bad');throw e})}
+ async function hostCreate(){await ready();let code='';for(let i=0;i<12&&!code;i++){const c=randomCode(),r=fbDb.ref(`rooms/${c}/meta`);const tx=await r.transaction(cur=>{if(cur&&Date.now()-Number(cur.createdAt||0)<12*60*60*1000)return;return{hostUid:fbUid,createdAt:Date.now(),version:window.LUNA_ALTER_APP_META.version}});if(tx.committed)code=c}if(!code)throw new Error('空いているルーム番号を取得できませんでした');roomCode=code;setupLobby(code);fbRoomRef=fbDb.ref(`rooms/${code}`);await fbRoomRef.child('actions').remove();await fbRoomRef.child('state').remove();await presence('host');listenControl('hostInbox');listenActions();watchPresence('guest');watchConnection();conn=connection();peer={open:true,disconnected:false,destroyed:false,reconnect(){},destroy(){}};const name=cleanName('hostName'),deck=getDeck(document.getElementById('hostDeck').value);document.getElementById('hostLabel').textContent=name;document.getElementById('hostReady').textContent=deck.name;document.getElementById('roomStatus').textContent='友達の参加を待っています…';diag('ルーム作成成功',`番号 ${code}`,'ok')}
+ async function guestJoin(code){await ready();const rr=fbDb.ref(`rooms/${code}`),meta=(await rr.child('meta').once('value')).val();if(!meta?.hostUid)throw new Error('ルームが見つかりません。番号を確認してください。');fbRoomRef=rr;roomCode=code;setupLobby(code);await presence('guest');listenControl('guestInbox');listenState();watchPresence('host');watchConnection();conn=connection();peer={open:true,disconnected:false,destroyed:false,reconnect(){},destroy(){}};const name=cleanName('guestName'),deck=getDeck(document.getElementById('guestDeck').value);guestReconnectInfo={name,deck:{name:deck.name,character:deck.character,counts:deck.counts}};document.getElementById('guestLabel').textContent=name;document.getElementById('guestReady').textContent=deck.name;document.getElementById('hostReady').textContent='接続中';document.getElementById('roomStatus').textContent='ホストに接続しています…';diag('ルーム参加成功',`番号 ${code}`,'ok');networkPaused=false;sendGuestHello()}
+ peerAvailable=function(){return typeof firebase!=='undefined'};startHostPeer=function(){};initGuestPeer=function(){if(roomRole==='guest'&&fbRoomRef){conn=connection();sendGuestHello()}};openGuestConnection=initGuestPeer;scheduleGuestReconnect=function(){};scheduleHostPeerRetry=function(){};bindConnection=function(){};peerError=function(e){diag('Firebase通信エラー',e?.message||String(e||''),'bad')};
+ document.getElementById('createRoom').onclick=async()=>{try{leaveRoom(false);offAll();roomRole='host';localPid='p1';matchMode='online';await hostCreate()}catch(e){diag('ルーム作成失敗',e.message,'bad');alert(e.message)}};
+ document.getElementById('joinRoom').onclick=async()=>{const code=document.getElementById('joinCode').value.replace(/\D/g,'').slice(0,4);if(code.length!==4)return alert('数字4桁のルーム番号を入力してください。');try{leaveRoom(false);offAll();roomRole='guest';localPid='p2';matchMode='online';await guestJoin(code)}catch(e){diag('ルーム参加失敗',e.message,'bad');document.getElementById('roomStatus').textContent=e.message;document.getElementById('roomStatus').className='notice bad'}};
+ const coreLeave=leaveRoom;leaveRoom=function(reset=true){const r=fbRoomRef,role=roomRole,wasOnline=matchMode==='online';if(wasOnline&&r&&role&&fbUid)r.child(`presence/${role}`).set({online:false,uid:fbUid,at:Date.now()}).catch(()=>{});offAll();coreLeave(reset)};
+ const coreBroadcast=broadcastState;broadcastState=function(){if(roomRole!=='host'||!game)return;currentView=makeView('p1');showScreen('battle');renderBattleView();if(matchMode==='online'){if(game.over)clearHostRecovery();else saveHostRecovery();publishState()}scheduleCpuTurn()};
+ dispatchAction=function(action){if(!action)return;if(roomRole==='host'){handleAction('p1',action);return}if(matchMode==='online'&&roomRole==='guest'&&fbRoomRef){sendAction(action);return}const n=document.getElementById('battleNotice');if(n){n.textContent='通信を再接続しています…';n.className='notice bad'}};
+ const corePause=setNetworkPaused;setNetworkPaused=function(flag){if(matchMode==='online'){networkPaused=false;return}return corePause(flag)};
+ const coreRestore=restoreHostRecovery;restoreHostRecovery=function(){const x=readHostRecovery();if(!x)return false;roomRole='host';localPid='p1';matchMode='online';roomCode=String(x.roomCode);game=x.game;guestInfo=x.guestInfo||{name:game.players.p2.name,deck:{name:'復帰中',character:game.players.p2.character,counts:{}}};uidSeq=Number(x.uidSeq)||1;actionSeq=Number(x.actionSeq)||1;networkPaused=false;lastShownAction=game.lastAction?.seq||0;lastShownDamage=game.damageSeq||0;lastShownDraw=game.drawSeq||0;setupLobby(roomCode);currentView=makeView('p1');showScreen('battle');renderBattleView();ready().then(async()=>{fbRoomRef=fbDb.ref(`rooms/${roomCode}`);await fbRoomRef.child('meta').update({hostUid:fbUid,createdAt:Date.now(),version:window.LUNA_ALTER_APP_META.version});await presence('host');listenControl('hostInbox');listenActions();watchPresence('guest');watchConnection();conn=connection();publishState();saveHostRecovery()}).catch(()=>{});return true};
+ window.__laOnline={publishState,sendAction,packView,unpackView,getRoom:()=>fbRoomRef};
+ const pw=document.getElementById('peerWarning');if(pw)pw.classList.add('hidden');ready().catch(()=>{});
 })();
 </script>
+
 
 <!-- LUNA ALTER 0.8.8: normal tap controls + end-turn playable-card confirmation -->
 <style id="v088-style">
@@ -4821,49 +4740,7 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
 </script>
 
 <!-- LUNA ALTER 0.10.4: online input recovery -->
-<script id="la-0104-online-input-fix">
-(function(){
- const {version:VERSION,label:LABEL}=window.LUNA_ALTER_APP_META;
- window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});
- document.title=`ルナオルタ ${VERSION}`;
- const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${VERSION} / ${LABEL}`;
 
- // Presence is useful as a warning, but must not swallow an input while the Firebase
- // connection itself is still open. 0.10.x had networkPaused in both UI and dispatch,
- // which made play/end silently do nothing in online matches after a presence race.
- const originalHandleAction=handleAction;
- handleAction=function(pid,a){
-   if(roomRole!=='host'||!game||!a)return;
-   const wasPaused=networkPaused;
-   if(wasPaused)networkPaused=false;
-   try{return originalHandleAction(pid,a)}finally{networkPaused=wasPaused}
- };
-
- dispatchAction=function(action){
-   if(roomRole==='host'){
-     handleAction('p1',action);
-     return;
-   }
-   if(conn?.open){
-     conn.send({type:'action',action});
-     return;
-   }
-   const n=document.getElementById('battleNotice');
-   if(n){n.textContent='通信を再接続しています。少し待ってからもう一度操作してください。';n.className='notice bad'}
- };
-
- // Swipe playability should follow the actual turn/card rules. A stale presence flag
- // must not prevent the drag guide or drop action from starting.
- playableNow=function(c){
-   const v=currentView;
-   return !!(v&&v.current===v.me.pid&&!v.over&&!v.pending&&canPlayView(v,c));
- };
-
- // Rebind the current hand so cards created by older render wrappers use the fixed test.
- try{document.querySelectorAll('#myHand .card').forEach(el=>{el.dataset.laSwipeBound=''})}catch(_){ }
- try{renderBattleView()}catch(_){ }
-})();
-</script>
 
 <!-- LUNA ALTER 0.10.5: CPU freeze failsafe -->
 <script id="la-0105-cpu-failsafe">
@@ -5095,145 +4972,6 @@ body.la-screen-battle .app>main,body.la-screen-cpuSetup .app>main,body.la-screen
 
 
 <!-- LUNA ALTER 0.15.4: canonical Firebase room transport -->
-<script id="la-room-sync-canonical-0154">
-(()=>{
-  /*
-   * One authoritative transport for room matches.
-   * Host owns the game state. Guest sends actions to /actions; host publishes the
-   * complete guest view to /authoritativeState after every accepted action.
-   * Presence is informational only and never gates gameplay/state propagation.
-   */
-  let syncRev=0;
-  let localActionSeq=0;
-  const seenActions=new Set();
-  const cleanForFirebase=value=>JSON.parse(JSON.stringify(value));
-  const roomReady=()=>matchMode==='online' && fbRoomRef;
 
-  function publishGuestState(){
-    if(!roomReady() || roomRole!=='host' || !game) return Promise.resolve();
-    const view=makeView('p2');
-    const packed=(typeof wirePackView==='function')?wirePackView(view):view;
-    const payload=cleanForFirebase({
-      view:packed,
-      wire:typeof wirePackView==='function'?1:0,
-      rev:++syncRev,
-      turn:game.current,
-      over:!!game.over,
-      updatedAt:firebase.database.ServerValue.TIMESTAMP
-    });
-    return fbRoomRef.child('authoritativeState').set(payload).catch(e=>{
-      try{fbDiag('状態同期エラー',e.message,'bad')}catch(_){}
-      throw e;
-    });
-  }
-
-  // Replace the compatibility connection. Lobby/control messages still use inboxes;
-  // gameplay actions and state use persistent dedicated paths.
-  makeFirebaseConn=function(){
-    return {
-      open:true, peer:'firebase',
-      close(){this.open=false},
-      send(m){
-        if(!this.open || !fbRoomRef || !m) return Promise.resolve();
-        if(m.type==='action' && roomRole==='guest'){
-          const id=`${fbUid||'guest'}-${Date.now()}-${++localActionSeq}`;
-          return fbRoomRef.child('actions').push(cleanForFirebase({
-            id, sender:fbUid, action:m.action,
-            ts:firebase.database.ServerValue.TIMESTAMP
-          })).catch(e=>fbDiag('操作送信エラー',e.message,'bad'));
-        }
-        if((m.type==='state'||m.type==='state-compact') && roomRole==='host'){
-          return publishGuestState();
-        }
-        const target=roomRole==='host'?'guestInbox':'hostInbox';
-        const payload=typeof wirePackMessage==='function'?wirePackMessage(m):m;
-        return fbRoomRef.child(target).push(cleanForFirebase({
-          payload, ts:firebase.database.ServerValue.TIMESTAMP, sender:fbUid
-        })).catch(e=>fbDiag('送信エラー',e.message,'bad'));
-      }
-    };
-  };
-
-  // Extend room listeners with a durable guest -> host action queue.
-  const baseListenInbox=listenInbox;
-  listenInbox=function(which){
-    baseListenInbox(which);
-    if(which!=='hostInbox' || !fbRoomRef) return;
-    const ar=fbRoomRef.child('actions');
-    const ah=snap=>{
-      const item=snap.val();
-      if(!item || item.sender===fbUid){ snap.ref.remove().catch(()=>{}); return; }
-      const key=item.id||snap.key;
-      if(seenActions.has(key)){ snap.ref.remove().catch(()=>{}); return; }
-      seenActions.add(key);
-      if(seenActions.size>256){ const first=seenActions.values().next().value; seenActions.delete(first); }
-      try{
-        // A stale presence flag must never discard a real user action.
-        const paused=networkPaused; networkPaused=false;
-        try{ handleAction('p2',item.action); }
-        finally{ networkPaused=paused; }
-      }catch(e){
-        try{fbDiag('操作受信エラー',e.message,'bad')}catch(_){}
-      }finally{
-        snap.ref.remove().catch(()=>{});
-      }
-    };
-    onRef(ar,'child_added',ah);
-  };
-
-  // Canonical state broadcaster. Do not chain the old presence-gated broadcasters.
-  broadcastState=function(){
-    if(roomRole!=='host' || !game) return;
-    currentView=makeView('p1');
-    showScreen('battle');
-    renderBattleView();
-    if(matchMode==='online'){
-      if(game.over) clearHostRecovery(); else saveHostRecovery();
-      // Always publish; online presence may lag behind a perfectly healthy DB link.
-      publishGuestState();
-    }
-    scheduleCpuTurn();
-  };
-
-  // Canonical action dispatch. Guest actions go straight to Firebase even if the
-  // presence indicator briefly says disconnected; Firebase itself will queue/retry.
-  dispatchAction=function(action){
-    if(!action) return;
-    if(roomRole==='host'){
-      handleAction('p1',action);
-      return;
-    }
-    if(matchMode==='online' && roomRole==='guest' && fbRoomRef){
-      const c=(conn&&conn.open)?conn:makeFirebaseConn();
-      conn=c;
-      c.send({type:'action',action});
-      return;
-    }
-    const n=document.getElementById('battleNotice');
-    if(n){n.textContent='通信を再接続しています。';n.className='notice bad'}
-  };
-
-  // Presence may update warning UI, but from this build onward it is not an input lock.
-  const oldSetNetworkPaused=setNetworkPaused;
-  setNetworkPaused=function(flag){
-    if(matchMode==='online' && (roomRole==='host'||roomRole==='guest')){
-      networkPaused=false;
-      try{
-        const n=document.getElementById('battleNotice');
-        if(n && flag && !currentView?.over && !game?.over){
-          n.textContent='通信状態を確認中…（操作は送信されます）';
-          n.className='notice';
-        }
-      }catch(_){}
-      return;
-    }
-    return oldSetNetworkPaused(flag);
-  };
-
-  // If this script is loaded while a room is already open, refresh the connection
-  // object so subsequent actions use the canonical transport.
-  if(matchMode==='online' && fbRoomRef) conn=makeFirebaseConn();
-})();
-</script>
 </body>
 </html>
