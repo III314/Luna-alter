@@ -960,8 +960,8 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.17.3",
-  label:"ホーム画面追加版・自動更新復旧"
+  version:"0.18.0",
+  label:"大掃除・基盤統合"
 });
 </script>
 
@@ -4136,62 +4136,37 @@ body:has(#battleScreen.active) .topbar{display:none!important}
 (function(){
   const stage=document.querySelector('#battleScreen .combat-stage');
   if(!stage)return;
-  // Create three structural rails and MOVE the live game nodes into them. IDs stay unchanged,
-  // so gameplay/render/network code continues to address the same elements.
   const top=document.createElement('div');top.className='la-top-rail';
   const center=document.createElement('div');center.className='la-center-rail';
   const bottom=document.createElement('div');bottom.className='la-bottom-rail';
   stage.append(top,center,bottom);
   const move=(el,parent)=>{if(el&&el.parentElement!==parent)parent.appendChild(el)};
-  const oppLeader=document.getElementById('oppLeaderUnit');
-  const myLeader=document.getElementById('myLeaderUnit');
-  const centerBoard=stage.querySelector('.center-board');
-  const handWrap=document.querySelector('#battleScreen .hand-wrap');
-  const controls=document.querySelector('#battleScreen .battle-controls');
-  const log=document.getElementById('openLog');
-  // Physical self piles were created by the existing animation patch. Detach them from its legacy shelf.
+  const oppLeader=document.getElementById('oppLeaderUnit'),myLeader=document.getElementById('myLeaderUnit');
+  const centerBoard=stage.querySelector('.center-board'),handWrap=document.querySelector('#battleScreen .hand-wrap');
+  const controls=document.querySelector('#battleScreen .battle-controls'),log=document.getElementById('openLog');
   const myDeck=document.getElementById('laDeckBox'),myDiscard=document.getElementById('laDiscardBox');
   const shelf=document.getElementById('laPileShelf');
-  if(shelf){ if(myDeck)stage.appendChild(myDeck); if(myDiscard)stage.appendChild(myDiscard); shelf.remove(); }
-  // Mirrored opponent zones.
+  if(shelf){if(myDeck)stage.appendChild(myDeck);if(myDiscard)stage.appendChild(myDiscard);shelf.remove()}
   let oppDeck=document.getElementById('laOppDeckBox');
-  if(!oppDeck){oppDeck=document.createElement('div');oppDeck.id='laOppDeckBox';oppDeck.className='la-opp-pile';oppDeck.innerHTML='<span class="la-pile-icon"></span><span class="pile-n" id="laOppDeckCount">0</span><strong>相手の山札</strong>';}
+  if(!oppDeck){oppDeck=document.createElement('div');oppDeck.id='laOppDeckBox';oppDeck.className='la-opp-pile';oppDeck.innerHTML='<span class="la-pile-icon"></span><span class="pile-n" id="laOppDeckCount">0</span><strong>相手の山札</strong>'}
   let oppDiscard=document.getElementById('laOppDiscardBox');
-  if(!oppDiscard){oppDiscard=document.createElement('div');oppDiscard.id='laOppDiscardBox';oppDiscard.className='la-opp-pile';oppDiscard.innerHTML='<span class="la-pile-icon"></span><span class="pile-n" id="laOppDiscardCount">0</span><strong>相手の捨て札</strong>';}
+  if(!oppDiscard){oppDiscard=document.createElement('div');oppDiscard.id='laOppDiscardBox';oppDiscard.className='la-opp-pile';oppDiscard.innerHTML='<span class="la-pile-icon"></span><span class="pile-n" id="laOppDiscardCount">0</span><strong>相手の捨て札</strong>'}
   let oppHand=document.getElementById('laOppHandZone');
-  if(!oppHand){oppHand=document.createElement('div');oppHand.id='laOppHandZone';oppHand.innerHTML='<div class="zone-title">相手の手札 <span id="laOppHandCount"></span></div>';}
+  if(!oppHand){oppHand=document.createElement('div');oppHand.id='laOppHandZone';oppHand.innerHTML='<div class="zone-title">相手の手札 <span id="laOppHandCount"></span></div>'}
   const backs=document.getElementById('oppHandBacks');if(backs)oppHand.appendChild(backs);
-  move(oppDeck,top);move(oppHand,top);move(oppDiscard,top);move(oppLeader,top);
-  function arrangeLandscape(){
+  function arrange(){
     move(oppDeck,top);move(oppHand,top);move(oppDiscard,top);move(oppLeader,top);
     move(centerBoard,center);move(log,center);
     move(myLeader,bottom);move(myDiscard,bottom);move(handWrap,bottom);move(myDeck,bottom);move(controls,bottom);
-  }
-  arrangeLandscape();
-  // 0.17.0: one immutable 1280x720 board. Devices only change ONE scale value.
-  // No rotation, breakpoint, safe-area or per-element viewport math may alter board geometry.
-  function fit(){
-    const screen=document.getElementById('battleScreen');
-    if(!screen?.classList.contains('active'))return;
-    const w=screen.clientWidth||window.innerWidth||1280;
-    const h=screen.clientHeight||window.innerHeight||720;
-    const scale=Math.max(.2,Math.min(w/1280,h/720));
-    stage.style.width='1280px';
-    stage.style.height='720px';
-    stage.style.transform=`translate(-50%,-50%) scale(${scale})`;
-    stage.dataset.boardScale=String(scale);
   }
   function sync(){
     const v=window.currentView;if(!v)return;
     const set=(id,val)=>{const e=document.getElementById(id);if(e)e.textContent=val};
     set('laOppDeckCount',v.op?.drawCount??0);set('laOppDiscardCount',v.op?.discardCount??0);set('laOppHandCount',`${v.op?.handCount??0}/10`);
-    const st=controls?.querySelector('.status .small');if(st)st.dataset.energy=`${v.me?.energy??0}/${v.me?.maxEnergy??0}`;
   }
-  let raf=0;const schedule=()=>{cancelAnimationFrame(raf);raf=requestAnimationFrame(()=>{fit();sync()})};
-  addEventListener('resize',schedule,{passive:true});addEventListener('orientationchange',schedule,{passive:true});visualViewport?.addEventListener('resize',schedule,{passive:true});
-  const old=window.renderBattleView;if(typeof old==='function')window.renderBattleView=function(){const r=old.apply(this,arguments);arrangeLandscape();schedule();return r};
-  const meta=window.LUNA_ALTER_APP_META;document.title=`ルナオルタ ${meta.version}`;const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${meta.version} / ${meta.label}`;
-  schedule();setTimeout(schedule,60);
+  arrange();sync();
+  const old=window.renderBattleView;
+  if(typeof old==='function')window.renderBattleView=function(){const r=old.apply(this,arguments);arrange();sync();return r};
 })();
 </script>
 <style id="la-0140-canonical-ui">
@@ -4456,16 +4431,6 @@ document.querySelectorAll('.tutorial-course').forEach(b=>b.onclick=()=>{startTut
  scheduleCpuTurn=function(){if(matchMode!=='cpu'||roomRole!=='host'||cpuBusy||!game||game.over||game.current!=='p2')return;cpuBusy=true;setTimeout(cpuTurn,820)};
 })();
 /* ===== end v59 CPU routine overhaul ===== */
-</script>
-<script>
-/* ===== authoritative app metadata: single source of truth ===== */
-(function(){
-  const APP_META = window.LUNA_ALTER_APP_META;
-  window.LUNA_ALTER_APP_META = APP_META;
-  document.title = `ルナオルタ ${APP_META.version}`;
-  const label = document.getElementById('appVersionLabel');
-  if(label) label.textContent = `${APP_META.version} / ${APP_META.label}`;
-})();
 </script>
 <style id="la-canonical-swipe-style">
 /* LUNA ALTER 0.6.2 — mobile-first swipe-to-play */
@@ -4798,15 +4763,6 @@ body.la-screen-battle .app>main,body.la-screen-cpuSetup .app>main,body.la-screen
     };
   }
 
-  // Home arrows and swipe share the same button path.
-  const home=document.getElementById('homeScreen'),prev=document.getElementById('homeScenePrev'),next=document.getElementById('homeSceneNext');
-  if(home&&prev&&next&&!home.dataset.la0150Swipe){
-    home.dataset.la0150Swipe='1';let sx=0,sy=0,tracking=false;
-    home.addEventListener('pointerdown',e=>{if(e.target.closest('button,.home-nav,.home-profile-hit'))return;tracking=true;sx=e.clientX;sy=e.clientY},{passive:true});
-    home.addEventListener('pointerup',e=>{if(!tracking)return;tracking=false;const dx=e.clientX-sx,dy=e.clientY-sy;if(Math.abs(dx)>=55&&Math.abs(dx)>Math.abs(dy)*1.25)(dx<0?next:prev).click()},{passive:true});
-    home.addEventListener('pointercancel',()=>tracking=false,{passive:true});
-  }
-
   function reconcile(){ensureEnergy();keepNav();window.layoutHandFan();const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${meta.version} / ${meta.label}`}
   const priorRender=window.renderBattleView;
   if(typeof priorRender==='function')window.renderBattleView=function(){const out=priorRender.apply(this,arguments);requestAnimationFrame(reconcile);return out};
@@ -4956,7 +4912,7 @@ body.la-screen-battle .app>main,body.la-screen-cpuSetup .app>main,body.la-screen
 </script>
 
 <style id="la-0170-single-coordinate-system">
-/* 0.17.0 — SINGLE COORDINATE SYSTEM.
+/* 0.18.0 — CANONICAL SINGLE COORDINATE SYSTEM.
    Everything in the battlefield is authored in 1280x720 logical pixels.
    Phone differences are absorbed only by scaling .combat-stage as one picture. */
 body:has(#battleScreen.active){margin:0!important;overflow:hidden!important;background:#e7dfd1!important}
@@ -5018,5 +4974,13 @@ body:has(#battleScreen.active){margin:0!important;overflow:hidden!important;back
 })();
 </script>
 
+
+<!-- LUNA ALTER 0.18.0 CLEANUP MANIFEST
+     - one build metadata source
+     - one 1280x720 scaling runtime
+     - one home scene controller
+     - legacy structural battle runtime no longer owns viewport scaling
+     - redundant metadata no-op removed
+-->
 </body>
 </html>
