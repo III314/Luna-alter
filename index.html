@@ -960,7 +960,7 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.18.3",
+  version:"0.18.5",
   label:"デッキ構築省スペース化"
 });
 </script>
@@ -1910,11 +1910,14 @@ startTurn=function(pid){
    else if(c.id==='s11'){removeSetup(pid,c);addLog(`${p.name}：《狐の社》が捨て札へ。`)}
    else if(c.id==='s17'){const n=drawCards(pid,1,true);addLog(`${p.name}：《花魁道中》で${n}枚ドロー。`);startExhaust=true}
  }
+ // 《花魁道中》は通常の5枚ドローまで終えてから、合計した手札の中から1枚を廃棄する。
+ // 先に選択を出すと「花魁道中で引いた1枚だけをそのまま廃棄する」ように見えるため、
+ // 通常ドローを確定してから pending を開始する。
+ finishStartTurnDraw(pid);
  if(startExhaust&&p.hand.length){
-   game.pending={pid,type:'startTurnExhaust',count:1,title:'《花魁道中》：廃棄するカードを1枚選択'};
+   game.pending={pid,type:'startTurnExhaust',count:1,title:'《花魁道中》：6枚ドローした手札から廃棄するカードを1枚選択'};
    return
  }
- finishStartTurnDraw(pid)
 };
 
 cardCost=function(pid,c){
@@ -2067,7 +2070,7 @@ resolvePending=function(pid,uids,targetIndex=null){
    if(uids.length!==1||!handHas(uids))return;p.keepUid=uids[0];const kept=p.hand.find(c=>c.uid===uids[0]);if(kept)kept.retainedOnce=true;game.pending=null;finalizeEndTurn(pid);return
  }
  if(x.type==='startTurnExhaust'){
-   if(uids.length!==1||!handHas(uids))return;const c=p.hand.splice(p.hand.findIndex(z=>z.uid===uids[0]),1)[0];sendExhaust(pid,c,'《花魁道中》');addLog(`${p.name}：《花魁道中》で手札1枚を廃棄。`);game.pending=null;finishStartTurnDraw(pid);return
+   if(uids.length!==1||!handHas(uids))return;const c=p.hand.splice(p.hand.findIndex(z=>z.uid===uids[0]),1)[0];sendExhaust(pid,c,'《花魁道中》');addLog(`${p.name}：《花魁道中》で6枚ドロー後の手札から1枚を廃棄。`);game.pending=null;return
  }
  if(x.type==='foxMaskExhaust'){
    if(uids.length!==1||!handHas(uids))return;const c=p.hand.splice(p.hand.findIndex(z=>z.uid===uids[0]),1)[0];sendExhaust(pid,c,'《狐面》');addLog(`${p.name}：《狐面》で手札1枚を廃棄。`);finishDeferred();return
@@ -5042,6 +5045,64 @@ body.deck-view #deckScreen{height:100vh!important;padding:8px 18px 72px!importan
     if(qty)qty.textContent=`${next}枚`;
     cardEl.classList.toggle('at-cap',next>=3);
     refreshDeckSummary();
+  },true);
+})();
+</script>
+
+<style id="la-0185-deck-scroll-stability">
+/* 0.18.5 — iOS deck-builder scroll stability. Keep every box above the card scroller at a fixed height and disable scroll anchoring. */
+#deckScreen #deckWarning{min-height:30px!important;margin-bottom:6px!important}
+#deckScreen #deckWarning.hidden{display:block!important;visibility:hidden!important;pointer-events:none!important}
+#deckScreen #deckGrid{overflow-anchor:none!important;scroll-behavior:auto!important;contain:layout paint!important}
+#deckScreen #deckGrid .deck-card,#deckScreen #deckGrid .pool-heading{overflow-anchor:none!important}
+#deckScreen #deckGrid .qty button{touch-action:manipulation!important}
+</style>
+
+<script id="la-0185-deck-scroll-guard">
+/* 0.18.5 — Final quantity guard. Quantity taps never rebuild #deckGrid and never mutate layout above it. */
+(function(){
+  const grid=document.getElementById('deckGrid');
+  if(!grid)return;
+  function syncSummary(){
+    const total=deckTotal(workingCounts);
+    const count=document.getElementById('deckCount');
+    const warn=document.getElementById('deckWarning');
+    const pill=document.getElementById('deckCountStickyPill');
+    if(count)count.textContent=total;
+    if(warn){
+      warn.classList.toggle('hidden',total===40);
+      warn.textContent=total<40?`あと${40-total}枚追加してください。`:`${total-40}枚減らしてください。`;
+    }
+    if(pill){
+      pill.textContent=`現在 ${total} / 40枚`;
+      pill.classList.toggle('complete',total===40);
+      pill.classList.toggle('over',total>40);
+    }
+  }
+  // Replace the 0.18.3 capture listener's job with an even earlier document-level guard.
+  // This runs before target onclick handlers and keeps the exact scroll offset synchronously.
+  document.addEventListener('click',function(e){
+    const btn=e.target.closest&&e.target.closest('#deckGrid .qty button');
+    if(!btn)return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const cardEl=btn.closest('.deck-card');
+    const title=cardEl&&cardEl.querySelector('h3');
+    const card=title&&cardByName(title.textContent.trim());
+    if(!card)return;
+    const old=Number(workingCounts[card.id]||0);
+    const total=deckTotal(workingCounts);
+    let next=old;
+    if(btn.dataset.a==='plus' && old<3 && total<40)next=old+1;
+    if(btn.dataset.a==='minus' && old>0)next=old-1;
+    if(next===old)return;
+    const y=grid.scrollTop;
+    workingCounts[card.id]=next;
+    const qty=cardEl.querySelector('.qty b');
+    if(qty)qty.textContent=`${next}枚`;
+    cardEl.classList.toggle('at-cap',next>=3);
+    syncSummary();
+    grid.scrollTop=y;
   },true);
 })();
 </script>
