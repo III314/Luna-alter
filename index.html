@@ -957,7 +957,7 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version: '0.15.0',
+  version: '0.15.1',
   label: '大規模リファクタリング'
 });
 </script>
@@ -1335,7 +1335,7 @@ function deleteDeck(id){const d=getDeck(id);if(!d||!confirm(`「${d.name}」を�
 function createDeck(copy=null){const blank=Object.fromEntries(CARD_DEFS.map(c=>[c.id,0])),d={id:uid(),name:copy?`${copy.name} コピー`:`新しいデッキ ${decks.length+1}`,character:copy?.character||'giovanni',counts:copy?normalizeCounts(copy.counts):blank};decks.push(d);selectedDeckId=d.id;saveDecks();renderDeckManager();$('deckName').focus();$('deckName').select()}
 $('newDeck').onclick=()=>createDeck();$('duplicateDeck').onclick=()=>createDeck(getDeck(selectedDeckId));
 $('resetDeck').onclick=()=>{workingCounts={...DEFAULT_DECKS[workingCharacter]};renderDeckCards()};
-$('deckCharacter').onchange=()=>{workingCharacter=$('deckCharacter').value==='kenshi'?'kenshi':'giovanni';const allowed=new Set(allowedCards(workingCharacter).map(c=>c.id));CARD_DEFS.forEach(c=>{if(!allowed.has(c.id))workingCounts[c.id]=0});renderDeckCards()};
+$('deckCharacter').onchange=()=>{const selectedCharacter=$('deckCharacter').value;workingCharacter=['giovanni','kenshi','shiranui'].includes(selectedCharacter)?selectedCharacter:'giovanni';const allowed=new Set(allowedCards(workingCharacter).map(c=>c.id));CARD_DEFS.forEach(c=>{if(!allowed.has(c.id))workingCounts[c.id]=0});renderDeckCards()};
 $('saveDeck').onclick=()=>{const d=getDeck(selectedDeckId);if(!d)return;const name=$('deckName').value.trim();if(!name)return alert('デッキ名を入力してください。');if(!validCounts(workingCounts,workingCharacter))return alert('選択中のキャラクターで使えるカードだけを40枚にしてください。');d.name=name;d.character=workingCharacter;d.counts=normalizeCounts(workingCounts);saveDecks();renderDeckManager();alert('デッキを保存しました。')};
 function renderDeckCards(){
  const total=deckTotal(workingCounts);$('deckCount').textContent=total;const warn=$('deckWarning');warn.classList.toggle('hidden',total===40);warn.textContent=total<40?`あと${40-total}枚追加してください。`:`${total-40}枚減らしてください。`;
@@ -4923,7 +4923,7 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
 <!-- LUNA ALTER 0.10.6: mobile battle layout cleanup -->
 
 <style id="la-0150-ui-contract">
-/* 0.15.0 — canonical landscape UI contract. */
+/* 0.15.1 — canonical landscape UI contract. */
 body.la-screen-battle .topbar, body.la-screen-cpuSetup .topbar, body.la-screen-room .topbar{display:none!important}
 body.la-screen-battle .app>main,body.la-screen-cpuSetup .app>main,body.la-screen-room .app>main{height:100%!important}
 /* Battle is one uninterrupted field: no inherited center divider / panel seam. */
@@ -4971,7 +4971,7 @@ body.la-screen-battle .app>main,body.la-screen-cpuSetup .app>main,body.la-screen
   }
   function keepNav(){document.querySelectorAll('#battleMenuScreen .section-bottom-nav,#cpuSetupScreen .section-bottom-nav,#roomScreen .section-bottom-nav,#deckScreen .section-bottom-nav').forEach(n=>n.classList.remove('hidden'))}
 
-  // One hand-layout implementation. Legacy portrait reflow code was removed in 0.15.0.
+  // One hand-layout implementation. Legacy portrait reflow code was removed in 0.15.1.
   window.layoutHandFan=function(){
     const hand=document.getElementById('myHand');if(!hand)return;
     const count=hand.children.length;hand.dataset.count=String(count);if(!count)return;
@@ -5011,5 +5011,23 @@ body.la-screen-battle .app>main,body.la-screen-cpuSetup .app>main,body.la-screen
 })();
 </script>
 
+
+<script id="la-v0151-character-fix">
+/* 0.15.1: canonical three-character selection. */
+(function(){
+  const VALID_CHARACTERS=new Set(['giovanni','kenshi','shiranui']);
+  const normalizeCharacter=c=>VALID_CHARACTERS.has(c)?c:'giovanni';
+  window.LA_normalizeCharacter=normalizeCharacter;
+  // Keep the deck editor's character value authoritative; older code used a two-character ternary.
+  const sel=document.getElementById('deckCharacter');
+  if(sel){
+    sel.addEventListener('change',()=>{
+      const c=normalizeCharacter(sel.value);
+      if(typeof workingCharacter!=='undefined') workingCharacter=c;
+      sel.value=c;
+    });
+  }
+})();
+</script>
 </body>
 </html>
