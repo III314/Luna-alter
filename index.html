@@ -960,7 +960,7 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.18.2",
+  version:"0.18.3",
   label:"デッキ構築省スペース化"
 });
 </script>
@@ -5000,5 +5000,50 @@ body.deck-view #deckScreen{height:100vh!important;padding:8px 18px 72px!importan
 #deckScreen .card-grid{padding-top:0!important}
 @media(max-width:760px){body.deck-view #deckScreen{height:100vh!important;min-height:0!important;padding:7px 12px 70px!important;overflow:hidden!important}}
 </style>
+
+<script id="la-0183-deck-inplace-qty">
+/* 0.18.3 — Deck +/- updates in place. Do not rebuild the scrollable card library. */
+(function(){
+  const grid=document.getElementById('deckGrid');
+  if(!grid)return;
+  function refreshDeckSummary(){
+    const total=deckTotal(workingCounts);
+    const count=document.getElementById('deckCount');
+    const warn=document.getElementById('deckWarning');
+    const pill=document.getElementById('deckCountStickyPill');
+    if(count)count.textContent=total;
+    if(warn){
+      warn.classList.toggle('hidden',total===40);
+      warn.textContent=total<40?`あと${40-total}枚追加してください。`:`${total-40}枚減らしてください。`;
+    }
+    if(pill){
+      pill.textContent=`現在 ${total} / 40枚`;
+      pill.classList.toggle('complete',total===40);
+      pill.classList.toggle('over',total>40);
+    }
+  }
+  grid.addEventListener('click',function(e){
+    const btn=e.target.closest('.qty button');
+    if(!btn||!grid.contains(btn))return;
+    const cardEl=btn.closest('.deck-card');
+    const title=cardEl&&cardEl.querySelector('h3');
+    if(!cardEl||!title)return;
+    const card=cardByName(title.textContent.trim());
+    if(!card)return;
+    // The legacy per-button onclick rebuilds #deckGrid and lets iOS scroll anchoring jump.
+    // Handle quantity changes here and stop that handler from running at all.
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const old=Number(workingCounts[card.id]||0);
+    const next=btn.dataset.a==='plus'?Math.min(3,old+1):Math.max(0,old-1);
+    if(next===old)return;
+    workingCounts[card.id]=next;
+    const qty=cardEl.querySelector('.qty b');
+    if(qty)qty.textContent=`${next}枚`;
+    cardEl.classList.toggle('at-cap',next>=3);
+    refreshDeckSummary();
+  },true);
+})();
+</script>
 </body>
 </html>
