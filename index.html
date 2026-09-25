@@ -957,8 +957,8 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version: '0.13.10',
-  label: '横画面メニュー再構築・タイトルアイコン'
+  version: '0.13.12',
+  label: '対戦メニュー収まり調整'
 });
 </script>
 
@@ -1009,8 +1009,8 @@ window.LUNA_ALTER_APP_META = Object.freeze({
       <div class="battle-hub-wrap">
         <div class="battle-hub-head"><div class="eyebrow">BATTLE</div><h1>対戦モード</h1><p>遊びたいモードを選んでください。対戦設定は次の画面で行います。</p></div>
         <div class="battle-hub-choices">
-          <button id="goCpuSetup" class="battle-hub-card" type="button"><span class="hub-symbol">♞</span><span class="hub-copy"><b>CPU戦</b><small>デッキを選んでCPUと対戦</small></span><span class="hub-arrow">›</span></button>
-          <button id="goRoom" class="battle-hub-card" type="button"><span class="hub-symbol">♟</span><span class="hub-copy"><b>ルームマッチ</b><small>4桁の番号で友達と対戦</small></span><span class="hub-arrow">›</span></button>
+          <button id="goCpuSetup" class="battle-hub-card" type="button"><span class="hub-copy"><b>CPU戦</b><small>デッキを選んでCPUと対戦</small></span><span class="hub-arrow">›</span></button>
+          <button id="goRoom" class="battle-hub-card" type="button"><span class="hub-copy"><b>ルームマッチ</b><small>4桁の番号で友達と対戦</small></span><span class="hub-arrow">›</span></button>
         </div>
       </div>
 <nav class="section-bottom-nav" aria-label="メインメニュー">
@@ -3528,6 +3528,7 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
    });
  }
  let queued=false;
+ window.LUNA_CARD_ART=CARD_ART;
  const obs=new MutationObserver(()=>{if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;decorate(document)})});
  obs.observe(document.body,{childList:true,subtree:true});
  decorate(document);
@@ -4215,6 +4216,127 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
  document.querySelectorAll('#cpuSetupScreen .section-bottom-nav,#roomScreen .section-bottom-nav').forEach(nav=>nav.addEventListener('click',e=>{const b=e.target.closest('button[data-nav]');if(!b)return;const n=b.dataset.nav;if(n==='settings')return alert('設定は準備中です。');showScreen(n==='battle'?'battleMenu':n)}));
  document.querySelectorAll('#battleMenuScreen .section-bottom-nav button[data-nav="battle"],#cpuSetupScreen .section-bottom-nav button[data-nav="battle"],#roomScreen .section-bottom-nav button[data-nav="battle"]').forEach(b=>b.classList.add('active'));
  const m=window.LUNA_ALTER_APP_META,v=document.getElementById('appVersionLabel');document.title=`ルナオルタ ${m.version}`;if(v)v.textContent=`${m.version} / ${m.label}`;
+})();
+</script>
+
+
+<style id="la-01311-battle-menu-fit">
+/* 0.13.11 — landscape battle menus: no decorative chess glyphs, everything fits above persistent nav. */
+#battleMenuScreen,#cpuSetupScreen{box-sizing:border-box!important;padding:0 0 64px!important;overflow:hidden!important}
+#battleMenuScreen .battle-hub-wrap{height:100%!important;max-width:1320px!important;margin:0 auto!important;padding:22px 42px 18px!important;display:grid!important;grid-template-rows:auto minmax(0,1fr)!important;gap:14px!important}
+#battleMenuScreen .battle-hub-head{align-self:start!important}
+#battleMenuScreen .battle-hub-head .eyebrow{font-size:10px!important;letter-spacing:.28em!important}
+#battleMenuScreen .battle-hub-head h1{font-size:32px!important;line-height:1!important;margin:5px 0 4px!important}
+#battleMenuScreen .battle-hub-head p{font-size:11px!important;line-height:1.35!important}
+#battleMenuScreen .battle-hub-choices{min-height:0!important;height:100%!important;display:grid!important;grid-template-columns:1fr 1fr!important;gap:18px!important;padding:0!important;align-items:stretch!important}
+#battleMenuScreen .battle-hub-card{min-width:0!important;min-height:0!important;height:100%!important;max-height:none!important;padding:22px 28px!important;border-radius:22px!important;display:grid!important;grid-template-columns:minmax(0,1fr) 28px!important;align-items:center!important;gap:16px!important;overflow:hidden!important}
+#battleMenuScreen .hub-symbol{display:none!important}
+#battleMenuScreen .hub-copy{min-width:0!important;gap:6px!important}
+#battleMenuScreen .hub-copy b{font-size:30px!important;line-height:1.05!important}
+#battleMenuScreen .hub-copy small{font-size:12px!important;line-height:1.45!important}
+#battleMenuScreen .hub-arrow{font-size:38px!important;line-height:1!important}
+
+#cpuSetupScreen .battle-sub-wrap{box-sizing:border-box!important;height:100%!important;max-width:1240px!important;margin:0 auto!important;padding:14px 36px 14px!important;display:grid!important;grid-template-rows:24px auto minmax(0,1fr) 44px!important;gap:7px!important;overflow:hidden!important}
+#cpuSetupScreen .sub-back{height:24px!important;padding:0!important;font-size:11px!important;line-height:24px!important}
+#cpuSetupScreen .battle-sub-head{min-height:0!important}
+#cpuSetupScreen .battle-sub-head .eyebrow{font-size:9px!important;letter-spacing:.28em!important}
+#cpuSetupScreen .battle-sub-head h1{font-size:26px!important;line-height:1!important;margin:2px 0 3px!important}
+#cpuSetupScreen .battle-sub-head p{font-size:10px!important;line-height:1.3!important;margin:0!important}
+#cpuSetupScreen .cpu-setup-grid{min-height:0!important;height:100%!important;display:grid!important;grid-template-columns:minmax(0,1fr) 56px minmax(0,1fr)!important;gap:12px!important;align-items:stretch!important;overflow:hidden!important}
+#cpuSetupScreen .cpu-player-panel{box-sizing:border-box!important;min-width:0!important;min-height:0!important;height:100%!important;margin:0!important;padding:12px 18px!important;border-radius:18px!important;display:grid!important;grid-template-rows:auto auto auto auto!important;align-content:center!important;gap:6px!important;overflow:hidden!important}
+#cpuSetupScreen .cpu-panel-kicker{font-size:8px!important;line-height:1!important;letter-spacing:.22em!important}
+#cpuSetupScreen .cpu-player-panel h2{font-size:22px!important;line-height:1!important;margin:0!important}
+#cpuSetupScreen .cpu-player-panel .field{min-width:0!important;margin:0!important;display:grid!important;gap:3px!important}
+#cpuSetupScreen .cpu-player-panel .field label{font-size:9px!important;line-height:1.15!important}
+#cpuSetupScreen .cpu-player-panel input,#cpuSetupScreen .cpu-player-panel select{box-sizing:border-box!important;width:100%!important;min-width:0!important;height:34px!important;padding:5px 9px!important;font-size:11px!important;line-height:1.2!important}
+#cpuSetupScreen .cpu-versus{font-size:24px!important;min-width:0!important}
+#cpuSetupScreen .cpu-hint{font-size:8.5px!important;line-height:1.35!important;margin:0!important}
+#cpuSetupScreen .cpu-start-btn{box-sizing:border-box!important;justify-self:center!important;width:min(520px,62vw)!important;height:44px!important;min-height:44px!important;margin:0!important;padding:0 20px!important;font-size:13px!important}
+
+@media(max-width:760px){
+ #battleMenuScreen,#cpuSetupScreen{padding-bottom:50px!important}
+ #battleMenuScreen .battle-hub-wrap{padding:10px 20px 9px!important;gap:7px!important}
+ #battleMenuScreen .battle-hub-head h1{font-size:23px!important}.battle-hub-head p{font-size:8px!important}
+ #battleMenuScreen .battle-hub-choices{gap:10px!important}
+ #battleMenuScreen .battle-hub-card{padding:12px 16px!important;border-radius:15px!important;grid-template-columns:minmax(0,1fr) 18px!important;gap:7px!important}
+ #battleMenuScreen .hub-copy b{font-size:20px!important}#battleMenuScreen .hub-copy small{font-size:8px!important}#battleMenuScreen .hub-arrow{font-size:25px!important}
+ #cpuSetupScreen .battle-sub-wrap{padding:6px 18px 7px!important;grid-template-rows:18px auto minmax(0,1fr) 34px!important;gap:3px!important}
+ #cpuSetupScreen .sub-back{height:18px!important;line-height:18px!important;font-size:8px!important}
+ #cpuSetupScreen .battle-sub-head .eyebrow{font-size:7px!important}#cpuSetupScreen .battle-sub-head h1{font-size:18px!important}#cpuSetupScreen .battle-sub-head p{display:none!important}
+ #cpuSetupScreen .cpu-setup-grid{grid-template-columns:minmax(0,1fr) 34px minmax(0,1fr)!important;gap:6px!important}
+ #cpuSetupScreen .cpu-player-panel{padding:7px 10px!important;gap:3px!important;border-radius:12px!important}
+ #cpuSetupScreen .cpu-panel-kicker{font-size:6px!important}#cpuSetupScreen .cpu-player-panel h2{font-size:15px!important}
+ #cpuSetupScreen .cpu-player-panel .field label{font-size:7px!important}#cpuSetupScreen .cpu-player-panel input,#cpuSetupScreen .cpu-player-panel select{height:25px!important;padding:3px 5px!important;font-size:8px!important}
+ #cpuSetupScreen .cpu-versus{font-size:16px!important}#cpuSetupScreen .cpu-hint{font-size:6px!important}
+ #cpuSetupScreen .cpu-start-btn{height:34px!important;min-height:34px!important;font-size:9px!important}
+}
+</style>
+
+
+<!-- LUNA ALTER 0.13.12: battle board visibility + setup art -->
+<style id="la-01312-battle-visibility">
+/* Remove the old arena split. The board is one continuous field. */
+#battleScreen .combat-stage{background:#f5efe3!important}
+#battleScreen .combat-stage:before{display:none!important;content:none!important}
+
+/* Keep both leaders completely inside the 720px logical board. */
+#battleScreen .la-top-rail{align-items:start!important}
+#battleScreen .leader-unit.opponent{height:140px!important;grid-template-rows:16px 100px 22px!important;align-self:start!important}
+#battleScreen .leader-unit.self{height:188px!important;grid-template-rows:16px 148px 22px!important;align-self:end!important}
+#battleScreen .leader-unit.opponent .leader-portrait{height:100px!important;min-height:100px!important}
+#battleScreen .leader-unit.self .leader-portrait{height:148px!important;min-height:148px!important}
+#battleScreen .leader-unit .hpbar{height:22px!important;min-height:22px!important;position:relative!important;z-index:40!important}
+#battleScreen .leader-unit .hpbar-text{font-size:11px!important;line-height:22px!important}
+
+/* Setups live in the middle without invading either HP bar. */
+#battleScreen .center-board{inset:8px 78px 8px!important}
+#battleScreen .center-board .zones{grid-template-columns:150px minmax(0,1fr) 150px!important;gap:24px!important}
+#battleScreen #oppPersonal,#battleScreen #myPersonal{height:168px!important}
+#battleScreen #oppPersonal .slot,#battleScreen #myPersonal .slot{height:168px!important;min-height:168px!important}
+#battleScreen #sharedZone{height:190px!important;gap:14px!important}
+#battleScreen #sharedZone .slot{height:190px!important;min-height:190px!important}
+
+/* Setup art: full-bleed illustration with a small readable caption. */
+#battleScreen .slot.occupied{position:relative!important;padding:0!important;overflow:hidden!important;background:#2b2722!important}
+#battleScreen .slot.occupied .setup-art-bg{display:block!important;position:absolute!important;inset:0!important;z-index:0!important;background:#302b25!important}
+#battleScreen .slot.occupied .setup-art-bg img{display:block!important;width:100%!important;height:100%!important;object-fit:cover!important;object-position:center!important}
+#battleScreen .slot.occupied .setup-art-bg:after{content:""!important;position:absolute!important;inset:0!important;background:linear-gradient(to bottom,rgba(0,0,0,0) 45%,rgba(0,0,0,.78) 100%)!important}
+#battleScreen .slot.occupied .setup-caption{display:block!important;position:absolute!important;left:7px!important;right:7px!important;bottom:7px!important;z-index:2!important;color:#fff!important;text-shadow:0 1px 3px #000!important}
+#battleScreen .slot.occupied .setup-caption .name{font-size:10px!important;color:#fff!important;font-weight:900!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+#battleScreen .slot.occupied .setup-caption .owner{font-size:7px!important;color:rgba(255,255,255,.9)!important}
+
+/* Dedicated, always-visible energy readout. */
+#battleScreen .battle-controls .status{display:grid!important;place-items:center!important;overflow:hidden!important}
+#battleScreen .battle-controls .status>.la-energy-readout{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;color:#fff!important;font-weight:900!important;line-height:1!important}
+#battleScreen .la-energy-bolt{font-size:25px!important;margin-bottom:7px!important}
+#battleScreen .la-energy-value{font-size:15px!important;letter-spacing:.02em!important;white-space:nowrap!important}
+#battleScreen .battle-controls .status>div:not(.la-energy-readout){display:none!important}
+</style>
+<script id="la-01312-battle-visibility-js">
+(function(){
+  function setupSlot01312(x,mePid){
+    if(!x)return '<div class="slot"></div>';
+    const c=x.card, owner=x.owner===mePid?'自分':'相手';
+    const src=window.LUNA_CARD_ART?.[c.id]||'';
+    const art=src?`<div class="setup-art-bg"><img src="${src}" alt="" draggable="false"></div>`:'<div class="setup-art-bg"></div>';
+    let badge='';try{badge=typeof setupStateBadge==='function'?setupStateBadge(x,mePid):''}catch(_){badge=''}
+    return `<button type="button" class="slot occupied setup-detail-trigger" data-setup-uid="${c.uid}" aria-label="${escapeHtml(c.name)}の詳細を見る">${art}<div class="setup-caption"><div class="name">${escapeHtml(c.name)}</div><div class="owner">${owner}</div></div>${badge}</button>`;
+  }
+  window.setupSlot=setupSlot01312;
+  try{setupSlot=setupSlot01312}catch(_){}
+
+  function ensureEnergy(){
+    const status=document.querySelector('#battleScreen .battle-controls .status');
+    if(!status)return;
+    let r=status.querySelector('.la-energy-readout');
+    if(!r){r=document.createElement('div');r.className='la-energy-readout';r.innerHTML='<span class="la-energy-bolt">⚡</span><span class="la-energy-value">0 / 0</span>';status.appendChild(r)}
+    const e=document.getElementById('myEnergy')?.textContent||'0';
+    const m=document.getElementById('myMaxEnergy')?.textContent||'0';
+    r.querySelector('.la-energy-value').textContent=`${e} / ${m}`;
+  }
+  const prev=window.renderBattleView;
+  if(typeof prev==='function')window.renderBattleView=function(){const r=prev.apply(this,arguments);ensureEnergy();return r};
+  ensureEnergy();
 })();
 </script>
 
