@@ -957,7 +957,7 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version: '0.13.9',
+  version: '0.13.10',
   label: '横画面メニュー再構築・タイトルアイコン'
 });
 </script>
@@ -1006,13 +1006,32 @@ window.LUNA_ALTER_APP_META = Object.freeze({
     </section>
 
     <section id="battleMenuScreen" class="screen">
-      <div class="mode-wrap"><div class="mode-inner">
-        <div class="page-title"><div><div class="eyebrow">BATTLE</div><h1>対戦モード</h1></div></div>
-        <div class="mode-choices">
-          <div class="mode-card"><div class="home-icon">♞</div><h2>CPU戦</h2><p>保存したデッキを使って、CPUの使用デッキも指定して対戦します。</p><div class="room-fields"><div class="field"><label>プレイヤー名</label><input id="cpuName" maxlength="16" /></div><div class="field"><label>使用デッキ</label><select id="cpuDeck"></select></div><div class="field"><label>CPU使用デッキ</label><select id="cpuOpponentDeck"></select></div></div><button id="startCpu" class="btn primary mode-card-action">CPU戦を始める</button></div>
-          <div class="mode-card"><div class="home-icon">♟</div><h2>ルームマッチ</h2><p>数字4桁のルーム番号を使い、離れた友達と1対1で対戦します。</p><button id="goRoom" class="btn gold mode-card-action">ルームマッチへ</button></div>
+      <div class="battle-hub-wrap">
+        <div class="battle-hub-head"><div class="eyebrow">BATTLE</div><h1>対戦モード</h1><p>遊びたいモードを選んでください。対戦設定は次の画面で行います。</p></div>
+        <div class="battle-hub-choices">
+          <button id="goCpuSetup" class="battle-hub-card" type="button"><span class="hub-symbol">♞</span><span class="hub-copy"><b>CPU戦</b><small>デッキを選んでCPUと対戦</small></span><span class="hub-arrow">›</span></button>
+          <button id="goRoom" class="battle-hub-card" type="button"><span class="hub-symbol">♟</span><span class="hub-copy"><b>ルームマッチ</b><small>4桁の番号で友達と対戦</small></span><span class="hub-arrow">›</span></button>
         </div>
-      </div></div>
+      </div>
+<nav class="section-bottom-nav" aria-label="メインメニュー">
+<button type="button" data-nav="home"><span>⌂</span><b>ホーム</b></button>
+<button type="button" data-nav="deck"><span>▣</span><b>デッキ</b></button>
+<button type="button" data-nav="battle"><span>⚔</span><b>バトル</b></button>
+<button type="button" data-nav="settings"><span>⚙</span><b>設定</b></button>
+</nav>
+    </section>
+
+    <section id="cpuSetupScreen" class="screen battle-subscreen">
+      <div class="battle-sub-wrap">
+        <button id="backBattleModes" class="sub-back" type="button">‹ 対戦モード</button>
+        <div class="battle-sub-head"><div class="eyebrow">CPU BATTLE</div><h1>CPU戦</h1><p>使用するデッキと対戦相手を選択します。</p></div>
+        <div class="cpu-setup-grid">
+          <div class="panel cpu-player-panel"><div class="cpu-panel-kicker">PLAYER</div><h2>あなた</h2><div class="field"><label>プレイヤー名</label><input id="cpuName" maxlength="16" /></div><div class="field"><label>使用デッキ</label><select id="cpuDeck"></select></div></div>
+          <div class="cpu-versus">VS</div>
+          <div class="panel cpu-player-panel"><div class="cpu-panel-kicker">OPPONENT</div><h2>CPU</h2><div class="field"><label>CPU使用デッキ</label><select id="cpuOpponentDeck"></select></div><div class="cpu-hint">選んだデッキのキャラクター・構成でCPUが対戦します。</div></div>
+        </div>
+        <button id="startCpu" class="btn gold cpu-start-btn">この内容で対戦開始</button>
+      </div>
 <nav class="section-bottom-nav" aria-label="メインメニュー">
 <button type="button" data-nav="home"><span>⌂</span><b>ホーム</b></button>
 <button type="button" data-nav="deck"><span>▣</span><b>デッキ</b></button>
@@ -1074,6 +1093,13 @@ window.LUNA_ALTER_APP_META = Object.freeze({
         <div style="display:flex;gap:7px;margin-top:10px"><button id="startOnline" class="btn gold hidden">対戦開始</button><button id="leaveRoom" class="btn danger">ルームを退出</button></div>
       </div>
       <div class="panel"><b>遊び方</b><ul class="connection-help small"><li>2人ともこのHTMLをChromeやEdgeで開きます。</li><li>片方がルームを作り、もう片方が番号を入力します。</li><li>対戦中、相手には手札の枚数だけが表示されます。</li><li>通信にはインターネット接続が必要です。対戦中に通信が切れた場合は自動再接続を試み、ホストはページ再読み込み後も対戦状態を復元できます。</li></ul></div>
+
+<nav class="section-bottom-nav" aria-label="メインメニュー">
+<button type="button" data-nav="home"><span>⌂</span><b>ホーム</b></button>
+<button type="button" data-nav="deck"><span>▣</span><b>デッキ</b></button>
+<button type="button" data-nav="battle"><span>⚔</span><b>バトル</b></button>
+<button type="button" data-nav="settings"><span>⚙</span><b>設定</b></button>
+</nav>
     </section>
 
     <section id="deckScreen" class="screen">
@@ -1264,7 +1290,7 @@ function renderLogLine(s){const re=/《([^》]+)》/g;let out='',last=0,m;while(
 function openLogCardDetail(name){const c=cardByName(name);if(!c)return;$('setupDetailTitle').textContent=`《${c.name}》`;$('setupDetailBody').innerHTML=`<div class="card ${c.type} setup-detail-preview"><div class="head"><div><div class="cname">${escapeHtml(c.name)}</div><div class="type">${typeLabel(c.type)}</div></div><div class="cost">${c.cost}</div></div><div class="text">${escapeHtml(cardText(c))}</div></div><div class="setup-detail-owner">ログから参照</div>`;$('setupDetailModal').classList.remove('hidden')}
 
 function showScreen(name){
- ['title','home','battleMenu','tutorial','room','deck','battle'].forEach(x=>{const el=$(`${x}Screen`);if(el)el.classList.toggle('active',x===name)});
+ ['title','home','battleMenu','cpuSetup','tutorial','room','deck','battle'].forEach(x=>{const el=$(`${x}Screen`);if(el)el.classList.toggle('active',x===name)});
  document.body.classList.toggle('shell-view',name==='title'||name==='home');
  $('backHome').classList.toggle('hidden',name==='home'||name==='title');
  if(name==='deck')renderDeckManager();if(name==='room'||name==='battleMenu')refreshDeckSelects();
@@ -1295,7 +1321,7 @@ $('titleStart').onclick=()=>{
 };
 $('homeLeaderImg').onclick=()=>tapHomeLeader();
 $('navHome').onclick=()=>{};$('navDeck').onclick=()=>showScreen('deck');$('navBattle').onclick=()=>showScreen('battleMenu');$('navSettings').onclick=()=>alert('設定は準備中です。');
-const goBattle=$('goBattle'),goDecks=$('goDecks'),goTutorial=$('goTutorial');if(goBattle)goBattle.onclick=()=>showScreen('battleMenu');if(goDecks)goDecks.onclick=()=>showScreen('deck');if(goTutorial)goTutorial.onclick=()=>{showScreen('tutorial');showTutorialSelect()};$('goRoom').onclick=()=>showScreen('room');$('backHome').onclick=()=>{leaveRoom();showScreen('home');renderHomeLeader()};
+const goBattle=$('goBattle'),goDecks=$('goDecks'),goTutorial=$('goTutorial');if(goBattle)goBattle.onclick=()=>showScreen('battleMenu');if(goDecks)goDecks.onclick=()=>showScreen('deck');if(goTutorial)goTutorial.onclick=()=>{showScreen('tutorial');showTutorialSelect()};$('goCpuSetup').onclick=()=>showScreen('cpuSetup');$('goRoom').onclick=()=>showScreen('room');$('backHome').onclick=()=>{leaveRoom();showScreen('home');renderHomeLeader()};
 document.body.classList.add('shell-view');
 
 function renderDeckManager(){
@@ -4164,6 +4190,31 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
  window.showScreen=function(name){const r=oldShow.apply(this,arguments);document.querySelectorAll('.section-bottom-nav button').forEach(b=>b.classList.toggle('active',b.dataset.nav===(name==='battleMenu'?'battle':name)));return r};
  document.querySelectorAll('#battleMenuScreen .section-bottom-nav button[data-nav="battle"],#deckScreen .section-bottom-nav button[data-nav="deck"]').forEach(b=>b.classList.add('active'));
  const meta=window.LUNA_ALTER_APP_META;document.title=`ルナオルタ ${meta.version}`;const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${meta.version} / ${meta.label}`;
+})();
+</script>
+
+
+<style id="la-01310-battle-flow">
+/* 0.13.10 — battle flow rebuilt as hub -> dedicated setup screens. */
+#battleMenuScreen,#cpuSetupScreen,#roomScreen{position:relative!important;overflow:hidden!important;padding:0 0 64px!important;background:linear-gradient(135deg,#f8f3e9 0%,#eee5d6 100%)!important}
+#battleMenuScreen.active,#cpuSetupScreen.active,#roomScreen.active{display:block!important}
+.battle-hub-wrap{height:100%;box-sizing:border-box;padding:34px 48px 30px;display:grid;grid-template-rows:auto minmax(0,1fr);gap:22px;max-width:1280px;margin:auto}
+.battle-hub-head{align-self:end}.battle-hub-head .eyebrow,.battle-sub-head .eyebrow{font-size:12px;letter-spacing:.32em;color:#a87824;font-weight:900}.battle-hub-head h1,.battle-sub-head h1{font-family:Georgia,'Times New Roman',serif;font-size:42px;line-height:1;margin:8px 0 8px}.battle-hub-head p,.battle-sub-head p{margin:0;color:#70685d;font-size:13px}
+.battle-hub-choices{min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:stretch;padding-bottom:8px}
+.battle-hub-card{appearance:none;border:1.5px solid rgba(169,123,42,.42);border-radius:26px;background:rgba(255,253,248,.94);box-shadow:0 10px 28px rgba(62,48,27,.08);padding:30px 34px;text-align:left;display:grid;grid-template-columns:78px 1fr 34px;align-items:center;gap:18px;color:#26221d;min-height:0;cursor:pointer;-webkit-tap-highlight-color:transparent}.battle-hub-card:active{transform:scale(.992);background:#fff}.hub-symbol{font-size:54px;line-height:1}.hub-copy{display:flex;flex-direction:column;gap:9px}.hub-copy b{font-family:Georgia,'Times New Roman',serif;font-size:34px}.hub-copy small{font-size:13px;color:#71695f}.hub-arrow{font-size:48px;font-weight:200;color:#b2873a;text-align:right}
+.battle-sub-wrap{height:100%;box-sizing:border-box;padding:20px 42px 22px;max-width:1180px;margin:auto;display:grid;grid-template-rows:32px auto minmax(0,1fr) 48px;gap:10px}.sub-back{justify-self:start;border:0;background:transparent;font-weight:900;color:#80662f;padding:4px 0;font-size:12px}.battle-sub-head h1{font-size:30px;margin:4px 0}.battle-sub-head p{font-size:11px}.cpu-setup-grid{min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 72px minmax(0,1fr);align-items:stretch;gap:14px}.cpu-player-panel{margin:0!important;padding:18px 22px!important;border-radius:20px!important;display:flex;flex-direction:column;justify-content:center;gap:10px;overflow:hidden}.cpu-player-panel h2{font-family:Georgia,'Times New Roman',serif;font-size:27px;margin:0}.cpu-panel-kicker{font-size:9px;letter-spacing:.25em;color:#aa7c2a;font-weight:900}.cpu-player-panel .field{margin:0}.cpu-player-panel .field label{font-size:10px}.cpu-player-panel input,.cpu-player-panel select{padding:9px 10px!important;font-size:12px!important}.cpu-versus{display:flex;align-items:center;justify-content:center;font-family:Georgia,'Times New Roman',serif;font-weight:900;font-size:26px;color:#a97d2f}.cpu-hint{font-size:10px;line-height:1.5;color:#766e63}.cpu-start-btn{justify-self:center;width:min(440px,55vw);height:48px!important;font-size:15px!important;font-weight:900!important}
+/* Room is itself the second step, so keep it landscape and keep navigation visible. */
+#roomScreen{padding:14px 28px 72px!important;overflow:hidden!important}#roomScreen>.page-title{height:40px;margin:0 0 8px!important}#roomScreen>.page-title h1{font-size:24px!important}#roomScreen>.room-layout{display:grid!important;grid-template-columns:1fr 1fr!important;gap:12px!important;margin-bottom:8px!important}#roomScreen .room-card{padding:12px 14px!important;margin:0!important}#roomScreen .room-card h2{font-size:18px!important;margin:0 0 3px!important}#roomScreen .room-card .small{font-size:9px!important}#roomScreen .room-fields{gap:6px!important;margin-top:6px!important}#roomScreen .field label{font-size:8px!important}#roomScreen input,#roomScreen select{padding:6px 7px!important;font-size:10px!important}#roomScreen .btn{padding:7px 9px!important;font-size:10px!important}#roomScreen>div.panel:last-of-type{display:none!important}#roomScreen #lobbyPanel{margin:8px 0 0!important;padding:10px!important;max-height:calc(100% - 150px);overflow:auto}
+@media(max-width:760px){#battleMenuScreen,#cpuSetupScreen,#roomScreen{padding-bottom:50px!important}.battle-hub-wrap{padding:16px 24px 12px;gap:10px}.battle-hub-head h1{font-size:27px}.battle-hub-head p{font-size:9px}.battle-hub-choices{gap:12px}.battle-hub-card{padding:15px 18px;border-radius:18px;grid-template-columns:50px 1fr 24px;gap:10px}.hub-symbol{font-size:34px}.hub-copy b{font-size:22px}.hub-copy small{font-size:9px}.hub-arrow{font-size:32px}.battle-sub-wrap{padding:8px 22px 10px;grid-template-rows:24px auto minmax(0,1fr) 38px;gap:5px}.battle-sub-head h1{font-size:21px}.battle-sub-head p{display:none}.cpu-setup-grid{grid-template-columns:1fr 42px 1fr;gap:7px}.cpu-player-panel{padding:9px 12px!important;gap:5px}.cpu-player-panel h2{font-size:19px}.cpu-player-panel input,.cpu-player-panel select{padding:5px 6px!important;font-size:9px!important}.cpu-hint{font-size:7px}.cpu-start-btn{height:38px!important;font-size:11px!important}#roomScreen{padding:6px 14px 54px!important}#roomScreen>.page-title{height:30px;margin-bottom:4px!important}#roomScreen>.page-title h1{font-size:18px!important}#roomScreen>.room-layout{gap:7px!important}#roomScreen .room-card{padding:7px 9px!important}#roomScreen .room-card h2{font-size:14px!important}#roomScreen .room-card .small{font-size:7px!important}#roomScreen input,#roomScreen select{padding:4px 5px!important;font-size:8px!important}}
+</style>
+<script id="la-01310-battle-flow-js">
+(function(){
+ const oldShow=window.showScreen;
+ window.showScreen=function(name){const r=oldShow.apply(this,arguments);document.querySelectorAll('.section-bottom-nav button').forEach(b=>b.classList.toggle('active',b.dataset.nav===((name==='battleMenu'||name==='cpuSetup'||name==='room')?'battle':name)));return r};
+ const cpu=document.getElementById('goCpuSetup'),back=document.getElementById('backBattleModes');if(cpu)cpu.onclick=()=>showScreen('cpuSetup');if(back)back.onclick=()=>showScreen('battleMenu');
+ document.querySelectorAll('#cpuSetupScreen .section-bottom-nav,#roomScreen .section-bottom-nav').forEach(nav=>nav.addEventListener('click',e=>{const b=e.target.closest('button[data-nav]');if(!b)return;const n=b.dataset.nav;if(n==='settings')return alert('設定は準備中です。');showScreen(n==='battle'?'battleMenu':n)}));
+ document.querySelectorAll('#battleMenuScreen .section-bottom-nav button[data-nav="battle"],#cpuSetupScreen .section-bottom-nav button[data-nav="battle"],#roomScreen .section-bottom-nav button[data-nav="battle"]').forEach(b=>b.classList.add('active'));
+ const m=window.LUNA_ALTER_APP_META,v=document.getElementById('appVersionLabel');document.title=`ルナオルタ ${m.version}`;if(v)v.textContent=`${m.version} / ${m.label}`;
 })();
 </script>
 
