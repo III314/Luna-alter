@@ -957,8 +957,8 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.16.0",
-  label:"オンライン対戦再設計"
+  version:"0.17.0",
+  label:"固定盤面座標系・端末差排除"
 });
 </script>
 
@@ -1185,7 +1185,7 @@ window.LUNA_ALTER_APP_META = Object.freeze({
   </main>
 </div>
 
-<div id="modal" class="modal hidden"><div class="modal-card"><h3 id="modalTitle"></h3><div id="modalBody" class="choice-list"></div><div class="modal-actions"><button id="modalPeek" class="btn">盤面を見る</button><button id="modalOk" class="btn primary">決定</button></div></div></div>
+<div id="modal" class="modal hidden"><div class="modal-card"><h3 id="modalTitle"></h3><div id="modalBody" class="choice-list"></div><div class="modal-actions"><button id="modalPeek" class="btn">盤面を見る</button><button id="modalCancel" class="btn">キャンセル</button><button id="modalOk" class="btn primary">決定</button></div></div></div>
 <div id="logModal" class="modal hidden"><div class="modal-card log-modal-card"><div class="log-modal-head"><h3>対戦ログ</h3><button id="closeLog" class="btn">閉じる</button></div><div id="log" class="log"></div><div class="log-rules">ログ内の《カード名》をタップすると、そのカードのコスト・種類・効果を確認できます。HP100／最大コストは通常1→5（マサムネは効果で6まで）。共有セットアップは3枠です。</div></div></div>
 
 <div id="setupDetailModal" class="modal hidden"><div class="modal-card setup-detail-card"><div class="setup-detail-head"><h3 id="setupDetailTitle">セットアップ詳細</h3><button id="closeSetupDetail" class="btn">閉じる</button></div><div id="setupDetailBody"></div></div></div>
@@ -1593,40 +1593,13 @@ function collapseHandSelection(){
 }
 
 function layoutHandFan(){
+  // 0.17.0: the battle board has one immutable 1280x720 coordinate system.
+  // Hand geometry is CSS-only and must never depend on the physical phone viewport.
   const hand=$('myHand');
   if(!hand)return;
-
-  const count=hand.children.length;
-  hand.dataset.count=String(count);
-
-  if(window.innerWidth>760 || count===0){
-    hand.style.removeProperty('--hand-card-w');
-    hand.style.removeProperty('--hand-step');
-    return;
-  }
-
-  // Always calculate from the visible row width, never from the cards themselves.
-  const viewportWidth=(window.visualViewport&&window.visualViewport.width)||window.innerWidth;
-  const parentWidth=hand.parentElement?.clientWidth||viewportWidth;
-  const rowWidth=Math.max(220,Math.min(viewportWidth-10,parentWidth)-16);
-
-  let cardWidth;
-  if(count===1) cardWidth=Math.min(158,rowWidth);
-  else if(count===2) cardWidth=Math.min(150,(rowWidth-8)/2);
-  else if(count===3) cardWidth=Math.min(126,(rowWidth-12)/3);
-  else{
-    const preferred={4:118,5:114,6:110,7:106,8:102,9:98,10:96};
-    cardWidth=Math.min(preferred[Math.min(10,count)]||96,rowWidth);
-  }
-
-  // Occupied width = cardWidth + step * (count - 1).
-  // As the hand fills, step shrinks and the cards overlap progressively.
-  const step=count<=3
-    ? cardWidth+6
-    : Math.max(29,Math.min(cardWidth,(rowWidth-cardWidth)/(count-1)));
-
-  hand.style.setProperty('--hand-card-w',`${Math.round(cardWidth*10)/10}px`);
-  hand.style.setProperty('--hand-step',`${Math.round(step*10)/10}px`);
+  hand.dataset.count=String(hand.children.length);
+  hand.style.removeProperty('--hand-card-w');
+  hand.style.removeProperty('--hand-step');
 }
 
 function resetResultOverlay(){
@@ -4153,12 +4126,18 @@ body:has(#battleScreen.active) .topbar{display:none!important}
     move(myLeader,bottom);move(myDiscard,bottom);move(handWrap,bottom);move(myDeck,bottom);move(controls,bottom);
   }
   arrangeLandscape();
-  // Scaling is applied only to the complete 1280x720 board. Portrait devices rotate the whole board.
+  // 0.17.0: one immutable 1280x720 board. Devices only change ONE scale value.
+  // No rotation, breakpoint, safe-area or per-element viewport math may alter board geometry.
   function fit(){
-    if(!document.getElementById('battleScreen')?.classList.contains('active'))return;
-    const portrait=innerHeight>innerWidth;
-    const scale=portrait?Math.min(innerWidth/720,innerHeight/1280):Math.min(innerWidth/1280,innerHeight/720);
-    stage.style.transform=`translate(-50%,-50%) ${portrait?'rotate(90deg) ':''}scale(${Math.max(.2,scale)})`;
+    const screen=document.getElementById('battleScreen');
+    if(!screen?.classList.contains('active'))return;
+    const w=screen.clientWidth||window.innerWidth||1280;
+    const h=screen.clientHeight||window.innerHeight||720;
+    const scale=Math.max(.2,Math.min(w/1280,h/720));
+    stage.style.width='1280px';
+    stage.style.height='720px';
+    stage.style.transform=`translate(-50%,-50%) scale(${scale})`;
+    stage.dataset.boardScale=String(scale);
   }
   function sync(){
     const v=window.currentView;if(!v)return;
@@ -4972,6 +4951,135 @@ body.la-screen-battle .app>main,body.la-screen-cpuSetup .app>main,body.la-screen
 
 
 <!-- LUNA ALTER 0.15.4: canonical Firebase room transport -->
+
+
+
+<style id="la-0161-landscape-modal-hud-fix">
+/* 0.16.1 — landscape-first overlays. Never require portrait rotation to read logs or choices. */
+#modal,#logModal,#setupDetailModal,#pileModal{
+  position:fixed!important;inset:0!important;z-index:20000!important;
+  width:100vw!important;height:100dvh!important;box-sizing:border-box!important;
+  padding:max(3px,env(safe-area-inset-top)) max(6px,env(safe-area-inset-right)) max(6px,env(safe-area-inset-bottom)) max(6px,env(safe-area-inset-left))!important;
+  align-items:flex-start!important;justify-content:center!important;overflow:hidden!important;
+}
+#modal>.modal-card,#logModal>.modal-card,#setupDetailModal>.modal-card,#pileModal>.modal-card{
+  width:min(1120px,calc(100vw - 12px))!important;
+  max-width:calc(100vw - 12px)!important;
+  height:auto!important;max-height:calc(100dvh - 9px)!important;
+  margin:0!important;padding:8px 10px!important;border-radius:12px!important;
+  overflow:hidden!important;box-sizing:border-box!important;
+}
+#modal>.modal-card{display:grid!important;grid-template-rows:auto minmax(0,1fr) auto!important;gap:5px!important}
+#modalTitle{margin:0!important;font-size:14px!important;line-height:1.15!important}
+#modalBody.choice-list{
+  min-height:0!important;overflow-y:auto!important;overflow-x:hidden!important;
+  display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;
+  gap:5px!important;align-content:start!important;padding:1px 2px 3px!important;
+  -webkit-overflow-scrolling:touch;
+}
+#modalBody .choice-card{min-height:104px!important;max-height:132px!important;padding:6px!important;border-radius:9px!important;overflow:hidden!important}
+#modalBody .choice-card .cname{font-size:9.5px!important}#modalBody .choice-card .cost{font-size:14px!important}
+#modalBody .choice-card .text{font-size:8px!important;line-height:1.18!important;overflow:auto!important}
+#modal .modal-actions{display:flex!important;flex:0 0 auto!important;gap:6px!important;margin:0!important;padding-top:2px!important;min-height:34px!important}
+#modal .modal-actions .btn{min-height:32px!important;padding:5px 12px!important}
+#modalPeek{margin-right:auto!important}
+#logModal>.log-modal-card{display:grid!important;grid-template-rows:auto minmax(0,1fr) auto!important;gap:5px!important}
+#logModal .log-modal-head{min-height:30px!important}#logModal .log-modal-head h3{font-size:14px!important}
+#logModal #log{height:auto!important;min-height:0!important;max-height:none!important;overflow:auto!important;font-size:9px!important;line-height:1.3!important}
+#logModal .log-rules{font-size:7.5px!important;line-height:1.25!important;margin:0!important}
+/* One own-energy source only: the canonical control-panel readout. */
+#battleScreen .leader-unit.self .leader-meta{display:none!important}
+#battleScreen .battle-controls .status .small{font-size:8px!important;color:inherit!important}
+#battleScreen .battle-controls .status .small:before,#battleScreen .battle-controls .status .small:after{content:none!important;display:none!important}
+#battleScreen .la-energy-readout{display:flex!important;align-items:center!important;justify-content:center!important;gap:5px!important;min-height:42px!important}
+#battleScreen .la-energy-bolt{font-size:21px!important}#battleScreen .la-energy-value{font-size:16px!important;font-weight:1000!important}
+@media (orientation:landscape) and (max-height:520px){
+  #modal,#logModal,#setupDetailModal,#pileModal{padding-top:max(2px,env(safe-area-inset-top))!important;padding-bottom:max(3px,env(safe-area-inset-bottom))!important}
+  #modal>.modal-card,#logModal>.modal-card,#setupDetailModal>.modal-card,#pileModal>.modal-card{max-height:calc(100dvh - 5px)!important;padding:5px 8px!important}
+  #modalBody.choice-list{grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:4px!important}
+  #modalBody .choice-card{min-height:88px!important;max-height:108px!important;padding:5px!important}
+  #modalBody .choice-card .text{font-size:7.3px!important}
+  #modal .modal-actions{min-height:30px!important}#modal .modal-actions .btn{min-height:28px!important;padding:4px 10px!important;font-size:9px!important}
+  #logModal .log-rules{display:none!important}
+}
+</style>
+<script id="la-0161-modal-runtime">
+(()=>{
+  const modal=document.getElementById('modal'), cancel=document.getElementById('modalCancel'), peek=document.getElementById('modalPeek');
+  // "Cancel" means park the mandatory effect selection, not undo an already-played card.
+  // It uses the same safe path as "盤面を見る", so the player can always return to the pending choice.
+  if(cancel&&!cancel.dataset.la0161){
+    cancel.dataset.la0161='1';
+    cancel.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();if(peek)peek.click();else modal?.classList.add('hidden')});
+  }
+  // Keep overlays attached to the viewport even if the battle board itself is scaled/rotated.
+  [modal,document.getElementById('logModal'),document.getElementById('setupDetailModal'),document.getElementById('pileModal')].forEach(el=>{if(el&&el.parentElement!==document.body)document.body.appendChild(el)});
+  const meta=window.LUNA_ALTER_APP_META; document.title=`ルナオルタ ${meta.version}`; const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${meta.version} / ${meta.label}`;
+})();
+</script>
+
+<style id="la-0170-single-coordinate-system">
+/* 0.17.0 — SINGLE COORDINATE SYSTEM.
+   Everything in the battlefield is authored in 1280x720 logical pixels.
+   Phone differences are absorbed only by scaling .combat-stage as one picture. */
+body:has(#battleScreen.active){margin:0!important;overflow:hidden!important;background:#e7dfd1!important}
+#battleScreen.active{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;min-width:0!important;min-height:0!important;padding:0!important;margin:0!important;overflow:hidden!important}
+#battleScreen .battle-area,#battleScreen .battle-main{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;margin:0!important;padding:0!important;overflow:hidden!important;display:block!important}
+#battleScreen .combat-stage{position:absolute!important;left:50%!important;top:50%!important;right:auto!important;bottom:auto!important;width:1280px!important;min-width:1280px!important;max-width:1280px!important;height:720px!important;min-height:720px!important;max-height:720px!important;margin:0!important;box-sizing:border-box!important;transform-origin:center center!important;contain:layout paint style!important}
+/* Kill every legacy responsive geometry inside the logical board. */
+#battleScreen .la-top-rail{display:grid!important;grid-template-columns:76px minmax(0,1fr) 76px 170px!important;gap:14px!important;width:auto!important;height:auto!important}
+#battleScreen .la-center-rail{display:block!important;width:auto!important;height:auto!important}
+#battleScreen .la-bottom-rail{display:grid!important;grid-template-columns:170px 76px minmax(0,1fr) 76px 220px!important;gap:12px!important;width:auto!important;height:auto!important}
+#battleScreen .leader-unit,#battleScreen .leader-unit.self,#battleScreen .leader-unit.opponent{position:relative!important;inset:auto!important;transform:none!important;margin:0!important}
+#battleScreen .center-board{position:absolute!important;left:115px!important;right:115px!important;top:0!important;bottom:0!important;width:auto!important;height:auto!important;transform:none!important}
+#battleScreen .center-board .zones{display:grid!important;grid-template-columns:155px minmax(0,1fr) 155px!important;grid-template-rows:1fr!important;gap:22px!important;width:100%!important;height:100%!important}
+#battleScreen .center-board .zones>div:nth-child(1){grid-column:1!important;grid-row:1!important}
+#battleScreen .center-board .zones>div:nth-child(2){grid-column:2!important;grid-row:1!important}
+#battleScreen .center-board .zones>div:nth-child(3){grid-column:3!important;grid-row:1!important}
+#battleScreen .hand-wrap{position:relative!important;inset:auto!important;grid-column:3!important;grid-row:1!important;width:auto!important;height:202px!important;min-height:202px!important;max-height:202px!important;transform:none!important}
+#battleScreen #myHand{position:absolute!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;width:100%!important;height:190px!important;display:flex!important;align-items:flex-end!important;justify-content:center!important;overflow:visible!important;transform:none!important}
+#battleScreen #myHand>.card{flex:0 0 126px!important;width:126px!important;min-width:126px!important;max-width:126px!important;height:184px!important;min-height:184px!important;max-height:184px!important;margin-left:-28px!important}
+#battleScreen #myHand>.card:first-child{margin-left:0!important}
+#battleScreen #laOppHandZone{position:relative!important;inset:auto!important;width:auto!important;height:130px!important;transform:none!important}
+#battleScreen #oppHandBacks{height:104px!important}
+#battleScreen #oppHandBacks .card-back{flex:0 0 64px!important;width:64px!important;height:92px!important;margin-left:-25px!important}
+#battleScreen #oppHandBacks .card-back:first-child{margin-left:0!important}
+#battleScreen .battle-controls{position:relative!important;inset:auto!important;width:220px!important;height:195px!important;min-width:220px!important;max-width:220px!important;min-height:195px!important;max-height:195px!important;transform:none!important}
+#battleScreen #laDeckBox,#battleScreen #laDiscardBox,#battleScreen #laOppDeckBox,#battleScreen #laOppDiscardBox{position:relative!important;inset:auto!important;width:76px!important;height:126px!important;transform:none!important}
+/* Viewport overlays are intentionally OUTSIDE the logical board and may use fixed positioning. */
+#modal,#logModal,#setupDetailModal,#pileModal{position:fixed!important}
+</style>
+<script id="la-0170-coordinate-runtime">
+(()=>{
+  const BOARD_W=1280,BOARD_H=720;
+  const screen=document.getElementById('battleScreen');
+  const stage=screen?.querySelector('.combat-stage');
+  if(!screen||!stage)return;
+  const fit=()=>{
+    if(!screen.classList.contains('active'))return;
+    const w=screen.clientWidth||window.innerWidth||BOARD_W;
+    const h=screen.clientHeight||window.innerHeight||BOARD_H;
+    const scale=Math.max(.2,Math.min(w/BOARD_W,h/BOARD_H));
+    stage.style.width=BOARD_W+'px'; stage.style.height=BOARD_H+'px';
+    stage.style.transform=`translate(-50%,-50%) scale(${scale})`;
+    stage.dataset.boardScale=String(scale);
+  };
+  // Remove stale per-device inline hand geometry left by older versions.
+  const scrub=()=>{
+    const hand=document.getElementById('myHand');
+    if(hand){hand.style.removeProperty('--hand-card-w');hand.style.removeProperty('--hand-step')}
+    fit();
+  };
+  new ResizeObserver(scrub).observe(screen);
+  window.addEventListener('orientationchange',scrub,{passive:true});
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)scrub()});
+  const oldShow=window.showScreen;
+  if(typeof oldShow==='function')window.showScreen=function(){const r=oldShow.apply(this,arguments);requestAnimationFrame(scrub);return r};
+  const meta=window.LUNA_ALTER_APP_META;document.title=`ルナオルタ ${meta.version}`;
+  const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${meta.version} / ${meta.label}`;
+  scrub();
+})();
+</script>
 
 </body>
 </html>
