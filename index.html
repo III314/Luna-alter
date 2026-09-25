@@ -960,8 +960,8 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.18.0",
-  label:"大掃除・基盤統合"
+  version:"0.18.1",
+  label:"デッキ構築省スペース化"
 });
 </script>
 
@@ -1106,7 +1106,6 @@ window.LUNA_ALTER_APP_META = Object.freeze({
     </section>
 
     <section id="deckScreen" class="screen">
-      <div class="page-title"><div><div class="eyebrow">DECKS</div><h1>デッキ作成</h1></div></div>
       <div class="deck-layout">
         <aside class="panel deck-sidebar"><b>マイデッキ</b><div id="deckList" class="deck-list"></div><button id="newDeck" class="new-deck">＋ 新規作成</button></aside>
         <div class="deck-workspace">
@@ -1307,6 +1306,7 @@ function openLogCardDetail(name){const c=cardByName(name);if(!c)return;$('setupD
 function showScreen(name){
  ['title','home','battleMenu','cpuSetup','tutorial','room','deck','battle'].forEach(x=>{const el=$(`${x}Screen`);if(el)el.classList.toggle('active',x===name)});
  document.body.classList.toggle('shell-view',name==='title'||name==='home');
+ document.body.classList.toggle('deck-view',name==='deck');
  $('backHome').classList.toggle('hidden',name==='home'||name==='title');
  if(name==='deck')renderDeckManager();if(name==='room'||name==='battleMenu')refreshDeckSelects();
 }
@@ -4982,5 +4982,16 @@ body:has(#battleScreen.active){margin:0!important;overflow:hidden!important;back
      - legacy structural battle runtime no longer owns viewport scaling
      - redundant metadata no-op removed
 -->
+
+<style id="la-0181-deck-compact">
+/* 0.18.1 — deck builder owns the full vertical canvas; bottom navigation is the only global navigation here. */
+body.deck-view .topbar{display:none!important}
+body.deck-view #deckScreen{height:100vh!important;padding:8px 18px 72px!important}
+#deckScreen .deck-layout{height:100%!important;grid-template-columns:220px minmax(0,1fr)!important;gap:12px!important}
+#deckScreen .deck-sidebar{padding:10px!important}
+#deckScreen .deck-editor-head{margin:0 0 6px!important;padding:8px 10px!important}
+#deckScreen .card-grid{padding-top:0!important}
+@media(max-width:760px){body.deck-view #deckScreen{height:100vh!important;min-height:0!important;padding:7px 12px 70px!important;overflow:hidden!important}}
+</style>
 </body>
 </html>
