@@ -957,8 +957,8 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version: '0.15.2',
-  label: '大規模リファクタリング'
+  version: '0.15.4',
+  label: 'ルーム同期基盤修復'
 });
 </script>
 
@@ -1176,6 +1176,9 @@ window.LUNA_ALTER_APP_META = Object.freeze({
           <div id="resultWord" class="result-word">WIN</div>
           <div class="result-rule"></div>
           <div id="resultSub" class="result-sub"></div>
+          <div class="result-actions">
+            <button id="resultHome" class="result-home-btn" type="button">ホームに戻る</button>
+          </div>
         </div>
       </div>
     </section>
@@ -5069,6 +5072,167 @@ body.la-screen-battle .app>main,body.la-screen-cpuSetup .app>main,body.la-screen
    close();
    dispatchAction({type:'surrender'});
  });
+})();
+</script>
+
+<style id="la-result-home-style-0153">
+#battleScreen .result-overlay.show{pointer-events:auto}
+#battleScreen .result-actions{margin-top:22px;opacity:0;transform:translateY(8px)}
+#battleScreen .result-overlay.show .result-actions{animation:resultMeta .45s 1.05s ease-out forwards}
+#battleScreen .result-home-btn{min-width:180px;min-height:46px;padding:10px 24px;border:1px solid rgba(255,255,255,.55);border-radius:999px;background:rgba(10,11,16,.72);color:#fff;font:800 14px/1 system-ui,-apple-system,sans-serif;letter-spacing:.08em;box-shadow:0 8px 28px rgba(0,0,0,.28);backdrop-filter:blur(5px)}
+#battleScreen .result-home-btn:active{transform:scale(.97)}
+</style>
+<script id="la-result-home-runtime-0153">
+(()=>{
+ const btn=document.getElementById('resultHome');
+ if(!btn)return;
+ btn.addEventListener('click',()=>{
+   try{ leaveRoom(); }catch(e){}
+   try{ showScreen('home'); renderHomeLeader(); }catch(e){ location.reload(); }
+ });
+})();
+</script>
+
+
+<!-- LUNA ALTER 0.15.4: canonical Firebase room transport -->
+<script id="la-room-sync-canonical-0154">
+(()=>{
+  /*
+   * One authoritative transport for room matches.
+   * Host owns the game state. Guest sends actions to /actions; host publishes the
+   * complete guest view to /authoritativeState after every accepted action.
+   * Presence is informational only and never gates gameplay/state propagation.
+   */
+  let syncRev=0;
+  let localActionSeq=0;
+  const seenActions=new Set();
+  const cleanForFirebase=value=>JSON.parse(JSON.stringify(value));
+  const roomReady=()=>matchMode==='online' && fbRoomRef;
+
+  function publishGuestState(){
+    if(!roomReady() || roomRole!=='host' || !game) return Promise.resolve();
+    const view=makeView('p2');
+    const packed=(typeof wirePackView==='function')?wirePackView(view):view;
+    const payload=cleanForFirebase({
+      view:packed,
+      wire:typeof wirePackView==='function'?1:0,
+      rev:++syncRev,
+      turn:game.current,
+      over:!!game.over,
+      updatedAt:firebase.database.ServerValue.TIMESTAMP
+    });
+    return fbRoomRef.child('authoritativeState').set(payload).catch(e=>{
+      try{fbDiag('状態同期エラー',e.message,'bad')}catch(_){}
+      throw e;
+    });
+  }
+
+  // Replace the compatibility connection. Lobby/control messages still use inboxes;
+  // gameplay actions and state use persistent dedicated paths.
+  makeFirebaseConn=function(){
+    return {
+      open:true, peer:'firebase',
+      close(){this.open=false},
+      send(m){
+        if(!this.open || !fbRoomRef || !m) return Promise.resolve();
+        if(m.type==='action' && roomRole==='guest'){
+          const id=`${fbUid||'guest'}-${Date.now()}-${++localActionSeq}`;
+          return fbRoomRef.child('actions').push(cleanForFirebase({
+            id, sender:fbUid, action:m.action,
+            ts:firebase.database.ServerValue.TIMESTAMP
+          })).catch(e=>fbDiag('操作送信エラー',e.message,'bad'));
+        }
+        if((m.type==='state'||m.type==='state-compact') && roomRole==='host'){
+          return publishGuestState();
+        }
+        const target=roomRole==='host'?'guestInbox':'hostInbox';
+        const payload=typeof wirePackMessage==='function'?wirePackMessage(m):m;
+        return fbRoomRef.child(target).push(cleanForFirebase({
+          payload, ts:firebase.database.ServerValue.TIMESTAMP, sender:fbUid
+        })).catch(e=>fbDiag('送信エラー',e.message,'bad'));
+      }
+    };
+  };
+
+  // Extend room listeners with a durable guest -> host action queue.
+  const baseListenInbox=listenInbox;
+  listenInbox=function(which){
+    baseListenInbox(which);
+    if(which!=='hostInbox' || !fbRoomRef) return;
+    const ar=fbRoomRef.child('actions');
+    const ah=snap=>{
+      const item=snap.val();
+      if(!item || item.sender===fbUid){ snap.ref.remove().catch(()=>{}); return; }
+      const key=item.id||snap.key;
+      if(seenActions.has(key)){ snap.ref.remove().catch(()=>{}); return; }
+      seenActions.add(key);
+      if(seenActions.size>256){ const first=seenActions.values().next().value; seenActions.delete(first); }
+      try{
+        // A stale presence flag must never discard a real user action.
+        const paused=networkPaused; networkPaused=false;
+        try{ handleAction('p2',item.action); }
+        finally{ networkPaused=paused; }
+      }catch(e){
+        try{fbDiag('操作受信エラー',e.message,'bad')}catch(_){}
+      }finally{
+        snap.ref.remove().catch(()=>{});
+      }
+    };
+    onRef(ar,'child_added',ah);
+  };
+
+  // Canonical state broadcaster. Do not chain the old presence-gated broadcasters.
+  broadcastState=function(){
+    if(roomRole!=='host' || !game) return;
+    currentView=makeView('p1');
+    showScreen('battle');
+    renderBattleView();
+    if(matchMode==='online'){
+      if(game.over) clearHostRecovery(); else saveHostRecovery();
+      // Always publish; online presence may lag behind a perfectly healthy DB link.
+      publishGuestState();
+    }
+    scheduleCpuTurn();
+  };
+
+  // Canonical action dispatch. Guest actions go straight to Firebase even if the
+  // presence indicator briefly says disconnected; Firebase itself will queue/retry.
+  dispatchAction=function(action){
+    if(!action) return;
+    if(roomRole==='host'){
+      handleAction('p1',action);
+      return;
+    }
+    if(matchMode==='online' && roomRole==='guest' && fbRoomRef){
+      const c=(conn&&conn.open)?conn:makeFirebaseConn();
+      conn=c;
+      c.send({type:'action',action});
+      return;
+    }
+    const n=document.getElementById('battleNotice');
+    if(n){n.textContent='通信を再接続しています。';n.className='notice bad'}
+  };
+
+  // Presence may update warning UI, but from this build onward it is not an input lock.
+  const oldSetNetworkPaused=setNetworkPaused;
+  setNetworkPaused=function(flag){
+    if(matchMode==='online' && (roomRole==='host'||roomRole==='guest')){
+      networkPaused=false;
+      try{
+        const n=document.getElementById('battleNotice');
+        if(n && flag && !currentView?.over && !game?.over){
+          n.textContent='通信状態を確認中…（操作は送信されます）';
+          n.className='notice';
+        }
+      }catch(_){}
+      return;
+    }
+    return oldSetNetworkPaused(flag);
+  };
+
+  // If this script is loaded while a room is already open, refresh the connection
+  // object so subsequent actions use the canonical transport.
+  if(matchMode==='online' && fbRoomRef) conn=makeFirebaseConn();
 })();
 </script>
 </body>
