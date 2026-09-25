@@ -957,7 +957,7 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version: '0.13.12',
+  version: '0.13.14',
   label: '対戦メニュー収まり調整'
 });
 </script>
@@ -4337,6 +4337,136 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
   const prev=window.renderBattleView;
   if(typeof prev==='function')window.renderBattleView=function(){const r=prev.apply(this,arguments);ensureEnergy();return r};
   ensureEnergy();
+})();
+</script>
+
+
+
+<!-- LUNA ALTER 0.13.13: full-height battle setup + visible Firebase room creation -->
+<style id="la-01313-battle-room-fix">
+/* CPU setup is an in-app subview: persistent bottom nav is enough navigation. */
+body.la-battle-subview .topbar{display:none!important}
+body.la-battle-subview #cpuSetupScreen,
+body.la-battle-subview #roomScreen{height:100vh!important;min-height:100vh!important}
+#cpuSetupScreen{padding:0 0 64px!important}
+#cpuSetupScreen .battle-sub-wrap{height:100%!important;max-width:1280px!important;padding:18px 42px 18px!important;display:grid!important;grid-template-rows:minmax(0,1fr) 54px!important;gap:14px!important}
+#cpuSetupScreen .sub-back,#cpuSetupScreen .battle-sub-head{display:none!important}
+#cpuSetupScreen .cpu-setup-grid{height:100%!important;min-height:0!important;grid-template-columns:minmax(0,1fr) 70px minmax(0,1fr)!important;gap:18px!important;align-items:stretch!important}
+#cpuSetupScreen .cpu-player-panel{min-height:0!important;padding:22px 28px!important;justify-content:center!important}
+#cpuSetupScreen .cpu-start-btn{height:54px!important;width:min(760px,72vw)!important}
+/* Room creation must visibly transition to its lobby instead of opening below a clipped form. */
+#roomScreen.la-room-lobby>.page-title,#roomScreen.la-room-lobby>.room-layout{display:none!important}
+#roomScreen.la-room-lobby{padding:18px 32px 72px!important}
+#roomScreen.la-room-lobby #lobbyPanel{display:block!important;margin:0 auto!important;height:100%!important;max-height:none!important;max-width:1050px!important;overflow:auto!important;padding:18px 22px!important}
+#createRoom.la-working,#joinRoom.la-working{opacity:.65!important;pointer-events:none!important}
+#roomScreen .la-room-progress{margin-top:6px;font-size:10px;color:#80662f;font-weight:800}
+@media(max-width:760px){
+ body.la-battle-subview #cpuSetupScreen,body.la-battle-subview #roomScreen{height:100vh!important;min-height:100vh!important}
+ #cpuSetupScreen{padding-bottom:50px!important}
+ #cpuSetupScreen .battle-sub-wrap{padding:8px 18px 8px!important;grid-template-rows:minmax(0,1fr) 40px!important;gap:7px!important}
+ #cpuSetupScreen .cpu-setup-grid{grid-template-columns:minmax(0,1fr) 42px minmax(0,1fr)!important;gap:8px!important}
+ #cpuSetupScreen .cpu-player-panel{padding:10px 13px!important}
+ #cpuSetupScreen .cpu-start-btn{height:40px!important;width:min(700px,76vw)!important}
+ #roomScreen.la-room-lobby{padding:8px 14px 54px!important}
+ #roomScreen.la-room-lobby #lobbyPanel{padding:9px 11px!important}
+}
+</style>
+<script id="la-01313-battle-room-fix-js">
+(function(){
+ const meta=window.LUNA_ALTER_APP_META;
+ // Keep the global header only where it is useful. Battle setup/room use the persistent bottom bar.
+ const prevShow=window.showScreen;
+ window.showScreen=function(name){
+   const r=prevShow.apply(this,arguments);
+   document.body.classList.toggle('la-battle-subview',name==='cpuSetup'||name==='room');
+   if(name!=='room')document.getElementById('roomScreen')?.classList.remove('la-room-lobby');
+   return r;
+ };
+ // setupLobby is the single successful transition point used by both host and guest.
+ const oldSetup=window.setupLobby||setupLobby;
+ window.setupLobby=setupLobby=function(code){
+   const r=oldSetup(code);
+   const rs=document.getElementById('roomScreen');
+   if(rs)rs.classList.add('la-room-lobby');
+   return r;
+ };
+ // Firebase creation can take a moment on first anonymous sign-in. Give immediate visual feedback.
+ function wrapAsyncButton(id,label){
+   const b=document.getElementById(id);if(!b)return;
+   const original=b.onclick;if(typeof original!=='function')return;
+   b.onclick=async function(ev){
+     if(b.classList.contains('la-working'))return;
+     const old=b.textContent;b.classList.add('la-working');b.textContent=label;
+     let progress=b.parentElement?.querySelector('.la-room-progress');
+     if(!progress){progress=document.createElement('div');progress.className='la-room-progress';b.insertAdjacentElement('afterend',progress)}
+     progress.textContent='通信を準備しています…';
+     try{await original.call(this,ev)}finally{
+       b.classList.remove('la-working');b.textContent=old;
+       if(document.getElementById('lobbyPanel')?.classList.contains('hidden'))progress.textContent='';
+     }
+   };
+ }
+ // Firebase override is installed earlier in the document, so wrapping here captures the real handler.
+ wrapAsyncButton('createRoom','ルームを作成中…');
+ wrapAsyncButton('joinRoom','接続中…');
+ document.title=`ルナオルタ ${meta.version}`;
+ const v=document.getElementById('appVersionLabel');if(v)v.textContent=`${meta.version} / ${meta.label}`;
+})();
+</script>
+
+
+
+<!-- LUNA ALTER 0.13.14: setup board effect text + delegated detail tap -->
+<style id="la-01314-setup-detail">
+#battleScreen .slot.occupied{cursor:pointer!important}
+#battleScreen .slot.occupied .setup-art-bg{position:absolute!important;inset:0!important;z-index:0!important}
+#battleScreen .slot.occupied .setup-art-bg img{width:100%!important;height:100%!important;object-fit:cover!important;display:block!important}
+#battleScreen .slot.occupied .setup-art-bg:after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.02) 18%,rgba(0,0,0,.32) 48%,rgba(0,0,0,.88) 100%)}
+#battleScreen .slot.occupied .setup-caption{position:absolute!important;z-index:2!important;left:7px!important;right:7px!important;bottom:7px!important;color:#fff!important;text-shadow:0 1px 3px #000!important;display:flex!important;flex-direction:column!important;gap:2px!important;min-width:0!important}
+#battleScreen .slot.occupied .setup-caption .name{font-size:11px!important;line-height:1.08!important;font-weight:1000!important;color:#fff!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;padding:0 24px 0 0!important}
+#battleScreen .slot.occupied .setup-caption .owner{font-size:7px!important;line-height:1!important;color:rgba(255,255,255,.8)!important}
+#battleScreen .slot.occupied .setup-caption .mini-effect{display:-webkit-box!important;-webkit-box-orient:vertical!important;-webkit-line-clamp:4!important;overflow:hidden!important;font-size:8.5px!important;line-height:1.18!important;color:#fff!important;margin-top:2px!important;white-space:normal!important}
+#battleScreen #oppPersonal .slot.occupied .setup-caption .mini-effect,#battleScreen #myPersonal .slot.occupied .setup-caption .mini-effect{-webkit-line-clamp:3!important;font-size:8px!important}
+</style>
+<script id="la-01314-setup-detail-js">
+(()=>{
+  function esc(v){try{return escapeHtml(String(v??''))}catch(_){return String(v??'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]))}}
+  function artFor(c){try{return (window.CARD_ART&&window.CARD_ART[c.id])||''}catch(_){return ''}}
+  function effectFor(c){try{return cardText(c)||''}catch(_){return c?.text||''}}
+  function setupSlot01314(x,mePid){
+    if(!x)return '<div class="slot"></div>';
+    const c=x.card,owner=x.owner===mePid?'自分':'相手',src=artFor(c),effect=effectFor(c);
+    const art=src?`<div class="setup-art-bg"><img src="${src}" alt="" draggable="false"></div>`:'<div class="setup-art-bg"></div>';
+    let badge='';try{badge=typeof setupStateBadge==='function'?setupStateBadge(x,mePid):''}catch(_){}
+    return `<button type="button" class="slot occupied setup-detail-trigger" data-setup-uid="${esc(c.uid)}" aria-label="${esc(c.name)}の詳細を見る">${art}<div class="setup-caption"><div class="name">${esc(c.name)}</div><div class="owner">${owner}</div><div class="mini-effect">${esc(effect)}</div></div>${badge}</button>`;
+  }
+  window.setupSlot=setupSlot01314;try{setupSlot=setupSlot01314}catch(_){}
+
+  // The old renderer bound listeners to nodes that are replaced on every render.
+  // Delegate from battleScreen so taps keep working after every redraw / DOM rearrangement.
+  const battle=document.getElementById('battleScreen');
+  if(battle&&!battle.dataset.setupDetailDelegated){
+    battle.dataset.setupDetailDelegated='1';
+    battle.addEventListener('click',e=>{
+      const trigger=e.target.closest?.('.setup-detail-trigger');
+      if(!trigger||!battle.contains(trigger))return;
+      e.preventDefault();e.stopPropagation();
+      try{openSetupDetail(trigger.dataset.setupUid)}catch(err){console.error('setup detail',err)}
+    });
+  }
+  // UID comparison must work for both numeric local games and string/wire IDs.
+  window.visibleSetupByUid=function(uid){
+    const v=window.currentView||currentView;if(!v)return null;
+    const key=String(uid),all=[];
+    if(v.me?.personal)all.push({owner:v.me.pid,card:v.me.personal});
+    if(v.opp?.personal)all.push({owner:v.opp.pid,card:v.opp.personal});
+    (v.shared||[]).forEach(x=>all.push(x));
+    return all.find(x=>String(x.card?.uid)===key)||null;
+  };
+  try{visibleSetupByUid=window.visibleSetupByUid}catch(_){}
+  // Force one redraw so already-visible setups adopt the new renderer immediately.
+  try{if((window.currentView||currentView)&&typeof renderBattleView==='function')renderBattleView()}catch(_){}
+  const meta=window.LUNA_ALTER_APP_META,vl=document.getElementById('appVersionLabel');document.title=`ルナオルタ ${meta.version}`;if(vl)vl.textContent=`${meta.version} / ${meta.label}`;
 })();
 </script>
 
