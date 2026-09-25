@@ -957,7 +957,7 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version: '0.15.1',
+  version: '0.15.2',
   label: '大規模リファクタリング'
 });
 </script>
@@ -1128,6 +1128,15 @@ window.LUNA_ALTER_APP_META = Object.freeze({
     </section>
 
     <section id="battleScreen" class="screen">
+      <button id="battleMenuToggle" class="battle-menu-toggle" type="button" aria-label="バトルメニュー" aria-expanded="false"><span></span><span></span><span></span></button>
+      <div id="battlePauseMenu" class="battle-pause-menu hidden" role="dialog" aria-modal="true" aria-label="バトルメニュー">
+        <div class="battle-pause-card">
+          <div class="battle-pause-title">BATTLE MENU</div>
+          <button id="battleResume" class="battle-menu-action primary" type="button">バトルに戻る</button>
+          <button id="battleSettings" class="battle-menu-action" type="button">設定</button>
+          <button id="battleSurrender" class="battle-menu-action danger" type="button">降参</button>
+        </div>
+      </div>
       <div id="battleNotice" class="notice">対戦を開始します。</div>
       <div class="battle-area" style="margin-top:7px">
         <div class="battle-main">
@@ -1546,7 +1555,7 @@ function resolvePending(pid,uids,targetIndex=null){const x=game.pending,p=game.p
 function runEndTurnEffects(pid){const p=game.players[pid];if(p.endEffectsDone)return;p.endEffectsDone=true;if(hasSetup(pid,'k18')&&p.usedHeavyThisTurn){const n=drawCards(pid,1,true);addLog(`${p.name}：《剣戟の残響》で${n}枚ドロー。`)}if(hasSetup(pid,'k24')){const attacks=p.hand.filter(c=>c.type==='attack');attacks.forEach(c=>c.damageBonus=(c.damageBonus||0)+2);if(attacks.length)addLog(`${p.name}：《日々の研鑽》で手札のアタック${attacks.length}枚を+2強化。`)}}
 function finalizeEndTurn(pid){const p=game.players[pid];runEndTurnEffects(pid);const keepAll=hasSetup(pid,'k9'),kept=[];while(p.hand.length){const c=p.hand.pop();if(keepAll||c.retain||c.uid===p.keepUid){if(c.id==='k23'){c.damageBonus=(c.damageBonus||0)+5;addLog(`${p.name}：《一念の太刀》が保留され、ダメージ+5。`)}kept.push(c)}else sendDiscard(p,c)}kept.reverse().forEach(c=>p.hand.push(c));if(kept.length)addLog(`${p.name}：${kept.length}枚を保留。`);p.attackDouble=false;game.current=other(pid);startTurn(game.current)}
 function endPlayerTurn(pid){if(game.current!==pid||game.over||game.pending)return;const p=game.players[pid];runEndTurnEffects(pid);if(hasSetup(pid,'j20')&&p.hand.length){game.pending={pid,type:'endTurnDiscard',count:1,title:'《断捨離》：捨てるカードを1枚選択'};return}finalizeEndTurn(pid)}
-function handleAction(pid,a){if(roomRole!=='host'||!game||!a||(matchMode==='online'&&networkPaused))return;if(a.type==='play')playCard(pid,Number(a.uid),a.dest);else if(a.type==='choose')resolvePending(pid,(a.uids||[]).map(Number),a.targetIndex);else if(a.type==='end')endPlayerTurn(pid);else if(a.type==='movePersonal'){if(game.current===pid&&!game.over&&!game.pending){const p=game.players[pid];if(p.personal){const c=p.personal;p.personal=null;game.shared.push({owner:pid,card:c});addLog(`${p.name}：独自枠《${c.name}》を共有枠へ移動。`);if(game.shared.length>3)pushOldest('独自枠移動')}}}else if(a.type==='keep'){if(game.current===pid&&hasSetup(pid,'j15')){const p=game.players[pid];p.keepUid=p.keepUid===Number(a.uid)?null:Number(a.uid)}}broadcastState()}
+function handleAction(pid,a){if(roomRole!=='host'||!game||!a||(matchMode==='online'&&networkPaused))return;if(a.type==='play')playCard(pid,Number(a.uid),a.dest);else if(a.type==='choose')resolvePending(pid,(a.uids||[]).map(Number),a.targetIndex);else if(a.type==='end')endPlayerTurn(pid);else if(a.type==='surrender'){if(!game.over){game.over=true;game.winner=other(pid);addLog(`=== ${game.players[pid].name}が降参しました。${game.players[other(pid)].name}の勝利！ ===`)}}else if(a.type==='movePersonal'){if(game.current===pid&&!game.over&&!game.pending){const p=game.players[pid];if(p.personal){const c=p.personal;p.personal=null;game.shared.push({owner:pid,card:c});addLog(`${p.name}：独自枠《${c.name}》を共有枠へ移動。`);if(game.shared.length>3)pushOldest('独自枠移動')}}}else if(a.type==='keep'){if(game.current===pid&&hasSetup(pid,'j15')){const p=game.players[pid];p.keepUid=p.keepUid===Number(a.uid)?null:Number(a.uid)}}broadcastState()}
 function dispatchAction(action){if(matchMode==='online'&&networkPaused)return;if(roomRole==='host')handleAction('p1',action);else if(conn?.open)conn.send({type:'action',action})}
 function playerPublic(p,showHand){return{pid:p.pid,name:p.name,character:p.character,hp:p.hp,maxHp:p.maxHp||100,maxEnergy:p.maxEnergy,energy:p.energy,turnSkillDraws:showHand?p.turnSkillDraws:0,drawCount:p.drawPile.length,discardCount:p.discard.length,exhaustCount:p.exhaust.length,handCount:p.hand.length,hand:showHand?p.hand.map(c=>({...c})):[],discard:showHand?p.discard.map(c=>({...c})):[],personal:p.personal?{...p.personal}:null,keepUid:showHand?p.keepUid:null}}
 function makeView(pid){const oid=other(pid);let pending=null;if(game.pending?.pid===pid){let cards;if(game.pending.type==='reorderShared')cards=game.shared.map(x=>({...x.card,sharedOwner:x.owner,choiceCost:cardCost(pid,x.card)}));else cards=(game.pending.type==='returnDiscard'?game.players[pid].discard:game.players[pid].hand).filter(c=>c.uid!==game.pending.excludeUid&&(!game.pending.cardsOverride||game.pending.cardsOverride.includes(c.uid))).map(c=>({...c,choiceCost:cardCost(pid,c)}));pending={...game.pending,cards}}return{me:playerPublic(game.players[pid],true),opp:playerPublic(game.players[oid],false),shared:game.shared.map(x=>({owner:x.owner,card:{...x.card}})),current:game.current,over:game.over,winner:game.winner,log:[...game.log],pending,lastAction:game.lastAction?{...game.lastAction}:null,damageEvents:(game.damageEvents||[]).map(x=>({...x})),drawEvents:(game.drawEvents||[]).map(x=>({...x}))}}
@@ -4923,7 +4932,7 @@ body.la-card-gesture-active{overflow:hidden!important;overscroll-behavior:none!i
 <!-- LUNA ALTER 0.10.6: mobile battle layout cleanup -->
 
 <style id="la-0150-ui-contract">
-/* 0.15.1 — canonical landscape UI contract. */
+/* 0.15.2 — canonical landscape UI contract. */
 body.la-screen-battle .topbar, body.la-screen-cpuSetup .topbar, body.la-screen-room .topbar{display:none!important}
 body.la-screen-battle .app>main,body.la-screen-cpuSetup .app>main,body.la-screen-room .app>main{height:100%!important}
 /* Battle is one uninterrupted field: no inherited center divider / panel seam. */
@@ -5027,6 +5036,39 @@ body.la-screen-battle .app>main,body.la-screen-cpuSetup .app>main,body.la-screen
       sel.value=c;
     });
   }
+})();
+</script>
+
+<style id="battle-menu-0152">
+#battleScreen{position:relative}
+#battleScreen .battle-menu-toggle{position:absolute;left:14px;top:14px;z-index:9200;width:46px;height:42px;border:1px solid rgba(255,255,255,.28);border-radius:11px;background:rgba(10,12,18,.72);backdrop-filter:blur(8px);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;padding:0;box-shadow:0 5px 18px rgba(0,0,0,.22)}
+#battleScreen .battle-menu-toggle span{display:block;width:21px;height:2px;border-radius:2px;background:#fff;opacity:.9}
+#battleScreen .battle-pause-menu{position:absolute;inset:0;z-index:9100;background:rgba(4,5,8,.54);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center}
+#battleScreen .battle-pause-menu.hidden{display:none!important}
+#battleScreen .battle-pause-card{width:min(340px,72vw);padding:22px;border-radius:18px;background:rgba(18,20,27,.96);border:1px solid rgba(255,255,255,.16);box-shadow:0 18px 55px rgba(0,0,0,.42);display:grid;gap:10px}
+#battleScreen .battle-pause-title{text-align:center;font-weight:900;letter-spacing:.18em;font-size:13px;color:rgba(255,255,255,.72);margin-bottom:4px}
+#battleScreen .battle-menu-action{min-height:48px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:#292d38;color:#fff;font-weight:900;font-size:15px}
+#battleScreen .battle-menu-action.primary{background:#fff;color:#111}
+#battleScreen .battle-menu-action.danger{background:#7d2027;border-color:#a73a43}
+</style>
+<script id="battle-menu-runtime-0152">
+(()=>{
+ const $id=id=>document.getElementById(id);
+ const toggle=$id('battleMenuToggle'),menu=$id('battlePauseMenu'),resume=$id('battleResume'),settings=$id('battleSettings'),surrender=$id('battleSurrender');
+ if(!toggle||!menu)return;
+ const close=()=>{menu.classList.add('hidden');toggle.setAttribute('aria-expanded','false')};
+ const open=()=>{menu.classList.remove('hidden');toggle.setAttribute('aria-expanded','true')};
+ toggle.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();menu.classList.contains('hidden')?open():close()});
+ resume?.addEventListener('click',close);
+ menu.addEventListener('click',e=>{if(e.target===menu)close()});
+ settings?.addEventListener('click',()=>{close();alert('設定は準備中です。')});
+ surrender?.addEventListener('click',()=>{
+   const v=window.currentView||currentView;
+   if(!v||v.over){close();return}
+   if(!confirm('この対戦を降参しますか？\n降参すると相手の勝利になります。'))return;
+   close();
+   dispatchAction({type:'surrender'});
+ });
 })();
 </script>
 </body>
