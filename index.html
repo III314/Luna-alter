@@ -960,7 +960,7 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.18.1",
+  version:"0.18.2",
   label:"デッキ構築省スペース化"
 });
 </script>
@@ -1353,10 +1353,17 @@ $('resetDeck').onclick=()=>{workingCounts={...DEFAULT_DECKS[workingCharacter]};r
 $('deckCharacter').onchange=()=>{const selectedCharacter=$('deckCharacter').value;workingCharacter=['giovanni','kenshi','shiranui'].includes(selectedCharacter)?selectedCharacter:'giovanni';const allowed=new Set(allowedCards(workingCharacter).map(c=>c.id));CARD_DEFS.forEach(c=>{if(!allowed.has(c.id))workingCounts[c.id]=0});renderDeckCards()};
 $('saveDeck').onclick=()=>{const d=getDeck(selectedDeckId);if(!d)return;const name=$('deckName').value.trim();if(!name)return alert('デッキ名を入力してください。');if(!validCounts(workingCounts,workingCharacter))return alert('選択中のキャラクターで使えるカードだけを40枚にしてください。');d.name=name;d.character=workingCharacter;d.counts=normalizeCounts(workingCounts);saveDecks();renderDeckManager();alert('デッキを保存しました。')};
 function renderDeckCards(){
+ const grid=$('deckGrid');
+ // Keep the card library anchored when +/- rebuilds the grid.
+ // Replacing innerHTML otherwise lets the browser's scroll anchoring jump several rows.
+ const savedScrollTop=grid?grid.scrollTop:0;
  const total=deckTotal(workingCounts);$('deckCount').textContent=total;const warn=$('deckWarning');warn.classList.toggle('hidden',total===40);warn.textContent=total<40?`あと${40-total}枚追加してください。`:`${total-40}枚減らしてください。`;
- const grid=$('deckGrid');grid.innerHTML='';
+ grid.innerHTML='';
  const renderPool=(title,cards)=>{const h=document.createElement('div');h.className='pool-heading';h.innerHTML=`<span>${title}</span><span class="pool-count">${cards.length}種類</span>`;grid.appendChild(h);const typeOrder={attack:0,skill:1,spell:2,setup:3};[...cards].sort((a,b)=>(typeOrder[a.type]-typeOrder[b.type])||(a.cost-b.cost)||a.name.localeCompare(b.name,'ja')).forEach(c=>{const n=workingCounts[c.id]||0,d=document.createElement('div');d.className=`deck-card ${c.type} ${n>=3?'at-cap':''}`;d.innerHTML=`<h3>${c.name}</h3><div class="small">${typeLabel(c.type)} / ${c.cost}コスト</div><div class="effect">${c.text}</div><div class="qty"><button data-a="minus">−</button><b>${n}枚</b><button data-a="plus">＋</button></div>`;d.querySelector('[data-a=minus]').onclick=()=>{if(n>0){workingCounts[c.id]=n-1;renderDeckCards()}};d.querySelector('[data-a=plus]').onclick=()=>{if(n<3&&deckTotal(workingCounts)<40){workingCounts[c.id]=n+1;renderDeckCards()}};grid.appendChild(d)})};
  renderPool('クラス共通',COMMON_CARD_DEFS);renderPool(CHARACTER_LABELS[workingCharacter],workingCharacter==='kenshi'?KENSHI_CARD_DEFS:GIOVANNI_CARD_DEFS);
+ // Restore immediately (layout is synchronous) and once more on the next frame for iOS/WebKit.
+ grid.scrollTop=savedScrollTop;
+ requestAnimationFrame(()=>{if(grid.isConnected)grid.scrollTop=savedScrollTop});
 }
 function refreshDeckSelects(){
  const options=decks.filter(d=>validCounts(d.counts,d.character)).map(d=>`<option value="${d.id}">${escapeHtml(d.name)}［${CHARACTER_LABELS[d.character]||'ジョバンニ'}］</option>`).join('');$('cpuDeck').innerHTML=options;$('hostDeck').innerHTML=options;$('guestDeck').innerHTML=options;
