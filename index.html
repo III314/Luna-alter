@@ -890,18 +890,14 @@ ruby{ruby-position:over}rt{font-size:.58em;font-weight:700;line-height:1;color:v
 .damage-pop{animation-duration:1.35s}
 @keyframes damagePop{0%{opacity:0;transform:translate(-50%,18px) scale(.55)}16%{opacity:1;transform:translate(-50%,-8px) scale(1.25)}72%{opacity:1;transform:translate(-50%,-24px) scale(1)}100%{opacity:0;transform:translate(-50%,-52px) scale(.9)}}
 
-/* ===== v58 tutorial ===== */
-#homeScreen .home-choices{grid-template-columns:repeat(3,minmax(0,1fr))}
-.tutorial-select{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;max-width:900px;margin:0 auto}
-.tutorial-course{appearance:none;text-align:left;padding:20px;border:1px solid var(--line);border-radius:18px;background:var(--panel);color:var(--ink);box-shadow:var(--shadow)}
-.tutorial-course b{display:block;font-family:Georgia,"Yu Mincho",serif;font-size:20px;margin-bottom:6px}.tutorial-course span{font-size:12px;color:var(--muted);line-height:1.6}.tutorial-course:hover{transform:translateY(-2px);border-color:#b29a70}
-.tutorial-play{max-width:900px;margin:0 auto}.tutorial-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}.tutorial-top>div{text-align:center}.tutorial-top span{display:block;font-size:10px;color:var(--muted);margin-top:2px}
-.tutorial-board{position:relative;min-height:590px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(180deg,#171b24,#20242d 55%,#171b24);padding:14px;overflow:hidden;color:#fff}
-.tutorial-enemy{display:flex;justify-content:space-between;align-items:center;font-size:13px}.tutorial-enemy strong{font-size:18px}.tutorial-shared{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:18px auto 12px;max-width:570px;min-height:112px}.tutorial-shared .slot{border:1px dashed rgba(255,255,255,.25);border-radius:12px;min-height:104px}.tutorial-shared .slot.occupied{border-style:solid;background:rgba(255,255,255,.08);padding:9px;font-size:11px}.tutorial-shared .slot b{display:block;font-size:12px;margin-bottom:5px}
-.tutorial-message{max-width:650px;margin:10px auto;padding:12px 14px;border-radius:14px;background:rgba(5,7,12,.86);border:1px solid rgba(255,255,255,.2);font-size:13px;line-height:1.65;min-height:68px}.tutorial-message strong{color:#f0d28c}.tutorial-status{display:flex;align-items:center;justify-content:space-between;max-width:700px;margin:12px auto 6px}.tutorial-status strong{font-size:24px}.tutorial-status span{font-size:11px;color:#d3d8e4}
-.tutorial-hand{height:188px;display:flex;align-items:flex-end;justify-content:center;gap:7px;max-width:780px;margin:0 auto;overflow:visible}.tutorial-hand .card{width:132px;min-width:132px;height:174px;min-height:174px;color:var(--ink);cursor:default}.tutorial-hand .card.focus{outline:3px solid #f2ca72;transform:translateY(-8px);box-shadow:0 0 22px rgba(242,202,114,.4)}.tutorial-hand .card .text{font-size:9px}.tutorial-action{display:block;margin:10px auto 0;min-width:180px;animation:tutPulse 1.2s ease-in-out infinite alternate}@keyframes tutPulse{to{box-shadow:0 0 18px rgba(236,195,102,.55)}}
-.tutorial-float{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);font-size:34px;font-weight:1000;text-shadow:0 3px 15px #000;animation:tutFloat .8s ease forwards;pointer-events:none}@keyframes tutFloat{0%{opacity:0;transform:translate(-50%,10px) scale(.7)}25%{opacity:1;transform:translate(-50%,-10px) scale(1.2)}100%{opacity:0;transform:translate(-50%,-45px)}}
-@media(max-width:760px){#homeScreen .home-choices{grid-template-columns:1fr 1fr}.tutorial-select{grid-template-columns:1fr}.tutorial-board{min-height:520px;padding:9px}.tutorial-hand{height:154px;gap:3px}.tutorial-hand .card{width:102px;min-width:102px;height:142px;min-height:142px;padding:7px}.tutorial-hand .card .cname{font-size:10px}.tutorial-hand .card .text{font-size:7.5px}.tutorial-shared{min-height:88px}.tutorial-shared .slot{min-height:82px}.tutorial-message{font-size:11px;min-height:62px}.tutorial-status strong{font-size:21px}}
+/* ===== 0.20.0 tutorial — rebuilt from zero ===== */
+#tutorialScreen.la-tutorial-v2{padding:0!important;overflow:hidden!important;background:#0e1118!important;color:#f6f1e7!important;height:100%!important}
+.tut2-select,.tut2-play{height:100%;box-sizing:border-box}.tut2-select{padding:26px 34px 74px;overflow:auto;background:radial-gradient(circle at 82% 15%,#282239 0,transparent 34%),linear-gradient(135deg,#10141d,#171a22 65%,#11141a)}
+.tut2-head{display:flex;gap:24px;align-items:flex-start;max-width:1120px;margin:0 auto 22px}.tut2-head>div{flex:1}.tut2-head small,.tut2-kicker{letter-spacing:.2em;color:#bfa56d;font-weight:900;font-size:11px}.tut2-head h1{font:900 34px/1.05 Georgia,"Yu Mincho",serif;margin:4px 0}.tut2-head p{margin:6px 0;color:#aeb4c0;font-size:13px}.tut2-back,.tut2-bar button{border:1px solid #414957;background:#1c222d;color:#fff;border-radius:10px;padding:9px 13px;font-weight:800}
+.tut2-courses{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:1120px;margin:auto}.tut2-course{position:relative;min-height:128px;display:grid;grid-template-columns:58px 1fr auto;gap:14px;align-items:center;text-align:left;border:1px solid #343b48;border-radius:16px;background:linear-gradient(145deg,#1b202a,#141820);color:#fff;padding:18px;box-shadow:0 12px 32px #0005}.tut2-course:active{transform:scale(.99)}.tut2-course b{font-size:21px}.tut2-course p{font-size:12px;line-height:1.55;color:#b7bec9;margin:6px 0 0}.tut2-course i{font-style:normal;font-size:10px;border:1px solid #62563e;color:#dbc68f;border-radius:99px;padding:5px 8px}.tut2-no{font:800 26px Georgia;color:#6f7888}.tut2-basic{border-color:#7b6841;background:linear-gradient(145deg,#272419,#171a20)}
+.tut2-play{display:flex;flex-direction:column;background:#0f131a}.tut2-bar{height:52px;flex:0 0 52px;display:grid;grid-template-columns:120px 1fr 120px;align-items:center;padding:0 18px;border-bottom:1px solid #303642;background:#171c24}.tut2-bar>div{text-align:center}.tut2-bar b{font-size:16px}.tut2-bar span{display:block;font-size:9px;color:#929baa;margin-top:2px}.tut2-stage{flex:1;min-height:0;display:grid;grid-template-columns:38% 62%}.tut2-lesson{padding:25px 28px;display:flex;flex-direction:column;border-right:1px solid #303642;background:linear-gradient(145deg,#191e27,#12161d)}.tut2-lesson h2{font:900 27px/1.15 Georgia,"Yu Mincho",serif;margin:7px 0 12px;color:#fff}.tut2-copy{font-size:15px;line-height:1.75;color:#d9dde4}.tut2-copy strong{color:#f0ce7a}.tut2-tip{margin-top:14px;padding:11px 13px;border-left:3px solid #b9954d;background:#ffffff0a;color:#aeb6c2;font-size:12px;line-height:1.55}.tut2-next{margin-top:auto;border:0;border-radius:12px;padding:13px;background:#b28b42;color:#101216;font-weight:1000;font-size:15px}
+.tut2-demo{min-width:0;padding:15px 18px 12px;display:flex;flex-direction:column;background:radial-gradient(circle at 50% 45%,#252c38,#121720 72%)}.tut2-demo-top{display:flex;gap:8px}.tut2-stat{min-width:92px;border:1px solid #3c4554;background:#181e27;border-radius:10px;padding:6px 10px}.tut2-stat small{display:block;font-size:8px;color:#8f99a8}.tut2-stat strong{font-size:17px}.tut2-diagram{flex:1;min-height:80px;display:grid;place-items:center;text-align:center;padding:10px;color:#dce1e8}.tut2-visual{width:min(94%,620px);display:grid;gap:8px}.tut2-visual-row{display:flex;justify-content:center;align-items:center;gap:8px}.tut2-box{border:1px solid #485365;background:#1b222d;border-radius:11px;padding:10px 14px;min-width:88px}.tut2-box.hot{border-color:#d2aa59;box-shadow:0 0 0 2px #d2aa5922}.tut2-arrow{color:#d2aa59;font-size:20px}.tut2-shared{display:flex;justify-content:center;gap:7px;min-height:54px;margin:2px 0 8px}.tut2-slot{width:29%;max-width:150px;border:1px dashed #4a5360;border-radius:9px;padding:6px;font-size:10px;color:#8f99a8;text-align:center}.tut2-slot.filled{border-style:solid;border-color:#7e6b46;color:#f1dfb4;background:#242219}.tut2-hand{height:126px;display:flex;align-items:flex-end;justify-content:center;gap:6px;overflow:visible}.tut2-card{width:104px;height:116px;box-sizing:border-box;border:1px solid #596273;border-radius:10px;background:#ece7dc;color:#17191d;padding:8px;display:flex;flex-direction:column;box-shadow:0 7px 18px #0007}.tut2-card.attack{clip-path:polygon(7% 0,93% 0,100% 10%,100% 90%,93% 100%,7% 100%,0 90%,0 10%)}.tut2-card.setup{border-radius:3px;border-width:3px}.tut2-card.skill{border-radius:18px 18px 9px 9px}.tut2-card.focus{transform:translateY(-9px);outline:3px solid #d5ad59}.tut2-card b{font-size:12px;line-height:1.1}.tut2-card small{font-size:8px;color:#555;margin-top:4px;line-height:1.2;overflow:hidden}.tut2-card em{font-style:normal;margin-top:auto;font-size:17px;font-weight:1000}.tut2-progress{height:4px;background:#242b35}.tut2-progress span{display:block;height:100%;background:#c49a4b;transition:width .25s ease}
+@media(max-width:800px){.tut2-select{padding:16px 18px 64px}.tut2-courses{grid-template-columns:1fr 1fr}.tut2-course{min-height:105px;padding:12px}.tut2-course p{font-size:10px}.tut2-stage{grid-template-columns:40% 60%}.tut2-lesson{padding:16px}.tut2-lesson h2{font-size:22px}.tut2-copy{font-size:12px}.tut2-hand{height:105px}.tut2-card{width:88px;height:98px;padding:6px}.tut2-card b{font-size:10px}}
 
 
 /* 0.7.1: Shiranui leader skin */
@@ -963,7 +959,7 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.19.2",
+  version:"0.20.1",
   label:"チュートリアル導線復活"
 });
 </script>
@@ -1047,24 +1043,32 @@ window.LUNA_ALTER_APP_META = Object.freeze({
 </nav>
     </section>
 
-    <section id="tutorialScreen" class="screen">
-      <div class="page-title"><div><div class="eyebrow">TUTORIAL</div><h1>チュートリアル</h1></div></div>
-      <div id="tutorialSelect" class="tutorial-select">
-        <button class="tutorial-course" data-course="basic"><b>基本ルール</b><span>勝利条件・エナジー・手札・セットアップ・共有枠を覚える</span></button>
-        <button class="tutorial-course" data-course="giovanni"><b>ジョバンニ</b><span>ドロー・手札・ナイフをつないでコンボを作る</span></button>
-        <button class="tutorial-course" data-course="kenshi"><b>マサムネ</b><span>保留とエナジーを準備し、大技につなげる</span></button>
-        <button class="tutorial-course" data-course="shiranui"><b>シラヌイ</b><span>狐火と使用枚数を操り、百鬼夜行へつなげる</span></button>
-      </div>
-      <div id="tutorialPlay" class="tutorial-play hidden">
-        <div class="tutorial-top"><button id="tutorialExit" class="btn">一覧へ</button><div><b id="tutorialCourseTitle"></b><span id="tutorialProgress"></span></div><button id="tutorialSkip" class="btn">次へ</button></div>
-        <div class="tutorial-board">
-          <div class="tutorial-enemy"><span>CPU</span><strong id="tutorialEnemyHp">100 HP</strong></div>
-          <div id="tutorialShared" class="tutorial-shared"><div class="slot"></div><div class="slot"></div><div class="slot"></div></div>
-          <div id="tutorialMessage" class="tutorial-message"></div>
-          <div class="tutorial-status"><strong id="tutorialEnergy">⚡ 1 / 1</strong><span id="tutorialHint"></span></div>
-          <div id="tutorialHand" class="tutorial-hand"></div>
-          <button id="tutorialAction" class="btn gold tutorial-action">やってみる</button>
+    <section id="tutorialScreen" class="screen la-tutorial-v2">
+      <div id="tutorialSelect" class="tut2-select">
+        <div class="tut2-head"><button id="tutorialHome" class="tut2-back" type="button">‹ ホーム</button><div><small>LEARN LUNA ALTER</small><h1>チュートリアル</h1><p>まず基本。慣れたら各リーダーの勝ち筋へ。</p></div></div>
+        <div class="tut2-courses">
+          <button class="tut2-course tut2-basic" data-course="basic"><span class="tut2-no">01</span><div><b>はじめての対戦</b><p>勝利条件・エナジー・カード使用・セットアップ・ブロック・捨て札と廃棄</p></div><i>基本</i></button>
+          <button class="tut2-course" data-course="giovanni"><span class="tut2-no">02</span><div><b>ジョバンニ</b><p>ドローと0コストのナイフで、手札を回して攻める</p></div><i>手札</i></button>
+          <button class="tut2-course" data-course="kenshi"><span class="tut2-no">03</span><div><b>マサムネ</b><p>保留と最大エナジーを育て、大技のターンを作る</p></div><i>準備</i></button>
+          <button class="tut2-course" data-course="shiranui"><span class="tut2-no">04</span><div><b>シラヌイ</b><p>狐火と使用枚数の節目をつなぎ、百鬼夜行へ</p></div><i>連鎖</i></button>
         </div>
+      </div>
+      <div id="tutorialPlay" class="tut2-play hidden">
+        <header class="tut2-bar"><button id="tutorialExit" type="button">‹ 一覧</button><div><b id="tutorialCourseTitle"></b><span id="tutorialProgress"></span></div><button id="tutorialSkip" type="button">次へ ›</button></header>
+        <main class="tut2-stage">
+          <section class="tut2-lesson">
+            <div id="tutorialKicker" class="tut2-kicker"></div><h2 id="tutorialLessonTitle"></h2><div id="tutorialMessage" class="tut2-copy"></div>
+            <div id="tutorialTip" class="tut2-tip"></div>
+            <button id="tutorialAction" class="tut2-next" type="button">次へ</button>
+          </section>
+          <section class="tut2-demo">
+            <div class="tut2-demo-top"><div class="tut2-stat"><small>相手HP</small><strong id="tutorialEnemyHp">100</strong></div><div class="tut2-stat"><small>エナジー</small><strong id="tutorialEnergy">1 / 1</strong></div><div class="tut2-stat"><small>使用枚数</small><strong id="tutorialPlayCount">0</strong></div></div>
+            <div id="tutorialDiagram" class="tut2-diagram"></div>
+            <div id="tutorialShared" class="tut2-shared"></div>
+            <div id="tutorialHand" class="tut2-hand"></div>
+          </section>
+        </main>
+        <div class="tut2-progress"><span id="tutorialProgressBar"></span></div>
       </div>
     </section>
 
@@ -4228,39 +4232,46 @@ body.la-battle-subview .topbar{display:none!important}
 </style>
 <script>
 
-/* ===== v58: interactive tutorials ===== */
+/* ===== 0.20.0: tutorial rebuilt from zero ===== */
 const TUTORIALS={
- basic:{title:'基本ルール',steps:[
-  {msg:'ルナオルタは、相手の<strong>HPを100から0</strong>にすれば勝利です。まずは《ストライク》を使ってみましょう。',cards:['strike'],focus:0,energy:'⚡ 1 / 1',action:'《ストライク》を使う',damage:6},
-  {msg:'カードには<strong>コスト</strong>があります。使うとエナジーを消費します。最大エナジーはターンが進むと増えていきます。',cards:['guard','strike'],focus:0,energy:'⚡ 2 / 2',action:'《防御》を使う'},
-  {msg:'セットアップは場に残って効果を発揮します。共有枠は<strong>3枠</strong>。4枚目を置くと、一番古いカードが押し出されます。',cards:['j2'],focus:0,energy:'⚡ 3 / 3',action:'共有枠に置く',setup:'j2'},
-  {msg:'自分だけが使える<strong>独自枠</strong>も1つあります。重要なセットアップを守る選択肢になります。',cards:['j15'],focus:0,energy:'⚡ 4 / 4',action:'独自枠を確認'},
-  {msg:'捨て札は再び山札へ戻ることがありますが、<strong>廃棄</strong>されたカードは通常その対戦では戻りません。保留されたカードはターン終了時にも手札に残ります。',cards:['knife'],focus:0,energy:'⚡ 4 / 4',action:'理解した！'}]},
+ basic:{title:'はじめての対戦',steps:[
+  {k:'GOAL',t:'相手のHPを0にする',m:'お互いのHPは<strong>100</strong>から開始。カードを使って相手のHPを0にしたプレイヤーの勝ちです。',tip:'まず覚える数字はHPとエナジー。この2つは対戦画面の左側にまとまっています。',e:'1 / 1',pc:0,v:'hp'},
+  {k:'TURN',t:'5枚引いて、エナジーを使う',m:'ターン開始時に通常<strong>5枚ドロー</strong>。カード左上のコスト分だけエナジーを支払って使用します。最大エナジーはターン進行で増えていきます。',tip:'使い切れなかったエナジーは基本的に次のターンへ持ち越しません。',e:'2 / 2',pc:0,v:'draw',cards:['strike','guard']},
+  {k:'PLAY',t:'カードは上へスワイプ',m:'手札のカードを<strong>上方向へスワイプ</strong>して使用します。アタックはダメージ、スキルはその場で効果を処理します。',tip:'カードの形も種類ごとに違います。効果文とコストを見て、使う順番を考えます。',e:'2 / 2',pc:1,v:'play',cards:['strike','guard'],focus:0,hp:94},
+  {k:'SETUP',t:'セットアップは盤面に残る',m:'セットアップは使い切りではなく<strong>場に残るカード</strong>。共有枠は3つで、4枚目が置かれると一番古いセットアップが押し出されます。',tip:'共有枠は相手と取り合う場所。強いセットアップを置くほど、相手にも押し出す理由が生まれます。',e:'3 / 3',pc:1,v:'shared',cards:['j2'],setup:'j2'},
+  {k:'PERSONAL',t:'独自枠は右側へ',m:'各プレイヤーには<strong>独自セットアップ枠が1つ</strong>あります。セットアップを右側の設置エリアへスワイプすると独自枠へ置けます。',tip:'共有枠に置くか、独自枠で守るか。セットアップの置き場所も判断のひとつです。',e:'3 / 3',pc:1,v:'personal',cards:['j15']},
+  {k:'BLOCK',t:'ブロックはダメージを受け止める',m:'🛡で表示される<strong>ブロック</strong>は、次に受けるダメージを先に吸収します。ブロックを持つセットアップでは残量も盤面に表示されます。',tip:'HPとは別の防御値です。残りブロックを見て、攻撃を通すタイミングを考えます。',e:'4 / 4',pc:2,v:'block'},
+  {k:'PILES',t:'捨て札と廃棄札は別物',m:'使ったカードの多くは<strong>捨て札</strong>へ。山札がなくなると再利用されます。一方、<strong>廃棄札</strong>は通常その対戦中は戻りません。',tip:'自分の山札・捨て札・廃棄札は対戦中に参照できます。',e:'4 / 4',pc:2,v:'piles'},
+  {k:'READY',t:'これで対戦できます',m:'HP、エナジー、手札、共有3枠、独自1枠、捨て札と廃棄。この骨格が分かれば実戦へ進めます。',tip:'次は使いたいリーダーのチュートリアルで、そのキャラクター特有の勝ち筋を確認しましょう。',e:'5 / 5',pc:0,v:'ready'}]},
  giovanni:{title:'ジョバンニ',steps:[
-  {msg:'ジョバンニは<strong>手札を回すほど選択肢が増える</strong>キャラクター。《食事の用意》で一気にカードを引きます。',cards:['j8','strike'],focus:0,energy:'⚡ 3 / 3',action:'《食事の用意》を使う'},
-  {msg:'《ナイフ》は<strong>0コスト</strong>。使った後は廃棄されます。ドローで増えた手札からテンポよく攻撃できます。',cards:['knife','knife','j5'],focus:0,energy:'⚡ 2 / 3',action:'《ナイフ》を使う',damage:3},
-  {msg:'《バナナ！バナナ！バナナ！》のようなセットアップは、ドローそのものを利益に変えます。共有枠に置けば相手に押し出される危険もあります。',cards:['j2'],focus:0,energy:'⚡ 3 / 4',action:'セットアップする',setup:'j2'},
-  {msg:'ジョバンニは<strong>ドロー・0コスト・手札枚数</strong>をつないで大きなターンを作るのが得意。何を引くかだけでなく、何枚まで手札を増やすかも考えましょう。',cards:['j4','knife','j12'],focus:0,energy:'⚡ 5 / 5',action:'コンボの形を確認'}]},
+  {k:'GIOVANNI',t:'手札を回して選択肢を増やす',m:'ジョバンニの中心は<strong>ドロー・0コスト・手札枚数</strong>。一枚の大技より、手札を回して有利な順番を組み立てます。',tip:'引くこと自体が目的ではなく、増えた手札をどう利益へ変えるかが大事。',e:'3 / 3',pc:0,v:'gio',cards:['j8','knife']},
+  {k:'DRAW',t:'《食事の用意》で手札を整える',m:'《食事の用意》のようなドロー札で選択肢を増やします。手札上限や、その後に使いたいカードまで考えて引きます。',tip:'ジョバンニは「先に何を使うか」で同じ手札でも結果が大きく変わります。',e:'2 / 3',pc:1,v:'draw',cards:['j8','strike','knife'],focus:0},
+  {k:'KNIFE',t:'0コストの《ナイフ》をつなぐ',m:'《ナイフ》は<strong>0コスト</strong>で攻撃でき、使用後は廃棄。エナジーを残したままプレイ枚数とダメージを伸ばせます。',tip:'ナイフを強化するカードと組み合わせると、0コスト軸が一気に攻撃手段になります。',e:'2 / 3',pc:3,v:'knife',cards:['knife','knife','j5'],focus:0,hp:97},
+  {k:'ENGINE',t:'セットアップでドローを利益に',m:'ドローや0コストに反応するセットアップを置けば、手札を回す行為そのものがエンジンになります。',tip:'共有枠に置いた重要カードは相手に押し出される可能性も忘れずに。',e:'3 / 4',pc:4,v:'shared',cards:['j2'],setup:'j2'},
+  {k:'PLAN',t:'大きな手札から一気に使う',m:'十分に手札を作ったら、0コストや手札枚数条件をまとめて利用します。<strong>回すターンと攻め切るターン</strong>を意識しましょう。',tip:'ジョバンニは「手札が多い＝勝ち」ではなく、その手札を使い切る設計が勝ち筋です。',e:'5 / 5',pc:7,v:'ready',cards:['j4','knife','j12']}]},
  kenshi:{title:'マサムネ',steps:[
-  {msg:'マサムネは、今すぐ全部使うより<strong>未来の一撃を準備する</strong>キャラクター。《静謐の鞘》で手札を保留できます。',cards:['k9','k23'],focus:0,energy:'⚡ 3 / 3',action:'《静謐の鞘》を置く',setup:'k9'},
-  {msg:'保留されたカードはターン終了時に捨てられません。《一念の太刀》は保留されるたびに威力が上がります。',cards:['k23'],focus:0,energy:'⚡ 4 / 4',action:'《一念の太刀》を保留'},
-  {msg:'《気炎万丈》は場にある間、<strong>最大エナジーを+1</strong>。6コストの大技へ届くための重要な準備です。',cards:['k5','kt2'],focus:0,energy:'⚡ 4 / 5',action:'《気炎万丈》を置く',setup:'k5'},
-  {msg:'準備が整えば《魂の一閃》のような大技へ。マサムネは<strong>保留・強化・エナジー管理</strong>で勝負どころを作ります。',cards:['kt2'],focus:0,energy:'⚡ 6 / 6',action:'《魂の一閃》！',damage:50}]},
+  {k:'MASAMUNE',t:'今ではなく、次の大技を作る',m:'マサムネは<strong>保留・成長・最大エナジー</strong>で未来のターンを準備するリーダーです。',tip:'毎ターン最大効率で使い切るより、強いカードを残す判断が重要になります。',e:'3 / 3',pc:0,v:'ken',cards:['k9','k23']},
+  {k:'RETAIN',t:'《静謐の鞘》で保留する',m:'保留されたカードはターン終了時の通常の手札整理で捨てられず、次のターンへ持ち越せます。',tip:'保留は「次のターン開始時まで」。次のターンに使わなければ通常どおり捨てられます。',e:'3 / 3',pc:1,v:'shared',cards:['k9','k23'],setup:'k9'},
+  {k:'GROW',t:'《一念の太刀》を育てる',m:'《一念の太刀》のように、保留されることで価値が上がるカードがあります。すぐ撃つか、さらに育てるかを選びます。',tip:'育てたカードを抱えるほど強力ですが、その間は手札の一枠も使い続けます。',e:'4 / 4',pc:1,v:'grow',cards:['k23'],focus:0},
+  {k:'ENERGY',t:'《気炎万丈》で6コストへ',m:'《気炎万丈》は場にある間、<strong>最大エナジー+1</strong>。通常の上限を越え、大技へ届くためのセットアップです。',tip:'強力なぶん盤面の一枠を使います。共有枠なら相手に押し出される可能性もあります。',e:'5 / 6',pc:2,v:'shared',cards:['k5','kt2'],setup:'k5'},
+  {k:'FINISH',t:'準備したターンで大技を通す',m:'6エナジーや育った保留札が揃ったら勝負どころ。準備に使ったターンを<strong>大きな一撃</strong>へ変換します。',tip:'マサムネは「いつ準備を終えて攻めるか」の判断が核心です。',e:'6 / 6',pc:2,v:'finish',cards:['kt2'],focus:0,hp:50}]},
  shiranui:{title:'シラヌイ',steps:[
-  {msg:'シラヌイは<strong>1ターンに使ったカード枚数</strong>が重要。《葬送歌》は3枚目に使うと《狐火》を生みます。',cards:['strike','sf','s25'],focus:2,energy:'⚡ 2 / 3',action:'3枚目に《葬送歌》',spawn:'sf'},
-  {msg:'《狐火》は0コストで1枚ドローし、使用後に廃棄。連鎖を伸ばす燃料です。',cards:['sf','s24'],focus:0,energy:'⚡ 2 / 3',action:'《狐火》を使う'},
-  {msg:'《灯火》などのセットアップは、使用枚数の節目でさらに狐火を供給します。盤面に仕込んでから連鎖を始めましょう。',cards:['s24','s26'],focus:0,energy:'⚡ 3 / 4',action:'《灯火》を置く',setup:'s24'},
-  {msg:'《夜行絵巻》は《百鬼夜行》を強化します。7枚使用でXが成長するので、相手から見ても放置できない盤面になります。',cards:['s26'],focus:0,energy:'⚡ 3 / 5',action:'《夜行絵巻》を置く',setup:'s26'},
-  {msg:'使用枚数を重ねると《百鬼夜行》へ到達。シラヌイは<strong>狐火・使用順・盤面の仕込み</strong>を組み合わせてフィニッシュを狙います。',cards:['s2'],focus:0,energy:'⚡ 0 / 5',action:'《百鬼夜行》！',damage:36}]}
+  {k:'SHIRANUI',t:'1ターンの使用枚数を伸ばす',m:'シラヌイは<strong>そのターンに何枚カードを使ったか</strong>で効果が連鎖します。0コストの《狐火》が連鎖の燃料です。',tip:'3枚目、5枚目、7枚目、9枚目といった節目を意識して順番を組みます。',e:'3 / 3',pc:0,v:'shira',cards:['sf','s25']},
+  {k:'THREE',t:'3枚目に《葬送歌》',m:'《葬送歌》は<strong>このターン3枚目</strong>に使うと《狐火》を手札へ加えます。条件を満たす順番で使うことが重要です。',tip:'同じカードでも何枚目に使うかで価値が変わるのがシラヌイです。',e:'2 / 3',pc:3,v:'count',cards:['strike','sf','s25'],focus:2},
+  {k:'FOX FIRE',t:'《狐火》で連鎖を延長',m:'《狐火》は<strong>0コスト・1ドロー・使用後廃棄</strong>。エナジーを使わず次のカードへつなげます。',tip:'狐火をいつ使うかで、その後の5枚目・7枚目への到達が変わります。',e:'2 / 3',pc:4,v:'knife',cards:['sf','s24'],focus:0},
+  {k:'FIVE',t:'《灯火》を仕込んでおく',m:'《灯火》などのセットアップは使用枚数の節目で狐火を供給します。連鎖を始める前に盤面へ準備します。',tip:'シラヌイは手札だけでなく、セットアップを含めて一つの連鎖を設計します。',e:'3 / 4',pc:5,v:'shared',cards:['s24'],setup:'s24'},
+  {k:'SEVEN',t:'《夜行絵巻》を成長させる',m:'《夜行絵巻》は<strong>7枚目</strong>の使用でXが成長し、《百鬼夜行》の攻撃回数を増やします。',tip:'育った夜行絵巻は相手から見ても危険。共有枠なら押し出し合いが起こります。',e:'3 / 5',pc:7,v:'shared',cards:['s26'],setup:'s26'},
+  {k:'NINE',t:'9枚使って《百鬼夜行》へ',m:'条件を満たして9枚目まで使うと《百鬼夜行》が手札へ。そこから<strong>10枚目としてフィニッシャー</strong>を叩き込みます。',tip:'百鬼夜行は9ダメージを4回。夜行絵巻があれば攻撃回数がさらに増えます。',e:'0 / 5',pc:9,v:'finish',cards:['s2'],focus:0,hp:64}]}
 };
 let tutorialState={course:null,index:0,shared:[]};
-function showTutorialSelect(){$('tutorialSelect').classList.remove('hidden');$('tutorialPlay').classList.add('hidden');tutorialState={course:null,index:0,shared:[]}}
-function tutorialCard(id,focus){const base=DEF[id]||CARD_DEFS.find(c=>c.id===id)||{id,name:id,type:'skill',cost:0,text:''};const c={...base};return `<div class="card ${c.type}${focus?' focus':''}"><div class="head"><div><div class="cname">${escapeHtml(c.name)}</div><div class="type">${typeLabel(c.type)}</div></div><div class="cost">${c.cost}</div></div><div class="text">${escapeHtml(cardText(c))}</div></div>`}
-function renderTutorial(){const t=TUTORIALS[tutorialState.course],st=t.steps[tutorialState.index];if(!t||!st)return;$('tutorialCourseTitle').textContent=t.title;$('tutorialProgress').textContent=`${tutorialState.index+1} / ${t.steps.length}`;$('tutorialMessage').innerHTML=st.msg;$('tutorialEnergy').textContent=st.energy||'⚡';$('tutorialHint').textContent=tutorialState.course==='basic'?'操作しながら基本を覚えよう':'キャラクターの得意な流れを体験しよう';$('tutorialHand').innerHTML=(st.cards||[]).map((id,i)=>tutorialCard(id,i===st.focus)).join('');$('tutorialAction').textContent=st.action||'次へ';$('tutorialEnemyHp').textContent=`${tutorialState.enemyHp??100} HP`;$('tutorialShared').innerHTML=[0,1,2].map(i=>{const id=tutorialState.shared[i];if(!id)return'<div class="slot"></div>';const c=DEF[id]||CARD_DEFS.find(x=>x.id===id);return `<div class="slot occupied"><b>${escapeHtml(c?.name||id)}</b><span>${escapeHtml(cardText({...c}))}</span></div>`}).join('')}
-function startTutorial(course){tutorialState={course,index:0,shared:[],enemyHp:100};$('tutorialSelect').classList.add('hidden');$('tutorialPlay').classList.remove('hidden');renderTutorial()}
-function tutorialAdvance(){const t=TUTORIALS[tutorialState.course],st=t.steps[tutorialState.index];if(st.damage){tutorialState.enemyHp=Math.max(0,tutorialState.enemyHp-st.damage);const f=document.createElement('div');f.className='tutorial-float';f.textContent=`-${st.damage}`;$('tutorialPlay').querySelector('.tutorial-board').appendChild(f);setTimeout(()=>f.remove(),900)}if(st.setup){tutorialState.shared.push(st.setup);if(tutorialState.shared.length>3)tutorialState.shared.shift()}if(st.spawn){const f=document.createElement('div');f.className='tutorial-float';f.textContent='狐火 +1';$('tutorialPlay').querySelector('.tutorial-board').appendChild(f);setTimeout(()=>f.remove(),900)}setTimeout(()=>{tutorialState.index++;if(tutorialState.index>=t.steps.length){$('tutorialMessage').innerHTML=`<strong>${t.title}チュートリアル完了！</strong><br>ここまで分かれば、あとは実戦で試してみましょう。いつでもこのチュートリアルに戻れます。`;$('tutorialHand').innerHTML='';$('tutorialAction').textContent='一覧へ戻る';$('tutorialAction').onclick=showTutorialSelect;$('tutorialProgress').textContent='COMPLETE';return}renderTutorial()},st.damage||st.spawn?450:120)}
-document.querySelectorAll('.tutorial-course').forEach(b=>b.onclick=()=>{startTutorial(b.dataset.course);$('tutorialAction').onclick=tutorialAdvance});$('tutorialExit').onclick=showTutorialSelect;$('tutorialSkip').onclick=()=>tutorialAdvance();
-
+function tutDef(id){return (window.DEF&&DEF[id])||(window.CARD_DEFS&&CARD_DEFS.find(c=>c.id===id))||{id,name:id,type:'skill',cost:0,text:''}}
+function tutCard(id,focus){const c=tutDef(id);return `<div class="tut2-card ${c.type||'skill'}${focus?' focus':''}"><b>${escapeHtml(c.name||id)}</b><small>${escapeHtml(typeof cardText==='function'?cardText({...c}):(c.text||''))}</small><em>${c.cost??0}</em></div>`}
+function tutVisual(kind){const V={hp:'<div class="tut2-visual"><div class="tut2-visual-row"><div class="tut2-box hot">自分 HP 100</div><span class="tut2-arrow">VS</span><div class="tut2-box hot">相手 HP 100</div></div></div>',draw:'<div class="tut2-visual"><div class="tut2-visual-row"><div class="tut2-box">山札</div><span class="tut2-arrow">→ 5枚 →</span><div class="tut2-box hot">手札</div></div></div>',play:'<div class="tut2-visual"><div class="tut2-visual-row"><div class="tut2-box">手札</div><span class="tut2-arrow">↑ スワイプ</span><div class="tut2-box hot">使用</div></div></div>',shared:'<div class="tut2-visual"><div class="tut2-visual-row"><div class="tut2-box hot">共有①</div><div class="tut2-box hot">共有②</div><div class="tut2-box hot">共有③</div></div><small>4枚目 → 一番古いセットアップを押し出す</small></div>',personal:'<div class="tut2-visual"><div class="tut2-visual-row"><div class="tut2-box">共有枠</div><span class="tut2-arrow">←</span><div class="tut2-box">SETUP</div><span class="tut2-arrow">→</span><div class="tut2-box hot">独自枠</div></div></div>',block:'<div class="tut2-visual"><div class="tut2-visual-row"><div class="tut2-box hot">🛡 20</div><span class="tut2-arrow">→</span><div class="tut2-box">被ダメージを先に吸収</div></div></div>',piles:'<div class="tut2-visual"><div class="tut2-visual-row"><div class="tut2-box">山札</div><div class="tut2-box">捨て札 ↺</div><div class="tut2-box hot">廃棄札 ✕</div></div></div>',count:'<div class="tut2-visual"><div class="tut2-visual-row"><div class="tut2-box">1枚目</div><div class="tut2-box">2枚目</div><div class="tut2-box hot">3枚目</div></div></div>',grow:'<div class="tut2-visual"><div class="tut2-visual-row"><div class="tut2-box">保留</div><span class="tut2-arrow">→</span><div class="tut2-box hot">一念の太刀 ↑</div></div></div>',finish:'<div class="tut2-visual"><div class="tut2-visual-row"><div class="tut2-box">準備</div><span class="tut2-arrow">→</span><div class="tut2-box hot">FINISH</div></div></div>',ready:'<div class="tut2-visual"><div class="tut2-visual-row"><div class="tut2-box hot">READY</div></div></div>',gio:'<div class="tut2-visual"><div class="tut2-visual-row"><div class="tut2-box">DRAW</div><span class="tut2-arrow">→</span><div class="tut2-box hot">0 COST</div><span class="tut2-arrow">→</span><div class="tut2-box">COMBO</div></div></div>',ken:'<div class="tut2-visual"><div class="tut2-visual-row"><div class="tut2-box">保留</div><span class="tut2-arrow">＋</span><div class="tut2-box">ENERGY</div><span class="tut2-arrow">→</span><div class="tut2-box hot">大技</div></div></div>',shira:'<div class="tut2-visual"><div class="tut2-visual-row"><div class="tut2-box">狐火</div><span class="tut2-arrow">→</span><div class="tut2-box hot">3・5・7・9</div><span class="tut2-arrow">→</span><div class="tut2-box">百鬼夜行</div></div></div>',knife:'<div class="tut2-visual"><div class="tut2-visual-row"><div class="tut2-box hot">0 COST</div><span class="tut2-arrow">→</span><div class="tut2-box">次のカード</div></div></div>'};return V[kind]||V.ready}
+function showTutorialSelect(){document.getElementById('tutorialSelect').classList.remove('hidden');document.getElementById('tutorialPlay').classList.add('hidden');tutorialState={course:null,index:0,shared:[]}}
+function renderTutorial(){const t=TUTORIALS[tutorialState.course],st=t&&t.steps[tutorialState.index];if(!st)return;const n=t.steps.length;document.getElementById('tutorialCourseTitle').textContent=t.title;document.getElementById('tutorialProgress').textContent=`${tutorialState.index+1} / ${n}`;document.getElementById('tutorialKicker').textContent=st.k;document.getElementById('tutorialLessonTitle').textContent=st.t;document.getElementById('tutorialMessage').innerHTML=st.m;document.getElementById('tutorialTip').textContent=st.tip||'';document.getElementById('tutorialEnergy').textContent=st.e||'—';document.getElementById('tutorialPlayCount').textContent=st.pc??0;document.getElementById('tutorialEnemyHp').textContent=st.hp??100;document.getElementById('tutorialDiagram').innerHTML=tutVisual(st.v);document.getElementById('tutorialHand').innerHTML=(st.cards||[]).map((id,i)=>tutCard(id,i===st.focus)).join('');if(st.setup&&!tutorialState.shared.includes(st.setup))tutorialState.shared.push(st.setup);document.getElementById('tutorialShared').innerHTML=[0,1,2].map(i=>{const id=tutorialState.shared[i];return id?`<div class="tut2-slot filled">${escapeHtml(tutDef(id).name||id)}</div>`:'<div class="tut2-slot">共有セットアップ</div>'}).join('');document.getElementById('tutorialProgressBar').style.width=`${((tutorialState.index+1)/n)*100}%`;document.getElementById('tutorialAction').textContent=tutorialState.index===n-1?'完了':'次へ'}
+function startTutorial(course){tutorialState={course,index:0,shared:[]};document.getElementById('tutorialSelect').classList.add('hidden');document.getElementById('tutorialPlay').classList.remove('hidden');renderTutorial()}
+function tutorialAdvance(){const t=TUTORIALS[tutorialState.course];if(!t)return;if(tutorialState.index>=t.steps.length-1){showTutorialSelect();return}tutorialState.index++;renderTutorial()}
+document.querySelectorAll('.tut2-course').forEach(b=>b.addEventListener('click',()=>startTutorial(b.dataset.course)));document.getElementById('tutorialExit').addEventListener('click',showTutorialSelect);document.getElementById('tutorialSkip').addEventListener('click',tutorialAdvance);document.getElementById('tutorialAction').addEventListener('click',tutorialAdvance);document.getElementById('tutorialHome').addEventListener('click',()=>showScreen('home'));
 </script>
 <!-- v57: normal played-card reveal shortened from 1.5s to 0.7s -->
 
@@ -5245,7 +5256,7 @@ body.deck-view #deckScreen{height:100vh!important;padding:8px 18px 72px!importan
 })();
 </script>
 
-<!-- LUNA ALTER 0.19.2: tutorial entry restored -->
+<!-- LUNA ALTER 0.20.1: arched leader frame -->
 </body>
 </html>
 
@@ -5322,3 +5333,65 @@ body.deck-view #deckScreen{height:100vh!important;padding:8px 18px 72px!importan
   }
 })();
 </script>
+<style id="la-leader-arch-frame-0201">
+/* 0.20.1 — leader skin: arched portrait frame + directly attached HP bar. */
+#battleScreen .leader-unit.self,
+#battleScreen .leader-unit.opponent{
+  --leader-metal:#b78b32;
+  --leader-metal-hi:#f2d889;
+  --leader-metal-dark:#4e3612;
+}
+#battleScreen .leader-unit.self .leader-nameplate,
+#battleScreen .leader-unit.opponent .leader-nameplate{display:none!important}
+#battleScreen .leader-unit.self .leader-portrait,
+#battleScreen .leader-unit.opponent .leader-portrait{
+  position:relative!important;
+  box-sizing:border-box!important;
+  overflow:hidden!important;
+  border:3px solid var(--leader-metal)!important;
+  border-top:4px solid var(--leader-metal-hi)!important;
+  border-radius:50% 50% 13px 13px / 28% 28% 13px 13px!important;
+  background:#17140f!important;
+  box-shadow:
+    inset 0 0 0 2px rgba(38,25,7,.92),
+    inset 0 0 0 4px rgba(242,216,137,.18),
+    0 5px 12px rgba(0,0,0,.28)!important;
+}
+#battleScreen .leader-unit.self .leader-portrait::before,
+#battleScreen .leader-unit.opponent .leader-portrait::before{
+  content:"";position:absolute;z-index:8;pointer-events:none;
+  left:50%;top:-5px;width:14px;height:14px;transform:translateX(-50%) rotate(45deg);
+  background:linear-gradient(135deg,var(--leader-metal-hi),var(--leader-metal));
+  border:2px solid var(--leader-metal-dark);box-shadow:0 0 0 1px rgba(255,236,172,.55)
+}
+#battleScreen .leader-unit.self .leader-portrait::after,
+#battleScreen .leader-unit.opponent .leader-portrait::after{
+  content:"";position:absolute;inset:5px;z-index:7;pointer-events:none;
+  border:1px solid rgba(255,232,165,.48);
+  border-radius:50% 50% 9px 9px / 27% 27% 9px 9px;
+}
+#battleScreen .leader-unit.self .hpbar,
+#battleScreen .leader-unit.opponent .hpbar{
+  display:block!important;position:relative!important;box-sizing:border-box!important;
+  width:100%!important;height:22px!important;margin:-2px 0 0!important;
+  border:3px solid var(--leader-metal)!important;border-top-width:2px!important;
+  border-radius:0 0 10px 10px!important;overflow:hidden!important;
+  background:#211a12!important;box-shadow:inset 0 0 0 2px rgba(53,34,8,.9),0 4px 8px rgba(0,0,0,.22)!important;
+  z-index:20!important;
+}
+#battleScreen .leader-unit.self .hpbar-fill,
+#battleScreen .leader-unit.opponent .hpbar-fill{
+  height:100%!important;background:linear-gradient(180deg,#ef5a58,#b82029)!important;
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.28)!important;
+}
+/* Exact HP number already lives in the left numeric rail; the skin carries the health gauge. */
+#battleScreen .leader-unit.self .hpbar-text,
+#battleScreen .leader-unit.opponent .hpbar-text{display:none!important}
+/* Current independent-setup positions are intentionally unchanged. */
+#battleScreen .la-center-rail>.leader-unit.self{
+  height:202px!important;grid-template-rows:180px 22px!important;
+}
+#battleScreen .la-center-rail>.leader-unit.self .leader-portrait{height:180px!important}
+/* Opponent keeps its existing placement while sharing the same frame language. */
+#battleScreen .leader-unit.opponent{grid-template-rows:1fr 22px!important}
+</style>
