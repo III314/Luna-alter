@@ -959,7 +959,7 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.20.6",
+  version:"0.20.7",
   label:"バトルUI統合・操作修復"
 });
 </script>
@@ -1726,7 +1726,7 @@ function renderBattleView(){const v=currentView;if(!v)return;const me=v.me,op=v.
  $('oppHandBacks').innerHTML=Array.from({length:op.handCount},()=>'<i class="card-back"></i>').join('');$('myPersonal').innerHTML=setupSlot(me.personal?{owner:me.pid,card:me.personal}:null,me.pid);$('oppPersonal').innerHTML=setupSlot(op.personal?{owner:op.pid,card:op.personal}:null,me.pid);$('sharedZone').innerHTML=[0,1,2].map(i=>setupSlot(v.shared[i],me.pid)).join('');bindSetupDetailClicks();
  $('turnLabel').textContent=v.over?'対戦終了':`${v.current===me.pid?'あなた':op.name}のターン / 最大コスト ${v.current===me.pid?me.maxEnergy:op.maxEnergy}`;$('winner').textContent=v.over?(v.winner===me.pid?'あなたの勝利！':`${op.name}の勝利`):'';$('battleNotice').className=networkPaused&&!v.over?'notice bad':'notice';$('battleNotice').textContent=v.over?'対戦終了。ホームから次の対戦を選べます。':networkPaused?'通信が切れました。再接続中…（対戦は一時停止しています）':v.pending?'カードを選択してください。':myTurn?'あなたのターンです。':`${op.name}が考えています…`;
  $('movePersonal').disabled=!myTurn||!me.personal;$('endTurn').disabled=!myTurn;$('keepHint').textContent=activeViewHasSetup(v,me.pid,'j15')?'《お取り置き》有効：保持カードを選択可':'';
- const hand=$('myHand');hand.innerHTML='';me.hand.forEach(c=>{const playable=myTurn&&canPlayView(v,c),d=document.createElement('div');d.className=`card ${c.type} ${playable?'':'disabled'} ${me.keepUid===c.uid?'keep':''} ${(c.retain||activeViewHasSetup(v,me.pid,'k9'))?'retain':''}`;d.innerHTML=`<div class="head"><div><div class="cname">${c.name}</div><div class="type">${typeLabel(c.type)}</div></div><div class="cost">${viewCost(v,c)}</div></div><div class="text">${cardText(c,me.turnSkillDraws)}</div><div class="card-actions"></div>`;const actions=d.querySelector('.card-actions');if(c.type==='setup'){for(const [label,dest] of [['共有に置く','shared'],['独自枠に置く','personal']]){const b=document.createElement('button');b.textContent=label;b.disabled=!playable||(dest==='personal'&&!!me.personal);b.onclick=()=>dispatchAction({type:'play',uid:c.uid,dest});actions.appendChild(b)}}else{const b=document.createElement('button');b.textContent='使用';b.disabled=!playable;b.onclick=()=>dispatchAction({type:'play',uid:c.uid});actions.appendChild(b)}if(activeViewHasSetup(v,me.pid,'j15')&&v.current===me.pid){const b=document.createElement('button');b.textContent=me.keepUid===c.uid?'保持解除':'次ターンに保持';b.onclick=()=>dispatchAction({type:'keep',uid:c.uid});actions.appendChild(b)}d.addEventListener('click',e=>{if(e.target.closest('button'))return;const was=d.classList.contains('expanded');collapseHandSelection();if(!was)d.classList.add('expanded')});hand.appendChild(d)});
+ const hand=$('myHand');hand.innerHTML='';me.hand.forEach(c=>{const playable=myTurn&&canPlayView(v,c),d=document.createElement('div');d.className=`card ${c.type} ${playable?'':'disabled'} ${me.keepUid===c.uid?'keep':''} ${(c.retain||activeViewHasSetup(v,me.pid,'k9'))?'retain':''}`;d.dataset.uid=String(c.uid);d.innerHTML=`<div class="head"><div><div class="cname">${c.name}</div><div class="type">${typeLabel(c.type)}</div></div><div class="cost">${viewCost(v,c)}</div></div><div class="text">${cardText(c,me.turnSkillDraws)}</div><div class="card-actions"></div>`;const actions=d.querySelector('.card-actions');if(c.type==='setup'){for(const [label,dest] of [['共有に置く','shared'],['独自枠に置く','personal']]){const b=document.createElement('button');b.textContent=label;b.disabled=!playable||(dest==='personal'&&!!me.personal);b.onclick=()=>dispatchAction({type:'play',uid:c.uid,dest});actions.appendChild(b)}}else{const b=document.createElement('button');b.textContent='使用';b.disabled=!playable;b.onclick=()=>dispatchAction({type:'play',uid:c.uid});actions.appendChild(b)}if(activeViewHasSetup(v,me.pid,'j15')&&v.current===me.pid){const b=document.createElement('button');b.textContent=me.keepUid===c.uid?'保持解除':'次ターンに保持';b.onclick=()=>dispatchAction({type:'keep',uid:c.uid});actions.appendChild(b)}d.addEventListener('click',e=>{if(e.target.closest('button'))return;const was=d.classList.contains('expanded');collapseHandSelection();if(!was)d.classList.add('expanded')});hand.appendChild(d)});
  requestAnimationFrame(layoutHandFan);
  const log=$('log');log.innerHTML=v.log.map(x=>`<div>${renderLogLine(x)}</div>`).join('');log.scrollTop=log.scrollHeight;showLastPlayed(v);showDamageEvents(v);showDrawEvents(v);renderResultOverlay(v);if(v.pending)openPending(v.pending);else closePending();
 }
@@ -5337,12 +5337,12 @@ body.deck-view #deckScreen{height:100vh!important;padding:8px 18px 72px!importan
  const selfHud=ensure('laSelfData'),oppHud=ensure('laOppData');
  function pile(label,n,kind,self){return self?`<button type="button" data-own-pile="${kind}">${label}<strong>${n??0}</strong></button>`:`<span>${label}<strong>${n??0}</strong></span>`}
  function stats(p,self){return `<div class="la-stat-card ${self?'self':'opponent'}"><div class="la-stat-who">${esc(self?'自分':p?.name||'相手')}</div><div class="la-stat-primary"><div><small>HP</small><b>${Math.max(0,p?.hp??0)}</b></div><div><small>ENERGY</small><b>${p?.energy??0}/${p?.maxEnergy??0}</b></div></div><div class="la-stat-piles">${pile('山札',p?.drawCount,'draw',self)}${pile('捨て',p?.discardCount,'discard',self)}${pile('廃棄',p?.exhaustCount,'exhaust',self)}</div></div>`}
- function openPile(kind){const v=window.currentView||globalThis.currentView;if(!v)return;let src=[],title='';if(kind==='draw'){src=v.me.drawPile||[];title=`山札（${src.length}枚）`}else if(kind==='discard'){src=v.me.discard||[];title=`捨て札（${src.length}枚）`}else{src=v.me.exhaust||[];title=`廃棄札（${src.length}枚）`}const t=document.getElementById('pileTitle'),b=document.getElementById('pileBody'),m=document.getElementById('pileModal');if(!t||!b||!m)return;t.textContent=title;const groups=new Map();src.forEach(c=>{const g=groups.get(c.id)||{card:c,n:0};g.n++;groups.set(c.id,g)});b.innerHTML=[...groups.values()].map(g=>`<div class="pile-item"><div><div class="pile-name">${typeof cardNameHtml==='function'?cardNameHtml(g.card):esc(g.card.name)}</div><div class="pile-meta">${g.card.cost}コスト</div></div><div class="pile-qty">×${g.n}</div></div>`).join('')||'<div class="notice">カードはありません。</div>';m.classList.remove('hidden')}
+ function openPile(kind){const v=currentView;if(!v)return;let src=[],title='';if(kind==='draw'){src=v.me.drawPile||[];title=`山札（${src.length}枚）`}else if(kind==='discard'){src=v.me.discard||[];title=`捨て札（${src.length}枚）`}else{src=v.me.exhaust||[];title=`廃棄札（${src.length}枚）`}const t=document.getElementById('pileTitle'),b=document.getElementById('pileBody'),m=document.getElementById('pileModal');if(!t||!b||!m)return;t.textContent=title;const groups=new Map();src.forEach(c=>{const g=groups.get(c.id)||{card:c,n:0};g.n++;groups.set(c.id,g)});b.innerHTML=[...groups.values()].map(g=>`<div class="pile-item"><div><div class="pile-name">${typeof cardNameHtml==='function'?cardNameHtml(g.card):esc(g.card.name)}</div><div class="pile-meta">${g.card.cost}コスト</div></div><div class="pile-qty">×${g.n}</div></div>`).join('')||'<div class="notice">カードはありません。</div>';m.classList.remove('hidden')}
  function arrange(){
    ['myLeaderUnit','oppLeaderUnit','laDeckBox','laDiscardBox','laOppHandZone','openLog'].forEach(id=>move(document.getElementById(id)));
    move(document.querySelector('#battleScreen .center-board'));move(document.querySelector('#battleScreen .battle-controls'));move(document.querySelector('#battleScreen .hand-wrap'));move(selfHud);move(oppHud);
  }
- function sync(){const v=window.currentView||globalThis.currentView;if(!v)return;selfHud.innerHTML=stats(v.me,true);oppHud.innerHTML=stats(v.opp||v.op||{},false);const tl=document.getElementById('turnLabel');if(tl){const no=v.me?.turnNo||0;tl.innerHTML=`<b>第${no}ターン</b><small>${v.current===v.me.pid?'あなたのターン':'相手のターン'}</small>`}}
+ function sync(){const v=currentView;if(!v)return;selfHud.innerHTML=stats(v.me,true);oppHud.innerHTML=stats(v.opp||v.op||{},false);const tl=document.getElementById('turnLabel');if(tl){const no=v.me?.turnNo||0;tl.innerHTML=`<b>第${no}ターン</b><small>${v.current===v.me.pid?'あなたのターン':'相手のターン'}</small>`}}
  stage.addEventListener('click',e=>{const b=e.target.closest('[data-own-pile]');if(b)openPile(b.dataset.ownPile)});
  function refresh(){arrange();sync()}
  refresh();
@@ -5386,7 +5386,7 @@ body:has(#battleMenuScreen.active) .topbar{display:none!important}
 </style>
 
 
-<!-- LUNA ALTER 0.20.6: canonical battle input controller -->
+<!-- LUNA ALTER 0.20.7: canonical battle input controller -->
 <style id="la-battle-input-0206-style">
 /* Hidden overlays must never participate in hit testing. */
 #battleScreen .result-overlay.hidden,#battleScreen .damage-cutin.hidden,
@@ -5404,7 +5404,7 @@ body:has(#battleMenuScreen.active) .topbar{display:none!important}
   const hand=document.getElementById('myHand');
   if(!hand)return;
   let drag=null;
-  const view=()=>window.currentView||globalThis.currentView;
+  const view=()=>currentView;
   const cardFor=(el)=>{
     const v=view(); if(!v||!el)return null;
     const uid=Number(el.dataset.uid);
@@ -5467,10 +5467,10 @@ body:has(#battleMenuScreen.active) .topbar{display:none!important}
       return;
     }
     const dest=!cancel&&playable(d.c)?hit(e.clientX,e.clientY):null;
+    const upward=!cancel&&playable(d.c)&&(d.y-e.clientY>=36);
     d.el.classList.remove('la-dragging');clearUI();
-    if(!dest)return;
-    if(d.c.type==='setup')dispatchAction({type:'play',uid:d.c.uid,dest});
-    else dispatchAction({type:'play',uid:d.c.uid});
+    if(d.c.type==='setup'){if(dest==='personal'||dest==='shared')dispatchAction({type:'play',uid:d.c.uid,dest});}
+    else if(dest==='use'||upward)dispatchAction({type:'play',uid:d.c.uid});
   }
   hand.addEventListener('pointerup',e=>finish(e,false),{passive:false});
   hand.addEventListener('pointercancel',e=>finish(e,true),{passive:false});
@@ -5491,7 +5491,7 @@ body:has(#battleMenuScreen.active) .topbar{display:none!important}
 
   // Cheap runtime diagnostic for future device-specific reports.
   window.LA_BATTLE_INPUT_0206={
-    version:'0.20.6',
+    version:'0.20.7',
     audit(){const e=document.getElementById('endTurn'),h=document.getElementById('myHand');return {battleActive:document.getElementById('battleScreen')?.classList.contains('active'),endDisabled:e?.disabled,handCards:h?.querySelectorAll('.card').length||0,handPointer:getComputedStyle(h).pointerEvents,endPointer:e?getComputedStyle(e).pointerEvents:null}}
   };
 })();
