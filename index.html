@@ -959,8 +959,8 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.21.4",
-  label:"盤面・プレイ可視化・HP表示整理"
+  version:"0.21.6",
+  label:"セットアップ拡大・HP/エナジーHUD整理"
 });
 </script>
 
@@ -4768,6 +4768,29 @@ body.battle-view #battleNotice{display:none!important}
 #laSwipeHint{position:fixed;left:50%;top:8px;transform:translateX(-50%);z-index:10030;display:none;padding:8px 16px;border-radius:999px;background:rgba(0,0,0,.76);color:#fff;font-weight:900;pointer-events:none}#laSwipeHint.show{display:block}
 #laSwipeGhost{position:fixed;z-index:10025;transform:translate(-50%,-50%) scale(.72);pointer-events:none;opacity:.9}#laSwipeGhost>.card{width:174px!important;height:260px!important}
 #modal.hidden,#logModal.hidden,#setupDetailModal.hidden,#pileModal.hidden,#resultOverlay.hidden{pointer-events:none!important}
+/* 0.21.6 — larger portrait setup lanes, exact HP above bars, circular leader energy badges. */
+#battleScreen .center-board{top:118px!important;height:330px!important}
+#battleScreen .center-board>.zones{grid-template-columns:188px minmax(0,1fr) 188px!important;gap:14px!important}
+#battleScreen .center-board .setup-row{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:10px!important;height:300px!important;align-items:stretch!important}
+#battleScreen .center-board .slot{box-sizing:border-box!important;width:100%!important;height:300px!important;min-height:300px!important;padding:7px!important;border-radius:12px!important;overflow:hidden!important}
+#battleScreen .center-board #myPersonal .slot,#battleScreen .center-board #oppPersonal .slot{height:300px!important;min-height:300px!important}
+#battleScreen .center-board #myPersonal,#battleScreen .center-board #oppPersonal{height:300px!important}
+#battleScreen .center-board .slot .setup-art-bg{height:190px!important;min-height:190px!important;border-radius:8px!important;overflow:hidden!important}
+#battleScreen .center-board .slot .setup-art-bg img{width:100%!important;height:100%!important;object-fit:cover!important}
+#battleScreen .center-board .slot .setup-caption{height:92px!important;overflow:hidden!important}
+#battleScreen .center-board .slot .name{font-size:13px!important;line-height:1.1!important}
+#battleScreen .center-board .slot .owner{font-size:9px!important}
+#battleScreen .center-board .slot .mini-effect{font-size:9px!important;line-height:1.22!important;margin-top:4px!important}
+/* Beat the older arched-frame rule that hid these with higher-specificity !important. */
+#battleScreen .leader-unit.self .hpbar-text,#battleScreen .leader-unit.opponent .hpbar-text{display:flex!important;position:absolute!important;left:0!important;right:0!important;top:-22px!important;height:18px!important;align-items:center!important;justify-content:center!important;color:#fff!important;font-size:12px!important;font-weight:1000!important;line-height:18px!important;text-shadow:0 1px 4px #000,0 0 3px #000!important;z-index:35!important;pointer-events:none!important}
+#battleScreen .la-stat-primary.hp-only{grid-template-columns:1fr!important}
+#battleScreen .la-stat-primary.hp-only>div{display:flex!important;align-items:baseline!important;justify-content:space-between!important;gap:6px!important}
+#battleScreen .la-stat-primary.hp-only small{display:inline!important}
+#battleScreen .la-leader-energy{position:absolute!important;z-index:42!important;width:48px!important;height:48px!important;border-radius:50%!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:0!important;box-sizing:border-box!important;background:radial-gradient(circle at 35% 28%,#fff7c7 0,#f2c94c 28%,#9b6514 72%,#4c2f08 100%)!important;border:3px solid #f7df8b!important;box-shadow:0 0 0 2px rgba(55,34,7,.9),0 4px 12px rgba(0,0,0,.45),0 0 12px rgba(255,202,62,.38)!important;color:#241604!important;text-shadow:0 1px 0 rgba(255,255,255,.45)!important;pointer-events:none!important}
+#battleScreen .la-leader-energy.self{left:142px!important;top:198px!important}
+#battleScreen .la-leader-energy.opponent{right:142px!important;top:198px!important}
+#battleScreen .la-leader-energy span{font-size:13px!important;line-height:13px!important}
+#battleScreen .la-leader-energy b{font-size:13px!important;line-height:14px!important;font-weight:1000!important;letter-spacing:-.04em!important}
 </style>
 
 <script id="la-battle-unified-0210-js">
@@ -4781,12 +4804,12 @@ body.battle-view #battleNotice{display:none!important}
  function art(c){try{return window.LUNA_CARD_ART?.[c.id]||CARD_ART?.[c.id]||''}catch(_){return''}}
  function badge(x){const c=x?.card;if(!c)return'';if((c.id==='k4'||c.id==='s11')&&Number.isFinite(c.fortressHp))return `<span class="setup-state-badge block">🛡${Math.max(0,c.fortressHp)}</span>`;if(c.id==='s18'&&Number.isFinite(c.shieldCharges))return `<span class="setup-state-badge shield">☾${Math.max(0,c.shieldCharges)}</span>`;if(c.id==='s26')return `<span class="setup-state-badge progress">X${Number.isFinite(c.yakouX)?c.yakouX:1}</span>`;return''}
  setupSlot=function(x,mePid){if(!x)return'<div class="slot"></div>';const c=x.card,src=art(c),effect=cardText(c);return `<button type="button" class="slot occupied setup-detail-trigger ${x.owner===mePid?'owner-self':'owner-opponent'}" data-setup-uid="${esc(c.uid)}"><div class="setup-art-bg">${src?`<img src="${src}" alt="" draggable="false">`:''}</div><div class="setup-caption"><div class="name">${typeof cardNameHtml==='function'?cardNameHtml(c):esc(c.name)}</div><div class="owner">${x.owner===mePid?'自分':'相手'}のセットアップ</div><div class="mini-effect">${esc(effect)}</div></div>${badge(x)}</button>`};window.setupSlot=setupSlot;
- function ensure(id){let e=$id(id);if(!e){e=document.createElement('div');e.id=id;stage.appendChild(e)}return e}const selfHud=ensure('laSelfData'),oppHud=ensure('laOppData');
+ function ensure(id){let e=$id(id);if(!e){e=document.createElement('div');e.id=id;stage.appendChild(e)}return e}const selfHud=ensure('laSelfData'),oppHud=ensure('laOppData'),selfEnergy=ensure('laSelfEnergyBadge'),oppEnergy=ensure('laOppEnergyBadge');selfEnergy.className='la-leader-energy self';oppEnergy.className='la-leader-energy opponent';
  function pile(label,n,kind,self){return self?`<button type="button" data-own-pile="${kind}">${label}<strong>${n??0}</strong></button>`:`<span>${label}<strong>${n??0}</strong></span>`}
- function stats(p,self){return `<div class="la-stat-card ${self?'self':'opponent'}"><div class="la-stat-who">${esc(self?'自分':p?.name||'相手')}</div><div class="la-stat-primary"><div><small>HP</small><b>${Math.max(0,p?.hp??0)}</b></div><div><small>ENERGY</small><b>${p?.energy??0}/${p?.maxEnergy??0}</b></div></div><div class="la-stat-piles">${pile('山札',p?.drawCount,'draw',self)}${pile('捨て',p?.discardCount,'discard',self)}${pile('廃棄',p?.exhaustCount,'exhaust',self)}</div></div>`}
+ function stats(p,self){return `<div class="la-stat-card ${self?'self':'opponent'}"><div class="la-stat-who">${esc(self?'自分':p?.name||'相手')}</div><div class="la-stat-primary hp-only"><div><small>HP</small><b>${Math.max(0,p?.hp??0)}/${p?.maxHp||100}</b></div></div><div class="la-stat-piles">${pile('山札',p?.drawCount,'draw',self)}${pile('捨て',p?.discardCount,'discard',self)}${pile('廃棄',p?.exhaustCount,'exhaust',self)}</div></div>`}
  function moveToStage(el){if(el&&el.parentElement!==stage)stage.appendChild(el)}
- function arrange(){if(stage.parentElement!==screen)screen.insertBefore(stage,screen.firstChild);['myLeaderUnit','oppLeaderUnit','laDeckBox','laDiscardBox','laOppHandZone','openLog'].forEach(id=>moveToStage($id(id)));moveToStage(screen.querySelector('.center-board'));moveToStage(screen.querySelector('.battle-controls'));moveToStage(screen.querySelector('.hand-wrap'));moveToStage(selfHud);moveToStage(oppHud)}
- function sync(){const v=state();if(!v)return;selfHud.innerHTML=stats(v.me,true);oppHud.innerHTML=stats(v.opp||v.op||{},false);const tl=$id('turnLabel');if(tl){const no=v.me?.turnNo||0;tl.innerHTML=`<b>第${no}ターン</b><small>${v.current===v.me.pid?'あなたのターン':'相手のターン'}</small>`}document.querySelectorAll('#myHand>.card').forEach(el=>{const c=v.me.hand.find(x=>String(x.uid)===el.dataset.uid),src=c&&art(c);if(c&&src&&!el.querySelector('.card-art')){const a=document.createElement('div');a.className='card-art';a.innerHTML=`<img src="${src}" alt="" draggable="false">`;el.querySelector('.head')?.after(a)}})}
+ function arrange(){if(stage.parentElement!==screen)screen.insertBefore(stage,screen.firstChild);['myLeaderUnit','oppLeaderUnit','laDeckBox','laDiscardBox','laOppHandZone','openLog'].forEach(id=>moveToStage($id(id)));moveToStage(screen.querySelector('.center-board'));moveToStage(screen.querySelector('.battle-controls'));moveToStage(screen.querySelector('.hand-wrap'));moveToStage(selfHud);moveToStage(oppHud);moveToStage(selfEnergy);moveToStage(oppEnergy)}
+ function sync(){const v=state();if(!v)return;selfHud.innerHTML=stats(v.me,true);const op=v.opp||v.op||{};oppHud.innerHTML=stats(op,false);selfEnergy.innerHTML=`<span>⚡</span><b>${v.me?.energy??0}/${v.me?.maxEnergy??0}</b>`;oppEnergy.innerHTML=`<span>⚡</span><b>${op?.energy??0}/${op?.maxEnergy??0}</b>`;const myHp=$id('myHpText'),opHp=$id('oppHpText');if(myHp)myHp.textContent=`${Math.max(0,v.me?.hp??0)} / ${v.me?.maxHp||100}`;if(opHp)opHp.textContent=`${Math.max(0,op?.hp??0)} / ${op?.maxHp||100}`;const tl=$id('turnLabel');if(tl){const no=v.me?.turnNo||0;tl.innerHTML=`<b>第${no}ターン</b><small>${v.current===v.me.pid?'あなたのターン':'相手のターン'}</small>`}document.querySelectorAll('#myHand>.card').forEach(el=>{const c=v.me.hand.find(x=>String(x.uid)===el.dataset.uid),src=c&&art(c);if(c&&src&&!el.querySelector('.card-art')){const a=document.createElement('div');a.className='card-art';a.innerHTML=`<img src="${src}" alt="" draggable="false">`;el.querySelector('.head')?.after(a)}})}
  const baseRender=renderBattleView;renderBattleView=function(){const r=baseRender.apply(this,arguments);arrange();sync();fit();return r};window.renderBattleView=renderBattleView;
  function openPile(kind){const v=state();if(!v)return;let src=[],title='';if(kind==='draw'){src=v.me.drawPile||[];title=`山札（${src.length}枚）`}else if(kind==='discard'){src=v.me.discard||[];title=`捨て札（${src.length}枚）`}else{src=v.me.exhaust||[];title=`廃棄札（${src.length}枚）`}const t=$id('pileTitle'),b=$id('pileBody'),m=$id('pileModal');if(!t||!b||!m)return;t.textContent=title;const groups=new Map();src.forEach(c=>{const g=groups.get(c.id)||{card:c,n:0};g.n++;groups.set(c.id,g)});b.innerHTML=[...groups.values()].map(g=>`<div class="pile-item"><div><div class="pile-name">${typeof cardNameHtml==='function'?cardNameHtml(g.card):esc(g.card.name)}</div><div class="pile-meta">${g.card.cost}コスト</div></div><div class="pile-qty">×${g.n}</div></div>`).join('')||'<div class="notice">カードはありません。</div>';m.classList.remove('hidden')}
  stage.addEventListener('click',e=>{const b=e.target.closest('[data-own-pile]');if(b)openPile(b.dataset.ownPile)});
@@ -4802,13 +4825,24 @@ body.battle-view #battleNotice{display:none!important}
  function ghost(el,x,y){let g=$id('laSwipeGhost');if(!g){g=document.createElement('div');g.id='laSwipeGhost';const c=el.cloneNode(true);c.classList.remove('expanded','disabled','la-dragging');c.querySelectorAll('button').forEach(b=>b.remove());g.appendChild(c);document.body.appendChild(g)}g.style.left=x+'px';g.style.top=y+'px'}
  function clearDrag(){document.getElementById('laSwipeGhost')?.remove();const {g,h}=ui();g.className='';g.innerHTML='';h.classList.remove('show');document.querySelectorAll('#myHand>.card.la-dragging').forEach(x=>x.classList.remove('la-dragging'))}
  const hand=$id('myHand');
- hand.addEventListener('pointerdown',e=>{const el=e.target.closest('.card');if(!el||e.target.closest('button'))return;const c=cardFor(el);if(!c)return;drag={id:e.pointerId,el,c,x:e.clientX,y:e.clientY,lastX:e.clientX,lastY:e.clientY,moved:false};try{el.setPointerCapture(e.pointerId)}catch(_){}},{passive:true});
+ hand.addEventListener('pointerdown',e=>{const el=e.target.closest('.card');if(!el||e.target.closest('button'))return;const c=cardFor(el);if(!c)return;/* Claim the gesture immediately: dragging must never depend on the card being expanded first. */ e.preventDefault();drag={id:e.pointerId,el,c,x:e.clientX,y:e.clientY,lastX:e.clientX,lastY:e.clientY,moved:false};try{el.setPointerCapture(e.pointerId)}catch(_){}},{passive:false});
  hand.addEventListener('pointermove',e=>{if(!drag||e.pointerId!==drag.id)return;drag.lastX=e.clientX;drag.lastY=e.clientY;const dist=Math.hypot(e.clientX-drag.x,e.clientY-drag.y);if(!drag.moved&&dist>=8){if(!usable(drag.c)){drag=null;clearDrag();return}drag.moved=true;drag.el.classList.add('la-dragging');showGuide(drag.c)}if(drag?.moved){e.preventDefault();ghost(drag.el,e.clientX,e.clientY);hit(e.clientX,e.clientY)}},{passive:false});
  hand.addEventListener('pointerup',e=>{if(!drag||e.pointerId!==drag.id)return;const d=drag;drag=null;if(!d.moved)return;suppressUntil=performance.now()+500;e.preventDefault();const dest=hit(e.clientX,e.clientY),up=d.y-e.clientY;clearDrag();if(!usable(d.c))return;if(d.c.type==='setup'){if(dest==='cancel')return;if(dest==='personal'||dest==='shared')act({type:'play',uid:d.c.uid,dest})}else if(dest==='use'||up>=24)act({type:'play',uid:d.c.uid})},{passive:false});
- hand.addEventListener('pointercancel',()=>{drag=null;clearDrag()});hand.addEventListener('click',e=>{if(performance.now()<suppressUntil){e.preventDefault();e.stopImmediatePropagation()}},true);
+ hand.addEventListener('pointercancel',()=>{drag=null;clearDrag()});
+ // iOS standalone fallback: start/move/end directly from the hand. This path is used only when no PointerEvent drag is active.
+ let touchDrag=null;
+ hand.addEventListener('touchstart',e=>{if(drag||e.touches.length!==1)return;const t=e.touches[0],el=e.target.closest('.card');if(!el||e.target.closest('button'))return;const c=cardFor(el);if(!c)return;e.preventDefault();touchDrag={el,c,x:t.clientX,y:t.clientY,lastX:t.clientX,lastY:t.clientY,moved:false}},{passive:false});
+ hand.addEventListener('touchmove',e=>{if(!touchDrag||e.touches.length!==1)return;const t=e.touches[0],d=touchDrag;d.lastX=t.clientX;d.lastY=t.clientY;const dist=Math.hypot(t.clientX-d.x,t.clientY-d.y);if(!d.moved&&dist>=8){if(!usable(d.c)){touchDrag=null;clearDrag();return}d.moved=true;d.el.classList.add('la-dragging');showGuide(d.c)}if(d.moved){e.preventDefault();ghost(d.el,t.clientX,t.clientY);hit(t.clientX,t.clientY)}},{passive:false});
+ hand.addEventListener('touchend',e=>{if(!touchDrag)return;const d=touchDrag;touchDrag=null;if(!d.moved)return;suppressUntil=performance.now()+500;e.preventDefault();const t=e.changedTouches[0],x=t?.clientX??d.lastX,y=t?.clientY??d.lastY,dest=hit(x,y),up=d.y-y;clearDrag();if(!usable(d.c))return;if(d.c.type==='setup'){if(dest==='cancel')return;if(dest==='personal'||dest==='shared')act({type:'play',uid:d.c.uid,dest})}else if(dest==='use'||up>=24)act({type:'play',uid:d.c.uid})},{passive:false});
+ hand.addEventListener('touchcancel',()=>{touchDrag=null;clearDrag()});
+ hand.addEventListener('click',e=>{if(performance.now()<suppressUntil){e.preventDefault();e.stopImmediatePropagation()}},true);
  window.LA_BATTLE_AUDIT=()=>{const v=state();return{version:meta.version,renderLayers:1,inputLayers:1,current:v?.current,me:v?.me?.pid,pending:!!v?.pending,paused:paused(),endDisabled:$id('endTurn')?.disabled,hand:(v?.me?.hand||[]).map(c=>({uid:c.uid,id:c.id,playable:canPlayView(v,c),cost:viewCost(v,c)}))}};
  arrange();fit();if(state())renderBattleView();document.title=`ルナオルタ ${meta.version}`;const vl=$id('appVersionLabel');if(vl)vl.textContent=`${meta.version} / ${meta.label}`;
 })();
 </script>
+
+<style id="la-direct-hand-swipe-0215">
+#battleScreen #myHand, #battleScreen #myHand>.card, #battleScreen #myHand>.card *{touch-action:none!important;-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important}
+</style>
 </body>
 </html>
