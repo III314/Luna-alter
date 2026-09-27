@@ -959,8 +959,8 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.21.6",
-  label:"セットアップ拡大・HP/エナジーHUD整理"
+  version:"0.21.7",
+  label:"バトル可読性・操作UI・デッキ編成修復"
 });
 </script>
 
@@ -1386,7 +1386,7 @@ function renderDeckCards(){
  const total=deckTotal(workingCounts);$('deckCount').textContent=total;const warn=$('deckWarning');warn.classList.toggle('hidden',total===40);warn.textContent=total<40?`あと${40-total}枚追加してください。`:`${total-40}枚減らしてください。`;
  grid.innerHTML='';
  const renderPool=(title,cards)=>{const h=document.createElement('div');h.className='pool-heading';h.innerHTML=`<span>${title}</span><span class="pool-count">${cards.length}種類</span>`;grid.appendChild(h);const typeOrder={attack:0,skill:1,spell:2,setup:3};[...cards].sort((a,b)=>(typeOrder[a.type]-typeOrder[b.type])||(a.cost-b.cost)||a.name.localeCompare(b.name,'ja')).forEach(c=>{const n=workingCounts[c.id]||0,d=document.createElement('div');d.className=`deck-card ${c.type} ${n>=3?'at-cap':''}`;d.innerHTML=`<h3>${c.name}</h3><div class="small">${typeLabel(c.type)} / ${c.cost}コスト</div><div class="effect">${c.text}</div><div class="qty"><button data-a="minus">−</button><b>${n}枚</b><button data-a="plus">＋</button></div>`;d.querySelector('[data-a=minus]').onclick=()=>{if(n>0){workingCounts[c.id]=n-1;renderDeckCards()}};d.querySelector('[data-a=plus]').onclick=()=>{if(n<3&&deckTotal(workingCounts)<40){workingCounts[c.id]=n+1;renderDeckCards()}};grid.appendChild(d)})};
- renderPool('クラス共通',COMMON_CARD_DEFS);renderPool(CHARACTER_LABELS[workingCharacter],workingCharacter==='kenshi'?KENSHI_CARD_DEFS:GIOVANNI_CARD_DEFS);
+ renderPool('クラス共通',COMMON_CARD_DEFS);renderPool(CHARACTER_LABELS[workingCharacter],workingCharacter==='kenshi'?KENSHI_CARD_DEFS:workingCharacter==='shiranui'?SHIRANUI_CARD_DEFS:GIOVANNI_CARD_DEFS);
  // Restore immediately (layout is synchronous) and once more on the next frame for iOS/WebKit.
  grid.scrollTop=savedScrollTop;
  requestAnimationFrame(()=>{if(grid.isConnected)grid.scrollTop=savedScrollTop});
@@ -4500,51 +4500,6 @@ body.deck-view #deckScreen{height:100vh!important;padding:8px 18px 72px!importan
 @media(max-width:760px){body.deck-view #deckScreen{height:100vh!important;min-height:0!important;padding:7px 12px 70px!important;overflow:hidden!important}}
 </style>
 
-<script id="la-0183-deck-inplace-qty">
-/* 0.18.3 — Deck +/- updates in place. Do not rebuild the scrollable card library. */
-(function(){
-  const grid=document.getElementById('deckGrid');
-  if(!grid)return;
-  function refreshDeckSummary(){
-    const total=deckTotal(workingCounts);
-    const count=document.getElementById('deckCount');
-    const warn=document.getElementById('deckWarning');
-    const pill=document.getElementById('deckCountStickyPill');
-    if(count)count.textContent=total;
-    if(warn){
-      warn.classList.toggle('hidden',total===40);
-      warn.textContent=total<40?`あと${40-total}枚追加してください。`:`${total-40}枚減らしてください。`;
-    }
-    if(pill){
-      pill.textContent=`現在 ${total} / 40枚`;
-      pill.classList.toggle('complete',total===40);
-      pill.classList.toggle('over',total>40);
-    }
-  }
-  grid.addEventListener('click',function(e){
-    const btn=e.target.closest('.qty button');
-    if(!btn||!grid.contains(btn))return;
-    const cardEl=btn.closest('.deck-card');
-    const title=cardEl&&cardEl.querySelector('h3');
-    if(!cardEl||!title)return;
-    const card=cardByName(title.textContent.trim());
-    if(!card)return;
-    // The legacy per-button onclick rebuilds #deckGrid and lets iOS scroll anchoring jump.
-    // Handle quantity changes here and stop that handler from running at all.
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    const old=Number(workingCounts[card.id]||0);
-    const next=btn.dataset.a==='plus'?Math.min(3,old+1):Math.max(0,old-1);
-    if(next===old)return;
-    workingCounts[card.id]=next;
-    const qty=cardEl.querySelector('.qty b');
-    if(qty)qty.textContent=`${next}枚`;
-    cardEl.classList.toggle('at-cap',next>=3);
-    refreshDeckSummary();
-  },true);
-})();
-</script>
-
 <style id="la-0185-deck-scroll-stability">
 /* 0.18.5 — iOS deck-builder scroll stability. Keep every box above the card scroller at a fixed height and disable scroll anchoring. */
 #deckScreen #deckWarning{min-height:30px!important;margin-bottom:6px!important}
@@ -4553,56 +4508,6 @@ body.deck-view #deckScreen{height:100vh!important;padding:8px 18px 72px!importan
 #deckScreen #deckGrid .deck-card,#deckScreen #deckGrid .pool-heading{overflow-anchor:none!important}
 #deckScreen #deckGrid .qty button{touch-action:manipulation!important}
 </style>
-
-<script id="la-0185-deck-scroll-guard">
-/* 0.18.5 — Final quantity guard. Quantity taps never rebuild #deckGrid and never mutate layout above it. */
-(function(){
-  const grid=document.getElementById('deckGrid');
-  if(!grid)return;
-  function syncSummary(){
-    const total=deckTotal(workingCounts);
-    const count=document.getElementById('deckCount');
-    const warn=document.getElementById('deckWarning');
-    const pill=document.getElementById('deckCountStickyPill');
-    if(count)count.textContent=total;
-    if(warn){
-      warn.classList.toggle('hidden',total===40);
-      warn.textContent=total<40?`あと${40-total}枚追加してください。`:`${total-40}枚減らしてください。`;
-    }
-    if(pill){
-      pill.textContent=`現在 ${total} / 40枚`;
-      pill.classList.toggle('complete',total===40);
-      pill.classList.toggle('over',total>40);
-    }
-  }
-  // Replace the 0.18.3 capture listener's job with an even earlier document-level guard.
-  // This runs before target onclick handlers and keeps the exact scroll offset synchronously.
-  document.addEventListener('click',function(e){
-    const btn=e.target.closest&&e.target.closest('#deckGrid .qty button');
-    if(!btn)return;
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    const cardEl=btn.closest('.deck-card');
-    const title=cardEl&&cardEl.querySelector('h3');
-    const card=title&&cardByName(title.textContent.trim());
-    if(!card)return;
-    const old=Number(workingCounts[card.id]||0);
-    const total=deckTotal(workingCounts);
-    let next=old;
-    if(btn.dataset.a==='plus' && old<3 && total<40)next=old+1;
-    if(btn.dataset.a==='minus' && old>0)next=old-1;
-    if(next===old)return;
-    const y=grid.scrollTop;
-    workingCounts[card.id]=next;
-    const qty=cardEl.querySelector('.qty b');
-    if(qty)qty.textContent=`${next}枚`;
-    cardEl.classList.toggle('at-cap',next>=3);
-    syncSummary();
-    grid.scrollTop=y;
-  },true);
-})();
-</script>
-
 
 <!-- LUNA ALTER 0.19.0: landscape gate + battle information/UI consolidation -->
 <!-- LUNA ALTER 0.20.1: arched leader frame -->
@@ -4844,5 +4749,71 @@ body.battle-view #battleNotice{display:none!important}
 <style id="la-direct-hand-swipe-0215">
 #battleScreen #myHand, #battleScreen #myHand>.card, #battleScreen #myHand>.card *{touch-action:none!important;-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important}
 </style>
+
+<style id="la-0217-usability-fixes">
+/* 0.21.7 — battle readability / reliable edge controls / deck builder interaction */
+#battleScreen #myHand>.card .cname{font-size:19px!important;line-height:1.05!important}
+#battleScreen #myHand>.card .type{font-size:10px!important;font-weight:900!important}
+#battleScreen #myHand>.card .cost{font-size:21px!important;line-height:1!important}
+#battleScreen #myHand>.card .text{font-size:11.5px!important;line-height:1.28!important;font-weight:650!important}
+
+/* Board cards: readable dark text on a light caption instead of white-on-art. */
+#battleScreen .slot.occupied .setup-caption{
+ left:6px!important;right:6px!important;bottom:6px!important;height:auto!important;max-height:118px!important;
+ padding:7px 8px!important;border-radius:9px!important;background:rgba(255,253,248,.94)!important;
+ color:#211d19!important;text-shadow:none!important;box-shadow:0 2px 10px rgba(0,0,0,.22)!important;
+}
+#battleScreen .slot.occupied .setup-caption .name{font-size:15px!important;line-height:1.08!important;color:#211d19!important;text-shadow:none!important}
+#battleScreen .slot.occupied .setup-caption .owner{font-size:9px!important;line-height:1.1!important;color:#756b60!important;text-shadow:none!important}
+#battleScreen .slot.occupied .setup-caption .mini-effect{font-size:10.5px!important;line-height:1.24!important;color:#2d2823!important;text-shadow:none!important;-webkit-line-clamp:4!important}
+
+/* Edge controls need generous hit targets and safe insets. */
+#battleScreen .battle-menu-toggle{left:max(18px,env(safe-area-inset-left))!important;top:max(18px,env(safe-area-inset-top))!important;width:62px!important;height:58px!important;z-index:9900!important;pointer-events:auto!important;touch-action:manipulation!important}
+#battleScreen #openLog{position:absolute!important;left:max(92px,calc(env(safe-area-inset-left) + 92px))!important;top:max(18px,env(safe-area-inset-top))!important;width:72px!important;height:48px!important;min-width:72px!important;min-height:48px!important;padding:0!important;border-radius:12px!important;font-size:13px!important;font-weight:900!important;z-index:9890!important;pointer-events:auto!important;touch-action:manipulation!important}
+
+/* Turn-start splash. */
+#laTurnSplash{position:absolute;inset:0;z-index:9850;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0;visibility:hidden;background:rgba(5,8,15,.10)}
+#laTurnSplash.show{visibility:visible;animation:laTurnSplash 1.25s ease both}
+#laTurnSplash .inner{text-align:center;color:#fff;text-shadow:0 3px 16px #000,0 1px 4px #000;transform:translateY(-18px)}
+#laTurnSplash .your{font:1000 44px/1 system-ui,-apple-system,sans-serif;letter-spacing:.18em}
+#laTurnSplash .turn{margin-top:10px;font:900 20px/1 system-ui,-apple-system,sans-serif;letter-spacing:.08em}
+@keyframes laTurnSplash{0%{opacity:0}14%,68%{opacity:1}100%{opacity:0}}
+
+/* Deck screen owns vertical scrolling. */
+body.deck-view{overflow:hidden!important}
+body.deck-view #deckScreen{height:100dvh!important;min-height:0!important;overflow-y:auto!important;overflow-x:hidden!important;-webkit-overflow-scrolling:touch!important;overscroll-behavior-y:contain!important;touch-action:pan-y!important}
+body.deck-view #deckScreen .section-bottom-nav{position:fixed!important;left:0!important;right:0!important;bottom:0!important}
+body.deck-view #deckScreen .deck-layout{height:auto!important;min-height:calc(100dvh - 95px)!important;overflow:visible!important}
+body.deck-view #deckScreen .deck-workspace,body.deck-view #deckScreen #deckEditor{height:auto!important;min-height:0!important;overflow:visible!important}
+body.deck-view #deckScreen #deckGrid{height:auto!important;max-height:none!important;overflow:visible!important;touch-action:pan-y!important;contain:none!important;padding-bottom:90px!important}
+#deckScreen .qty button{position:relative!important;z-index:5!important;min-width:42px!important;min-height:38px!important;font-size:20px!important;pointer-events:auto!important;touch-action:manipulation!important}
+@media(max-width:760px){body.deck-view #deckScreen{overflow-y:auto!important}body.deck-view #deckScreen .deck-layout{height:auto!important}body.deck-view #deckScreen #deckGrid{overflow:visible!important}}
+</style>
+<script id="la-0217-usability-fixes-js">
+(()=>{
+ const screen=document.getElementById('battleScreen');
+ if(!screen)return;
+ // Turn splash is keyed by pid+turn number, so redraws do not replay it.
+ let splash=document.getElementById('laTurnSplash');
+ if(!splash){splash=document.createElement('div');splash.id='laTurnSplash';splash.innerHTML='<div class="inner"><div class="your">YOUR TURN</div><div class="turn"></div></div>';screen.appendChild(splash)}
+ let lastTurnKey='';
+ const showTurnSplash=()=>{const v=currentView;if(!v?.me)return;const mine=v.current===v.me.pid&&!v.over;const key=`${v.current}:${v.me.turnNo||0}`;if(mine&&key!==lastTurnKey){lastTurnKey=key;splash.querySelector('.turn').textContent=`TURN ${v.me.turnNo||0}`;splash.classList.remove('show');void splash.offsetWidth;splash.classList.add('show')}else if(!mine){lastTurnKey=key}};
+ const prevRender=renderBattleView;
+ renderBattleView=function(){const r=prevRender.apply(this,arguments);showTurnSplash();return r};window.renderBattleView=renderBattleView;
+
+ // Deck editing: one delegated controller, no legacy document-capture guards.
+ const grid=document.getElementById('deckGrid');
+ function deckCardsForCharacter(){return workingCharacter==='kenshi'?KENSHI_CARD_DEFS:workingCharacter==='shiranui'?SHIRANUI_CARD_DEFS:GIOVANNI_CARD_DEFS}
+ function refreshDeckSummary0217(){const total=deckTotal(workingCounts),count=document.getElementById('deckCount'),warn=document.getElementById('deckWarning'),pill=document.getElementById('deckCountStickyPill');if(count)count.textContent=total;if(warn){warn.classList.toggle('hidden',total===40);warn.textContent=total<40?`あと${40-total}枚追加してください。`:`${total-40}枚減らしてください。`}if(pill){pill.textContent=`現在 ${total} / 40枚`;pill.classList.toggle('complete',total===40);pill.classList.toggle('over',total>40)}}
+ if(grid){
+   grid.addEventListener('click',e=>{const btn=e.target.closest('.qty button');if(!btn||!grid.contains(btn))return;e.preventDefault();e.stopPropagation();const cardEl=btn.closest('.deck-card'),title=cardEl?.querySelector('h3'),card=title&&cardByName(title.textContent.trim());if(!card)return;const old=Number(workingCounts[card.id]||0),total=deckTotal(workingCounts);let next=old;if(btn.dataset.a==='plus'&&old<3&&total<40)next=old+1;if(btn.dataset.a==='minus'&&old>0)next=old-1;if(next===old)return;workingCounts[card.id]=next;cardEl.querySelector('.qty b').textContent=`${next}枚`;cardEl.classList.toggle('at-cap',next>=3);refreshDeckSummary0217()},true);
+ }
+ // Replace renderer so Shiranui gets Shiranui cards and +/- does not rebuild the whole scroller.
+ const originalRenderDeckCards=renderDeckCards;
+ renderDeckCards=function(){originalRenderDeckCards(); /* core renderer now has the corrected 3-way pool selection */ };
+ window.renderDeckCards=renderDeckCards;
+})();
+</script>
+
 </body>
 </html>
