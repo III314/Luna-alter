@@ -959,7 +959,7 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.21.9",
+  version:"0.21.10",
   label:"バトル可読性・操作UI・デッキ編成修復"
 });
 </script>
@@ -1385,7 +1385,7 @@ function renderDeckCards(){
  const savedScrollTop=grid?grid.scrollTop:0;
  const total=deckTotal(workingCounts);$('deckCount').textContent=total;const warn=$('deckWarning');warn.classList.toggle('hidden',total===40);warn.textContent=total<40?`あと${40-total}枚追加してください。`:`${total-40}枚減らしてください。`;
  grid.innerHTML='';
- const renderPool=(title,cards)=>{const h=document.createElement('div');h.className='pool-heading';h.innerHTML=`<span>${title}</span><span class="pool-count">${cards.length}種類</span>`;grid.appendChild(h);const typeOrder={attack:0,skill:1,spell:2,setup:3};[...cards].sort((a,b)=>(typeOrder[a.type]-typeOrder[b.type])||(a.cost-b.cost)||a.name.localeCompare(b.name,'ja')).forEach(c=>{const n=workingCounts[c.id]||0,d=document.createElement('div');d.className=`deck-card ${c.type} ${n>=3?'at-cap':''}`;d.innerHTML=`<h3>${c.name}</h3><div class="small">${typeLabel(c.type)} / ${c.cost}コスト</div><div class="effect">${c.text}</div><div class="qty"><button data-a="minus">−</button><b>${n}枚</b><button data-a="plus">＋</button></div>`;d.querySelector('[data-a=minus]').onclick=()=>{if(n>0){workingCounts[c.id]=n-1;renderDeckCards()}};d.querySelector('[data-a=plus]').onclick=()=>{if(n<3){workingCounts[c.id]=n+1;renderDeckCards()}};grid.appendChild(d)})};
+ const renderPool=(title,cards)=>{const h=document.createElement('div');h.className='pool-heading';h.innerHTML=`<span>${title}</span><span class="pool-count">${cards.length}種類</span>`;grid.appendChild(h);const typeOrder={attack:0,skill:1,spell:2,setup:3};[...cards].sort((a,b)=>(typeOrder[a.type]-typeOrder[b.type])||(a.cost-b.cost)||a.name.localeCompare(b.name,'ja')).forEach(c=>{const n=workingCounts[c.id]||0,d=document.createElement('div');d.className=`deck-card ${c.type} ${n>=3?'at-cap':''}`;d.dataset.cardId=c.id;d.innerHTML=`<h3>${c.name}</h3><div class="small">${typeLabel(c.type)} / ${c.cost}コスト</div><div class="effect">${c.text}</div><div class="qty"><button data-a="minus">−</button><b>${n}枚</b><button data-a="plus">＋</button></div>`;grid.appendChild(d)})};
  renderPool('クラス共通',COMMON_CARD_DEFS);renderPool(CHARACTER_LABELS[workingCharacter],workingCharacter==='kenshi'?KENSHI_CARD_DEFS:workingCharacter==='shiranui'?SHIRANUI_CARD_DEFS:GIOVANNI_CARD_DEFS);
  // Restore immediately (layout is synchronous) and once more on the next frame for iOS/WebKit.
  grid.scrollTop=savedScrollTop;
@@ -1807,9 +1807,8 @@ renderDeckCards=function(){
    [...cards].sort((a,b)=>(typeOrder[a.type]-typeOrder[b.type])||(a.cost-b.cost)||a.name.localeCompare(b.name,'ja')).forEach(c=>{
      const n=workingCounts[c.id]||0,d=document.createElement('div');
      d.className=`deck-card ${c.type} ${n>=3?'at-cap':''}`;
+     d.dataset.cardId=c.id;
      d.innerHTML=`<h3>${c.name}</h3><div class="small">${typeLabel(c.type)} / ${c.cost}コスト</div><div class="effect">${c.text}</div><div class="qty"><button data-a="minus">−</button><b>${n}枚</b><button data-a="plus">＋</button></div>`;
-     d.querySelector('[data-a="minus"]').onclick=()=>{workingCounts[c.id]=Math.max(0,n-1);renderDeckCards()};
-     d.querySelector('[data-a="plus"]').onclick=()=>{workingCounts[c.id]=Math.min(3,n+1);renderDeckCards()};
      grid.appendChild(d)
    })
  };
@@ -4806,7 +4805,7 @@ body.deck-view #deckScreen #deckGrid{height:auto!important;max-height:none!impor
  function deckCardsForCharacter(){return workingCharacter==='kenshi'?KENSHI_CARD_DEFS:workingCharacter==='shiranui'?SHIRANUI_CARD_DEFS:GIOVANNI_CARD_DEFS}
  function refreshDeckSummary0217(){const total=deckTotal(workingCounts),count=document.getElementById('deckCount'),warn=document.getElementById('deckWarning'),pill=document.getElementById('deckCountStickyPill');if(count)count.textContent=total;if(warn){warn.classList.toggle('hidden',total===40);warn.textContent=total<40?`あと${40-total}枚追加してください。`:`${total-40}枚減らしてください。`}if(pill){pill.textContent=`現在 ${total} / 40枚`;pill.classList.toggle('complete',total===40);pill.classList.toggle('over',total>40)}}
  if(grid){
-   grid.addEventListener('click',e=>{const btn=e.target.closest('.qty button');if(!btn||!grid.contains(btn))return;e.preventDefault();e.stopPropagation();const cardEl=btn.closest('.deck-card'),title=cardEl?.querySelector('h3'),card=title&&cardByName(title.textContent.trim());if(!card)return;const old=Number(workingCounts[card.id]||0),total=deckTotal(workingCounts);let next=old;if(btn.dataset.a==='plus'&&old<3)next=old+1;if(btn.dataset.a==='minus'&&old>0)next=old-1;if(next===old)return;workingCounts[card.id]=next;cardEl.querySelector('.qty b').textContent=`${next}枚`;cardEl.classList.toggle('at-cap',next>=3);refreshDeckSummary0217()},true);
+   grid.addEventListener('click',e=>{const btn=e.target.closest('.qty button');if(!btn||!grid.contains(btn))return;e.preventDefault();e.stopPropagation();const cardEl=btn.closest('.deck-card'),cardId=cardEl?.dataset.cardId;if(!cardId)return;const old=Number(workingCounts[cardId]||0);let next=old;if(btn.dataset.a==='plus'&&old<3)next=old+1;if(btn.dataset.a==='minus'&&old>0)next=old-1;if(next===old)return;workingCounts[cardId]=next;cardEl.querySelector('.qty b').textContent=`${next}枚`;cardEl.classList.toggle('at-cap',next>=3);refreshDeckSummary0217()},true);
  }
  // Replace renderer so Shiranui gets Shiranui cards and +/- does not rebuild the whole scroller.
  const originalRenderDeckCards=renderDeckCards;
@@ -4872,5 +4871,15 @@ body:has(#battleMenuScreen.active) .app{width:100vw!important;max-width:none!imp
  #battleMenuScreen .section-bottom-nav{height:50px!important}
 }
 </style>
+
+<script id="la-02110-deck-stepper-touch">
+(()=>{
+ const grid=document.getElementById('deckGrid'); if(!grid)return;
+ let lastTouch=0;
+ const step=(btn)=>{const cardEl=btn.closest('.deck-card'),id=cardEl?.dataset.cardId;if(!id)return false;const old=Number(workingCounts[id]||0);let next=old;if(btn.dataset.a==='plus'&&old<3)next=old+1;if(btn.dataset.a==='minus'&&old>0)next=old-1;if(next===old)return false;workingCounts[id]=next;const q=cardEl.querySelector('.qty b');if(q)q.textContent=`${next}枚`;cardEl.classList.toggle('at-cap',next>=3);if(typeof refreshDeckSummary0217==='function')refreshDeckSummary0217();return true};
+ grid.addEventListener('touchend',e=>{const btn=e.target.closest('.qty button');if(!btn||!grid.contains(btn))return;e.preventDefault();e.stopImmediatePropagation();lastTouch=Date.now();step(btn)}, {capture:true,passive:false});
+ grid.addEventListener('click',e=>{if(Date.now()-lastTouch<700)return;},true);
+})();
+</script>
 </body>
 </html>
