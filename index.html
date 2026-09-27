@@ -959,8 +959,8 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.21.1",
-  label:"バトル画面フィット修復"
+  version:"0.21.2",
+  label:"バトル座標親要素修復"
 });
 </script>
 
@@ -4714,6 +4714,8 @@ body:has(#battleMenuScreen.active) .topbar{display:none!important}
 body.battle-view .topbar{display:none!important}
 body.battle-view .app{width:100vw!important;height:100dvh!important;max-width:none!important;margin:0!important;overflow:hidden!important}
 body.battle-view .app>main{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;overflow:hidden!important}
+body.battle-view #battleScreen>.battle-area,body.battle-view #battleScreen>.battle-area>.battle-main{display:contents!important;position:static!important;width:auto!important;height:auto!important;margin:0!important;padding:0!important;overflow:visible!important}
+body.battle-view #battleNotice{display:none!important}
 #battleScreen.active{display:block!important;position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;min-width:0!important;min-height:0!important;padding:0!important;margin:0!important;overflow:hidden!important;z-index:8000!important;background:#080b12!important}
 #battleScreen .combat-stage{border-radius:0!important;border:0!important;box-shadow:none!important}
 @media (orientation:portrait){
@@ -4770,7 +4772,7 @@ body.battle-view .app>main{position:fixed!important;inset:0!important;width:100v
  function pile(label,n,kind,self){return self?`<button type="button" data-own-pile="${kind}">${label}<strong>${n??0}</strong></button>`:`<span>${label}<strong>${n??0}</strong></span>`}
  function stats(p,self){return `<div class="la-stat-card ${self?'self':'opponent'}"><div class="la-stat-who">${esc(self?'自分':p?.name||'相手')}</div><div class="la-stat-primary"><div><small>HP</small><b>${Math.max(0,p?.hp??0)}</b></div><div><small>ENERGY</small><b>${p?.energy??0}/${p?.maxEnergy??0}</b></div></div><div class="la-stat-piles">${pile('山札',p?.drawCount,'draw',self)}${pile('捨て',p?.discardCount,'discard',self)}${pile('廃棄',p?.exhaustCount,'exhaust',self)}</div></div>`}
  function moveToStage(el){if(el&&el.parentElement!==stage)stage.appendChild(el)}
- function arrange(){['myLeaderUnit','oppLeaderUnit','laDeckBox','laDiscardBox','laOppHandZone','openLog'].forEach(id=>moveToStage($id(id)));moveToStage(screen.querySelector('.center-board'));moveToStage(screen.querySelector('.battle-controls'));moveToStage(screen.querySelector('.hand-wrap'));moveToStage(selfHud);moveToStage(oppHud)}
+ function arrange(){if(stage.parentElement!==screen)screen.insertBefore(stage,screen.firstChild);['myLeaderUnit','oppLeaderUnit','laDeckBox','laDiscardBox','laOppHandZone','openLog'].forEach(id=>moveToStage($id(id)));moveToStage(screen.querySelector('.center-board'));moveToStage(screen.querySelector('.battle-controls'));moveToStage(screen.querySelector('.hand-wrap'));moveToStage(selfHud);moveToStage(oppHud)}
  function sync(){const v=state();if(!v)return;selfHud.innerHTML=stats(v.me,true);oppHud.innerHTML=stats(v.opp||v.op||{},false);const tl=$id('turnLabel');if(tl){const no=v.me?.turnNo||0;tl.innerHTML=`<b>第${no}ターン</b><small>${v.current===v.me.pid?'あなたのターン':'相手のターン'}</small>`}document.querySelectorAll('#myHand>.card').forEach(el=>{const c=v.me.hand.find(x=>String(x.uid)===el.dataset.uid),src=c&&art(c);if(c&&src&&!el.querySelector('.card-art')){const a=document.createElement('div');a.className='card-art';a.innerHTML=`<img src="${src}" alt="" draggable="false">`;el.querySelector('.head')?.after(a)}})}
  const baseRender=renderBattleView;renderBattleView=function(){const r=baseRender.apply(this,arguments);arrange();sync();fit();return r};window.renderBattleView=renderBattleView;
  function openPile(kind){const v=state();if(!v)return;let src=[],title='';if(kind==='draw'){src=v.me.drawPile||[];title=`山札（${src.length}枚）`}else if(kind==='discard'){src=v.me.discard||[];title=`捨て札（${src.length}枚）`}else{src=v.me.exhaust||[];title=`廃棄札（${src.length}枚）`}const t=$id('pileTitle'),b=$id('pileBody'),m=$id('pileModal');if(!t||!b||!m)return;t.textContent=title;const groups=new Map();src.forEach(c=>{const g=groups.get(c.id)||{card:c,n:0};g.n++;groups.set(c.id,g)});b.innerHTML=[...groups.values()].map(g=>`<div class="pile-item"><div><div class="pile-name">${typeof cardNameHtml==='function'?cardNameHtml(g.card):esc(g.card.name)}</div><div class="pile-meta">${g.card.cost}コスト</div></div><div class="pile-qty">×${g.n}</div></div>`).join('')||'<div class="notice">カードはありません。</div>';m.classList.remove('hidden')}
