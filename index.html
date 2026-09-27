@@ -959,8 +959,8 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.21.0",
-  label:"バトルUI再構築・一元化"
+  version:"0.21.1",
+  label:"バトル画面フィット修復"
 });
 </script>
 
@@ -1332,6 +1332,7 @@ function showScreen(name){
  ['title','home','battleMenu','cpuSetup','tutorial','room','deck','battle'].forEach(x=>{const el=$(`${x}Screen`);if(el)el.classList.toggle('active',x===name)});
  document.body.classList.toggle('shell-view',name==='title'||name==='home');
  document.body.classList.toggle('deck-view',name==='deck');
+ document.body.classList.toggle('battle-view',name==='battle');
  $('backHome').classList.toggle('hidden',name==='home'||name==='title');
  if(name==='deck')renderDeckManager();if(name==='room'||name==='battleMenu')refreshDeckSelects();
 }
@@ -4707,8 +4708,18 @@ body:has(#battleMenuScreen.active) .topbar{display:none!important}
 
 
 <!-- Canonical battle input controller -->
-\n<style id="la-battle-unified-0210">
+<style id="la-battle-unified-0210">
 /* 0.21.0: the battle screen has one geometry/input contract. Historical battle override layers were removed. */
+/* 0.21.1: battle owns the whole viewport; the normal app chrome must not steal height/width. */
+body.battle-view .topbar{display:none!important}
+body.battle-view .app{width:100vw!important;height:100dvh!important;max-width:none!important;margin:0!important;overflow:hidden!important}
+body.battle-view .app>main{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;overflow:hidden!important}
+#battleScreen.active{display:block!important;position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;min-width:0!important;min-height:0!important;padding:0!important;margin:0!important;overflow:hidden!important;z-index:8000!important;background:#080b12!important}
+#battleScreen .combat-stage{border-radius:0!important;border:0!important;box-shadow:none!important}
+@media (orientation:portrait){
+ body.battle-view .app{left:50%!important;top:50%!important;width:100vh!important;height:100vw!important;transform:translate(-50%,-50%) rotate(90deg)!important}
+ body.battle-view .app>main,#battleScreen.active{width:100%!important;height:100%!important}
+}
 #battleScreen{position:fixed!important;inset:0!important;overflow:hidden!important;background:#080b12!important}
 #battleScreen .combat-stage{position:absolute!important;left:50%!important;top:50%!important;width:1280px!important;height:720px!important;transform-origin:center center!important;overflow:hidden!important;isolation:isolate!important}
 #battleScreen .combat-stage::before{content:"";position:absolute;inset:0;z-index:-20;pointer-events:none;background:rgba(7,10,18,.18)}
@@ -4742,12 +4753,14 @@ body:has(#battleMenuScreen.active) .topbar{display:none!important}
 #laSwipeHint{position:fixed;left:50%;top:8px;transform:translateX(-50%);z-index:10030;display:none;padding:8px 16px;border-radius:999px;background:rgba(0,0,0,.76);color:#fff;font-weight:900;pointer-events:none}#laSwipeHint.show{display:block}
 #laSwipeGhost{position:fixed;z-index:10025;transform:translate(-50%,-50%) scale(.72);pointer-events:none;opacity:.9}#laSwipeGhost>.card{width:174px!important;height:260px!important}
 #modal.hidden,#logModal.hidden,#setupDetailModal.hidden,#pileModal.hidden,#resultOverlay.hidden{pointer-events:none!important}
-</style>\n\n<script id="la-battle-unified-0210-js">
+</style>
+
+<script id="la-battle-unified-0210-js">
 (()=>{
  const meta=window.LUNA_ALTER_APP_META, screen=document.getElementById('battleScreen'), stage=screen?.querySelector('.combat-stage'); if(!screen||!stage)return;
  const BOARD_W=1280,BOARD_H=720,$id=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]));
  const state=()=>currentView, paused=()=>typeof networkPaused!=='undefined'&&networkPaused;
- function fit(){if(!screen.classList.contains('active'))return;const w=screen.clientWidth||innerWidth,h=screen.clientHeight||innerHeight,scale=Math.max(.2,Math.min(w/BOARD_W,h/BOARD_H));stage.style.transform=`translate(-50%,-50%) scale(${scale})`;stage.dataset.boardScale=scale}
+ function fit(){if(!screen.classList.contains('active'))return;const r=screen.getBoundingClientRect(),w=r.width||innerWidth,h=r.height||innerHeight,scale=Math.max(.2,Math.min(w/BOARD_W,h/BOARD_H));stage.style.transform=`translate(-50%,-50%) scale(${scale})`;stage.dataset.boardScale=String(scale);stage.dataset.viewport=`${Math.round(w)}x${Math.round(h)}`}
  new ResizeObserver(fit).observe(screen);addEventListener('orientationchange',fit,{passive:true});document.addEventListener('visibilitychange',()=>{if(!document.hidden)fit()});
  const oldShow=showScreen;showScreen=function(){const r=oldShow.apply(this,arguments);requestAnimationFrame(fit);return r};
  function art(c){try{return window.LUNA_CARD_ART?.[c.id]||CARD_ART?.[c.id]||''}catch(_){return''}}
@@ -4781,5 +4794,6 @@ body:has(#battleMenuScreen.active) .topbar{display:none!important}
  window.LA_BATTLE_AUDIT=()=>{const v=state();return{version:meta.version,renderLayers:1,inputLayers:1,current:v?.current,me:v?.me?.pid,pending:!!v?.pending,paused:paused(),endDisabled:$id('endTurn')?.disabled,hand:(v?.me?.hand||[]).map(c=>({uid:c.uid,id:c.id,playable:canPlayView(v,c),cost:viewCost(v,c)}))}};
  arrange();fit();if(state())renderBattleView();document.title=`ルナオルタ ${meta.version}`;const vl=$id('appVersionLabel');if(vl)vl.textContent=`${meta.version} / ${meta.label}`;
 })();
-</script>\n</body>
+</script>
+</body>
 </html>
