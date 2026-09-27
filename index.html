@@ -959,8 +959,8 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.20.7",
-  label:"バトルUI統合・操作修復"
+  version:"0.20.8",
+  label:"バトル入力カーネル再構築"
 });
 </script>
 
@@ -5386,8 +5386,8 @@ body:has(#battleMenuScreen.active) .topbar{display:none!important}
 </style>
 
 
-<!-- LUNA ALTER 0.20.7: canonical battle input controller -->
-<style id="la-battle-input-0206-style">
+<!-- Canonical battle input controller -->
+<style id="la-battle-input-0208-style">
 /* Hidden overlays must never participate in hit testing. */
 #battleScreen .result-overlay.hidden,#battleScreen .damage-cutin.hidden,
 #modal.hidden,#logModal.hidden,#setupDetailModal.hidden,#pileModal.hidden,
@@ -5399,101 +5399,59 @@ body:has(#battleMenuScreen.active) .topbar{display:none!important}
 #battleScreen #myHand,#battleScreen #myHand>.card{touch-action:none!important}
 #battleScreen #myHand>.card.la-dragging{opacity:.28!important}
 </style>
-<script id="la-battle-input-0206">
+<script id="la-battle-input-0208">
 (()=>{
-  const hand=document.getElementById('myHand');
-  if(!hand)return;
-  let drag=null;
-  const view=()=>currentView;
-  const cardFor=(el)=>{
-    const v=view(); if(!v||!el)return null;
-    const uid=Number(el.dataset.uid);
-    if(Number.isFinite(uid)){const c=v.me?.hand?.find(x=>Number(x.uid)===uid);if(c)return c}
-    const cards=[...hand.children].filter(x=>x.classList.contains('card'));
-    return v.me?.hand?.[cards.indexOf(el)]||null;
+  const hand=document.getElementById('myHand'); if(!hand)return;
+  let drag=null, suppressClickUntil=0, lastEndAt=0;
+  const V=()=>currentView;
+  const isPaused=()=>typeof networkPaused!=='undefined'&&networkPaused;
+  const cardFromEl=el=>{const v=V(),uid=Number(el?.dataset?.uid);return v?.me?.hand?.find(c=>Number(c.uid)===uid)||null};
+  const canUse=c=>{const v=V();return !!(v&&c&&!v.over&&!v.pending&&!isPaused()&&v.current===v.me.pid&&canPlayView(v,c))};
+  const act=a=>{
+    const v=V(); if(!v||v.over||v.pending||isPaused()||v.current!==v.me.pid)return false;
+    dispatchAction(a); return true;
   };
-  const playable=c=>{const v=view();return !!(v&&c&&v.current===v.me.pid&&!v.over&&!v.pending&&!globalThis.networkPaused&&canPlayView(v,c))};
-  function ensureUI(){
-    let guide=document.getElementById('laDropGuide'),hint=document.getElementById('laSwipeHint');
-    if(!guide){guide=document.createElement('div');guide.id='laDropGuide';document.body.appendChild(guide)}
-    if(!hint){hint=document.createElement('div');hint.id='laSwipeHint';document.body.appendChild(hint)}
-    return {guide,hint};
-  }
-  function guideFor(c){
-    const {guide,hint}=ensureUI(); guide.className='show';
-    if(c.type==='setup'){
-      const blocked=!!view()?.me?.personal;
-      guide.innerHTML=`<div class="la-drop-zone personal ${blocked?'invalid':''}" data-dest="personal">← 独自枠<small>${blocked?'使用中':'ここで離して設置'}</small></div><div class="la-drop-zone shared" data-dest="shared">共有枠 →<small>ここで離して設置</small></div>`;
-      hint.textContent='セットアップ：左＝独自枠 ／ 右＝共有枠';
-    }else{
-      guide.className='show normal';guide.innerHTML='<div class="la-drop-zone normal-use" data-dest="use">↑ このエリアで離して使用</div>';hint.textContent='↑ このエリアで離して使用';
-    }
-    hint.classList.add('show');
-  }
-  function clearUI(){
-    document.getElementById('laSwipeGhost')?.remove();
-    const {guide,hint}=ensureUI();guide.className='';guide.innerHTML='';hint.classList.remove('show');
-  }
-  function ghost(el,x,y){
-    let g=document.getElementById('laSwipeGhost');
-    if(!g){g=document.createElement('div');g.id='laSwipeGhost';const clone=el.cloneNode(true);clone.classList.remove('expanded','disabled','la-dragging');clone.querySelectorAll('button').forEach(b=>b.remove());g.appendChild(clone);document.body.appendChild(g)}
-    g.style.left=x+'px';g.style.top=y+'px';
-  }
-  function hit(x,y){
-    let dest=null;document.querySelectorAll('#laDropGuide .la-drop-zone').forEach(z=>{z.classList.remove('active');if(dest||z.classList.contains('invalid'))return;const r=z.getBoundingClientRect();if(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom){dest=z.dataset.dest;z.classList.add('active')}});return dest;
-  }
-  hand.addEventListener('pointerdown',e=>{
-    const el=e.target.closest('.card');if(!el||e.target.closest('button'))return;
-    const c=cardFor(el);if(!c)return;
-    e.preventDefault();
-    drag={id:e.pointerId,el,c,x:e.clientX,y:e.clientY,moved:false,dest:null};
-    try{el.setPointerCapture(e.pointerId)}catch(_){}
-  },{passive:false});
-  hand.addEventListener('pointermove',e=>{
-    if(!drag||e.pointerId!==drag.id)return;e.preventDefault();
+  function ensureUI(){let g=document.getElementById('laDropGuide'),h=document.getElementById('laSwipeHint');if(!g){g=document.createElement('div');g.id='laDropGuide';document.body.appendChild(g)}if(!h){h=document.createElement('div');h.id='laSwipeHint';document.body.appendChild(h)}return{g,h}}
+  function showGuide(c){const {g,h}=ensureUI();g.className=c.type==='setup'?'show':'show normal';g.innerHTML=c.type==='setup'?`<div class="la-drop-zone personal ${V()?.me?.personal?'invalid':''}" data-dest="personal">← 独自枠<small>${V()?.me?.personal?'使用中':'ここで離して設置'}</small></div><div class="la-drop-zone shared" data-dest="shared">共有枠 →<small>ここで離して設置</small></div>`:'<div class="la-drop-zone normal-use" data-dest="use">↑ 離して使用</div>';h.textContent=c.type==='setup'?'左＝独自枠 ／ 右＝共有枠':'↑ 上へスワイプして使用';h.classList.add('show')}
+  function hit(x,y){let d=null;document.querySelectorAll('#laDropGuide .la-drop-zone').forEach(z=>{z.classList.remove('active');if(d||z.classList.contains('invalid'))return;const r=z.getBoundingClientRect();if(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom){d=z.dataset.dest;z.classList.add('active')}});return d}
+  function ghost(el,x,y){let g=document.getElementById('laSwipeGhost');if(!g){g=document.createElement('div');g.id='laSwipeGhost';const c=el.cloneNode(true);c.classList.remove('expanded','disabled','la-dragging');c.querySelectorAll('button').forEach(b=>b.remove());g.appendChild(c);document.body.appendChild(g)}g.style.left=x+'px';g.style.top=y+'px'}
+  function clear(){document.getElementById('laSwipeGhost')?.remove();const {g,h}=ensureUI();g.className='';g.innerHTML='';h.classList.remove('show');document.querySelectorAll('#myHand>.card.la-dragging').forEach(x=>x.classList.remove('la-dragging'))}
+  // Capture at document level so later layout wrappers cannot steal the gesture. We do not stop propagation on taps.
+  document.addEventListener('pointerdown',e=>{
+    if(!document.getElementById('battleScreen')?.classList.contains('active'))return;
+    const el=e.target.closest?.('#myHand>.card'); if(!el||e.target.closest('button'))return;
+    const c=cardFromEl(el); if(!c)return;
+    drag={id:e.pointerId,el,c,x:e.clientX,y:e.clientY,lastX:e.clientX,lastY:e.clientY,moved:false};
+  },true);
+  document.addEventListener('pointermove',e=>{
+    if(!drag||e.pointerId!==drag.id)return; drag.lastX=e.clientX;drag.lastY=e.clientY;
     const dist=Math.hypot(e.clientX-drag.x,e.clientY-drag.y);
-    if(!drag.moved&&dist>=9){
-      if(!playable(drag.c))return;
-      drag.moved=true;drag.el.classList.add('la-dragging');guideFor(drag.c);
-    }
-    if(drag.moved){ghost(drag.el,e.clientX,e.clientY);drag.dest=hit(e.clientX,e.clientY)}
-  },{passive:false});
-  function finish(e,cancel=false){
-    if(!drag||e.pointerId!==drag.id)return;e.preventDefault();
-    const d=drag;drag=null;
-    try{d.el.releasePointerCapture(e.pointerId)}catch(_){}
-    if(!d.moved){
-      if(!cancel){const was=d.el.classList.contains('expanded');document.querySelectorAll('#myHand .card.expanded').forEach(x=>x.classList.remove('expanded'));if(!was)d.el.classList.add('expanded')}
-      return;
-    }
-    const dest=!cancel&&playable(d.c)?hit(e.clientX,e.clientY):null;
-    const upward=!cancel&&playable(d.c)&&(d.y-e.clientY>=36);
-    d.el.classList.remove('la-dragging');clearUI();
-    if(d.c.type==='setup'){if(dest==='personal'||dest==='shared')dispatchAction({type:'play',uid:d.c.uid,dest});}
-    else if(dest==='use'||upward)dispatchAction({type:'play',uid:d.c.uid});
-  }
-  hand.addEventListener('pointerup',e=>finish(e,false),{passive:false});
-  hand.addEventListener('pointercancel',e=>finish(e,true),{passive:false});
-
-  // Final ownership of battle buttons: no historical clone/listener chain.
-  function replaceButton(id,handler){
-    const old=document.getElementById(id);if(!old)return null;
-    const neo=old.cloneNode(true);old.replaceWith(neo);neo.addEventListener('click',handler);return neo;
-  }
-  replaceButton('endTurn',()=>{
-    const v=view();if(!v||v.over||v.pending||globalThis.networkPaused||v.current!==v.me.pid)return;
-    const can=v.me?.hand?.some(c=>canPlayView(v,c));
-    if(can&&!confirm('まだプレイ可能なカードがあります。\nこのままターンを終了しますか？'))return;
-    dispatchAction({type:'end'});
-  });
-  replaceButton('movePersonal',()=>dispatchAction({type:'movePersonal'}));
-  replaceButton('openLog',()=>document.getElementById('logModal')?.classList.remove('hidden'));
-
-  // Cheap runtime diagnostic for future device-specific reports.
-  window.LA_BATTLE_INPUT_0206={
-    version:'0.20.7',
-    audit(){const e=document.getElementById('endTurn'),h=document.getElementById('myHand');return {battleActive:document.getElementById('battleScreen')?.classList.contains('active'),endDisabled:e?.disabled,handCards:h?.querySelectorAll('.card').length||0,handPointer:getComputedStyle(h).pointerEvents,endPointer:e?getComputedStyle(e).pointerEvents:null}}
-  };
+    if(!drag.moved&&dist>=10){if(!canUse(drag.c)){drag=null;clear();return}drag.moved=true;drag.el.classList.add('la-dragging');showGuide(drag.c)}
+    if(drag?.moved){e.preventDefault();ghost(drag.el,e.clientX,e.clientY);hit(e.clientX,e.clientY)}
+  },{capture:true,passive:false});
+  document.addEventListener('pointerup',e=>{
+    if(!drag||e.pointerId!==drag.id)return;const d=drag;drag=null;if(!d.moved)return;
+    e.preventDefault();suppressClickUntil=performance.now()+500;const dest=hit(e.clientX,e.clientY),up=d.y-e.clientY;clear();
+    if(!canUse(d.c))return;
+    if(d.c.type==='setup'){if(dest==='personal'||dest==='shared')act({type:'play',uid:d.c.uid,dest});}
+    else if(dest==='use'||up>=28)act({type:'play',uid:d.c.uid});
+  },{capture:true,passive:false});
+  document.addEventListener('pointercancel',()=>{drag=null;clear()},true);
+  document.addEventListener('click',e=>{if(performance.now()<suppressClickUntil&&e.target.closest?.('#myHand>.card')){e.preventDefault();e.stopImmediatePropagation()}},true);
+  // Turn end is handled on pointerup at capture phase; this survives cloned/replaced buttons.
+  document.addEventListener('pointerup',e=>{
+    const b=e.target.closest?.('#endTurn');if(!b||b.disabled||performance.now()-lastEndAt<500)return;
+    const v=V();if(!v||v.over||v.pending||isPaused()||v.current!==v.me.pid)return;
+    e.preventDefault();e.stopImmediatePropagation();lastEndAt=performance.now();
+    const playable=(v.me.hand||[]).some(c=>canPlayView(v,c));
+    if(playable&&!confirm('まだプレイ可能なカードがあります。\nこのままターンを終了しますか？'))return;
+    act({type:'end'});
+  },true);
+  // Keep the ordinary click as keyboard/accessibility fallback only.
+  const end=document.getElementById('endTurn');if(end)end.onclick=e=>{if(performance.now()-lastEndAt<600)return;e.preventDefault();const v=V();if(!v||v.over||v.pending||isPaused()||v.current!==v.me.pid)return;const playable=(v.me.hand||[]).some(c=>canPlayView(v,c));if(playable&&!confirm('まだプレイ可能なカードがあります。\nこのままターンを終了しますか？'))return;lastEndAt=performance.now();act({type:'end'})};
+  const move=document.getElementById('movePersonal');if(move)move.onclick=()=>act({type:'movePersonal'});
+  const log=document.getElementById('openLog');if(log)log.onclick=()=>document.getElementById('logModal')?.classList.remove('hidden');
+  window.LA_BATTLE_INPUT={version:window.LUNA_ALTER_APP_META.version,audit(){const v=V(),e=document.getElementById('endTurn');return{mode:matchMode,role:roomRole,current:v?.current,me:v?.me?.pid,pending:!!v?.pending,paused:isPaused(),energy:v?.me?.energy,endDisabled:e?.disabled,hand:(v?.me?.hand||[]).map(c=>({uid:c.uid,id:c.id,cost:viewCost(v,c),playable:canPlayView(v,c)}))}}};
 })();
 </script>
 </body>
