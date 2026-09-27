@@ -959,8 +959,8 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.21.13",
-  label:"キャラクター別カードフレーム"
+  version:"0.21.15",
+  label:"入力系一元化"
 });
 </script>
 
@@ -1596,7 +1596,7 @@ function finalizeEndTurn(pid){const p=game.players[pid];runEndTurnEffects(pid);c
 function endPlayerTurn(pid){if(game.current!==pid||game.over||game.pending)return;const p=game.players[pid];runEndTurnEffects(pid);if(hasSetup(pid,'j20')&&p.hand.length){game.pending={pid,type:'endTurnDiscard',count:1,title:'《断捨離》：捨てるカードを1枚選択'};return}finalizeEndTurn(pid)}
 function handleAction(pid,a){if(roomRole!=='host'||!game||!a||(matchMode==='online'&&networkPaused))return;if(a.type==='play')playCard(pid,Number(a.uid),a.dest);else if(a.type==='choose')resolvePending(pid,(a.uids||[]).map(Number),a.targetIndex);else if(a.type==='end')endPlayerTurn(pid);else if(a.type==='surrender'){if(!game.over){game.over=true;game.winner=other(pid);addLog(`=== ${game.players[pid].name}が降参しました。${game.players[other(pid)].name}の勝利！ ===`)}}else if(a.type==='movePersonal'){if(game.current===pid&&!game.over&&!game.pending){const p=game.players[pid];if(p.personal){const c=p.personal;p.personal=null;game.shared.push({owner:pid,card:c});addLog(`${p.name}：独自枠《${c.name}》を共有枠へ移動。`);if(game.shared.length>3)pushOldest('独自枠移動')}}}else if(a.type==='keep'){if(game.current===pid&&hasSetup(pid,'j15')){const p=game.players[pid];p.keepUid=p.keepUid===Number(a.uid)?null:Number(a.uid)}}broadcastState()}
 function dispatchAction(action){if(matchMode==='online'&&networkPaused)return;if(roomRole==='host')handleAction('p1',action);else if(conn?.open)conn.send({type:'action',action})}
-function playerPublic(p,showHand){return{pid:p.pid,name:p.name,character:p.character,hp:p.hp,maxHp:p.maxHp||100,maxEnergy:p.maxEnergy,energy:p.energy,turnSkillDraws:showHand?p.turnSkillDraws:0,drawCount:p.drawPile.length,discardCount:p.discard.length,exhaustCount:p.exhaust.length,handCount:p.hand.length,hand:showHand?p.hand.map(c=>({...c})):[],discard:showHand?p.discard.map(c=>({...c})):[],personal:p.personal?{...p.personal}:null,keepUid:showHand?p.keepUid:null}}
+function playerPublic(p,showHand){return{pid:p.pid,name:p.name,character:p.character,hp:p.hp,maxHp:p.maxHp||100,maxEnergy:p.maxEnergy,energy:p.energy,turnNo:p.turnNo||0,turnSkillDraws:showHand?p.turnSkillDraws:0,drawCount:p.drawPile.length,discardCount:p.discard.length,exhaustCount:p.exhaust.length,handCount:p.hand.length,hand:showHand?p.hand.map(c=>({...c})):[],discard:showHand?p.discard.map(c=>({...c})):[],personal:p.personal?{...p.personal}:null,keepUid:showHand?p.keepUid:null}}
 function makeView(pid){const oid=other(pid);let pending=null;if(game.pending?.pid===pid){let cards;if(game.pending.type==='reorderShared')cards=game.shared.map(x=>({...x.card,sharedOwner:x.owner,choiceCost:cardCost(pid,x.card)}));else cards=(game.pending.type==='returnDiscard'?game.players[pid].discard:game.players[pid].hand).filter(c=>c.uid!==game.pending.excludeUid&&(!game.pending.cardsOverride||game.pending.cardsOverride.includes(c.uid))).map(c=>({...c,choiceCost:cardCost(pid,c)}));pending={...game.pending,cards}}return{me:playerPublic(game.players[pid],true),opp:playerPublic(game.players[oid],false),shared:game.shared.map(x=>({owner:x.owner,card:{...x.card}})),current:game.current,over:game.over,winner:game.winner,log:[...game.log],pending,lastAction:game.lastAction?{...game.lastAction}:null,damageEvents:(game.damageEvents||[]).map(x=>({...x})),drawEvents:(game.drawEvents||[]).map(x=>({...x}))}}
 function broadcastState(){if(roomRole!=='host'||!game)return;currentView=makeView('p1');showScreen('battle');renderBattleView();if(matchMode==='online'){if(game.over)clearHostRecovery();else saveHostRecovery();if(conn?.open&&!networkPaused)conn.send({type:'state',view:makeView('p2')})}scheduleCpuTurn()}
 
@@ -4872,16 +4872,6 @@ body:has(#battleMenuScreen.active) .app{width:100vw!important;max-width:none!imp
 }
 </style>
 
-<script id="la-02110-deck-stepper-touch">
-(()=>{
- const grid=document.getElementById('deckGrid'); if(!grid)return;
- let lastTouch=0;
- const step=(btn)=>{const cardEl=btn.closest('.deck-card'),id=cardEl?.dataset.cardId;if(!id)return false;const old=Number(workingCounts[id]||0);let next=old;if(btn.dataset.a==='plus'&&old<3)next=old+1;if(btn.dataset.a==='minus'&&old>0)next=old-1;if(next===old)return false;workingCounts[id]=next;const q=cardEl.querySelector('.qty b');if(q)q.textContent=`${next}枚`;cardEl.classList.toggle('at-cap',next>=3);if(typeof refreshDeckSummary0217==='function')refreshDeckSummary0217();return true};
- grid.addEventListener('touchend',e=>{const btn=e.target.closest('.qty button');if(!btn||!grid.contains(btn))return;e.preventDefault();e.stopImmediatePropagation();lastTouch=Date.now();step(btn)}, {capture:true,passive:false});
- grid.addEventListener('click',e=>{if(Date.now()-lastTouch<700)return;},true);
-})();
-</script>
-
 <style id="la-02111-deck-live-count">
 /* 0.21.11 — deck count is live editing state, and remains visible while editing. */
 #deckScreen #deckCountSticky{
@@ -4999,5 +4989,183 @@ body.deck-view #deckScreen #deckCountSticky{top:72px!important}
  let queued=false;const obs=new MutationObserver(()=>{if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;decorate()})});obs.observe(document.body,{childList:true,subtree:true});decorate();window.LUNA_DECORATE_CARD_FRAMES=decorate;
 })();
 </script>
+
+<style id="la-02114-battle-polish">
+/* 0.21.14 — battle ownership, intro, stronger affordances */
+#battleScreen .slot.occupied.owner-self{
+  border-color:#63c8ff!important;
+  box-shadow:0 0 0 2px rgba(45,166,255,.62),0 0 20px 6px rgba(45,166,255,.48),0 8px 20px rgba(0,0,0,.24)!important;
+}
+#battleScreen .slot.occupied.owner-opponent{
+  border-color:#ff6b6b!important;
+  box-shadow:0 0 0 2px rgba(255,74,74,.60),0 0 20px 6px rgba(255,74,74,.46),0 8px 20px rgba(0,0,0,.24)!important;
+}
+#battleScreen #myHand>.card.condition-ready{
+  outline:4px solid #ffd84d!important;outline-offset:-2px!important;
+  box-shadow:0 0 0 3px rgba(255,211,55,.72),0 0 28px 10px rgba(255,190,28,.92),0 0 48px 14px rgba(255,226,83,.46),0 7px 20px rgba(0,0,0,.34)!important;
+  animation:laSpecialReadyPulse .9s ease-in-out infinite alternate!important;
+}
+@keyframes laSpecialReadyPulse{from{filter:brightness(1.02)}to{filter:brightness(1.22)}}
+#battleScreen .battle-controls .battle-actions{display:grid!important;grid-template-columns:1fr 1.25fr!important;gap:10px!important;margin-top:10px!important}
+#battleScreen #movePersonal,#battleScreen #endTurn{
+  min-height:64px!important;padding:10px 14px!important;border-radius:15px!important;font-size:16px!important;font-weight:1000!important;
+  letter-spacing:.02em!important;touch-action:manipulation!important;pointer-events:auto!important;
+}
+#battleScreen #endTurn{font-size:18px!important;box-shadow:0 8px 24px rgba(0,0,0,.22)!important}
+/* Log is already a dedicated edge control; keep it out of the large action grid. */
+#battleScreen .battle-controls .battle-actions #openLog{position:fixed!important}
+
+#laVsIntro{position:fixed;inset:0;z-index:30000;display:none;background:#080a10;overflow:hidden;pointer-events:auto;color:#fff}
+#laVsIntro.show{display:block}
+#laVsIntro .vs-half{position:absolute;top:0;bottom:0;width:52%;overflow:hidden;background:#111}
+#laVsIntro .vs-half.self{left:0;clip-path:polygon(0 0,100% 0,88% 100%,0 100%)}
+#laVsIntro .vs-half.opp{right:0;clip-path:polygon(12% 0,100% 0,100% 100%,0 100%)}
+#laVsIntro .vs-half img{width:100%;height:100%;object-fit:cover;object-position:center top;filter:saturate(1.04) contrast(1.04);transform:scale(1.03)}
+#laVsIntro .vs-half.opp img{transform:scale(1.03) scaleX(-1)}
+#laVsIntro .vs-shade{position:absolute;inset:0;background:linear-gradient(to top,rgba(4,5,9,.76),transparent 54%),linear-gradient(90deg,transparent 55%,rgba(0,0,0,.32))}
+#laVsIntro .opp .vs-shade{background:linear-gradient(to top,rgba(4,5,9,.76),transparent 54%),linear-gradient(-90deg,transparent 55%,rgba(0,0,0,.32))}
+#laVsIntro .vs-name{position:absolute;bottom:30px;left:28px;font:1000 24px/1 system-ui,-apple-system,sans-serif;letter-spacing:.08em;text-shadow:0 3px 12px #000}
+#laVsIntro .opp .vs-name{left:auto;right:28px;text-align:right}
+#laVsIntro .vs-mark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-6deg);z-index:4;font:1000 74px/.9 Georgia,serif;letter-spacing:-.08em;color:#fff;text-shadow:0 0 18px #000,0 0 38px rgba(255,202,91,.72)}
+#laVsIntro .vs-mark:after{content:"";position:absolute;left:50%;top:50%;width:4px;height:170vh;background:linear-gradient(#fff0,#ffe69b,#fff0);transform:translate(-50%,-50%) rotate(8deg);z-index:-1;box-shadow:0 0 20px #ffd15a}
+#laVsIntro .order-card{position:absolute;z-index:6;left:50%;top:50%;transform:translate(-50%,-50%) scale(.9);min-width:min(520px,72vw);padding:24px 38px;border:1px solid rgba(255,225,154,.7);border-radius:18px;background:rgba(10,12,18,.88);backdrop-filter:blur(10px);text-align:center;opacity:0;pointer-events:none;box-shadow:0 18px 60px #000}
+#laVsIntro.order .vs-mark{opacity:0;transform:translate(-50%,-50%) scale(.7)}
+#laVsIntro.order .vs-half{filter:brightness(.48) blur(1px)}
+#laVsIntro.order .order-card{opacity:1;transform:translate(-50%,-50%) scale(1);transition:.25s ease}
+#laVsIntro .order-kicker{font-size:12px;font-weight:900;letter-spacing:.22em;color:#d9c797}
+#laVsIntro .order-main{margin-top:8px;font-size:30px;font-weight:1000;letter-spacing:.04em}
+#laVsIntro.fade{animation:laVsFade .32s ease forwards}@keyframes laVsFade{to{opacity:0}}
+</style>
+<script id="la-02114-battle-polish-js">
+(()=>{
+ const $id=id=>document.getElementById(id);
+ const meta=window.LUNA_ALTER_APP_META;
+ // Selection UX: if an effect genuinely has only one legal card and asks for exactly one, resolve it immediately.
+ const baseBroadcast=broadcastState;
+ broadcastState=function(){
+   if(roomRole==='host'&&game?.pending&&game.pending.type!=='reorderShared'){
+     let guard=0;
+     while(game?.pending&&guard++<6){
+       const pid=game.pending.pid,pv=makeView(pid).pending;
+       const exact=(pv?.count===1)&&(!Number.isInteger(pv?.minCount)||pv.minCount===1)&&(!Number.isInteger(pv?.maxCount)||pv.maxCount===1);
+       if(!exact||pv.cards?.length!==1)break;
+       const only=pv.cards[0];
+       addLog(`${game.players[pid].name}：選択肢が1枚のため《${only.name}》を自動選択。`);
+       resolvePending(pid,[only.uid]);
+     }
+   }
+   return baseBroadcast.apply(this,arguments)
+ };window.broadcastState=broadcastState;
+
+ function specialReady(v,c){
+   if(!v?.me||v.current!==v.me.pid||v.over||v.pending)return false;
+   if(typeof canPlayView==='function'&&!canPlayView(v,c))return false;
+   if(typeof cardConditionReady==='function'&&cardConditionReady(v,c))return true;
+   const used=v.me.cardsPlayedThisTurn||0,next=used+1;
+   if(c.id==='s25'&&next===3)return true; // 葬送歌
+   if(c.id==='s2'&&used===9)return true;  // 百鬼夜行解禁
+   return false;
+ }
+ function decorateReady(v){
+   document.querySelectorAll('#myHand>.card').forEach(el=>{
+     const c=v?.me?.hand?.find(x=>String(x.uid)===el.dataset.uid);
+     el.classList.toggle('condition-ready',!!(c&&specialReady(v,c)));
+   })
+ }
+
+ // VS intro is shown once at the opening state of each battle.
+ let introArmed=true,introRunning=false,lastOver=true;
+ let intro=$id('laVsIntro');
+ if(!intro){intro=document.createElement('div');intro.id='laVsIntro';intro.innerHTML=`<div class="vs-half self"><img class="vs-self-img" alt=""><div class="vs-shade"></div><div class="vs-name self-name"></div></div><div class="vs-half opp"><img class="vs-opp-img" alt=""><div class="vs-shade"></div><div class="vs-name opp-name"></div></div><div class="vs-mark">VS</div><div class="order-card"><div class="order-kicker">BATTLE ORDER</div><div class="order-main"></div></div>`;document.body.appendChild(intro)}
+ function maybeIntro(v){
+   if(!v?.me||v.over){lastOver=!!v?.over;if(v?.over)introArmed=true;return}
+   const opening=(Number(v.me.turnNo||0)+Number(v.opp?.turnNo||0))===1;
+   if(!opening||!introArmed||introRunning)return;
+   introArmed=false;introRunning=true;lastOver=false;
+   const mySrc=LEADER_SKINS?.[v.me.character],opSrc=LEADER_SKINS?.[v.opp.character];
+   const mi=intro.querySelector('.vs-self-img'),oi=intro.querySelector('.vs-opp-img');if(mySrc)mi.src=mySrc;if(opSrc)oi.src=opSrc;
+   intro.querySelector('.self-name').textContent=v.me.name||CHARACTER_LABELS[v.me.character]||'YOU';intro.querySelector('.opp-name').textContent=v.opp.name||CHARACTER_LABELS[v.opp.character]||'OPPONENT';
+   intro.querySelector('.order-main').textContent=v.current===v.me.pid?'あなたが先攻です':'あなたが後攻です';
+   intro.className='show';
+   setTimeout(()=>intro.classList.add('order'),1050);
+   setTimeout(()=>intro.classList.add('fade'),2200);
+   setTimeout(()=>{intro.className='';introRunning=false},2540)
+ }
+
+ function syncEndMenu(v){
+   const b=$id('battleSurrender');if(!b)return;
+   b.textContent=v?.over?'ホーム':'降参';b.classList.toggle('danger',!v?.over);b.classList.toggle('primary',!!v?.over)
+ }
+ const baseRender=renderBattleView;
+ renderBattleView=function(){const r=baseRender.apply(this,arguments),v=currentView;if(v){decorateReady(v);syncEndMenu(v);maybeIntro(v)}return r};window.renderBattleView=renderBattleView;
+
+ // Existing surrender listener intentionally ignores finished games. Capture finished-game clicks and route home.
+ const surrender=$id('battleSurrender');
+ surrender?.addEventListener('click',e=>{if(!currentView?.over)return;e.preventDefault();e.stopImmediatePropagation();$id('battlePauseMenu')?.classList.add('hidden');const home=$id('resultHome');if(home)home.click();else{try{leaveRoom();showScreen('home');renderHomeLeader()}catch(_){location.reload()}}},true);
+
+ // If the current view already exists (e.g. hot reload), refresh the new decorations.
+ if(currentView){decorateReady(currentView);syncEndMenu(currentView)}
+ const vl=$id('appVersionLabel');if(vl)vl.textContent=`${meta.version} / ${meta.label}`;
+})();
+</script>
+
+<style id="la-input-unified-02115">
+/* 0.21.15 — one tap = one action. Ordinary controls use a single pointer->click bridge. */
+button,.btn,[role="button"]{
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:rgba(255,255,255,.08);
+}
+button:disabled,.btn:disabled{pointer-events:none}
+#modal:not(.hidden),#logModal:not(.hidden),#setupDetailModal:not(.hidden),#pileModal:not(.hidden){pointer-events:auto}
+</style>
+<script id="la-input-unified-02115-js">
+(()=>{
+ const ROOT=document;
+ let bridging=false;
+ const isDragSurface=el=>!!el.closest('#myHand .card,#laDropGuide,#laSwipeGhost,input,textarea,select,option,a[href]');
+ const ordinaryButton=target=>{
+   const b=target.closest?.('button,.btn,[role="button"]');
+   if(!b||b.disabled||b.getAttribute('aria-disabled')==='true'||isDragSurface(target))return null;
+   return b;
+ };
+ // Mobile Safari occasionally lets the first tap get consumed by overlapping/legacy gesture state.
+ // Normalize physical pointer release into exactly one existing click path; do not create a second business-action handler.
+ ROOT.addEventListener('pointerup',e=>{
+   if(bridging||e.pointerType==='mouse'||e.button!==0)return;
+   const b=ordinaryButton(e.target); if(!b)return;
+   e.preventDefault();
+   e.stopPropagation();
+   bridging=true;
+   try{ b.click(); } finally { queueMicrotask(()=>{bridging=false}) }
+ },{capture:true,passive:false});
+
+ // Kill ghost/native clicks that can follow the bridged touch/pen pointerup.
+ let lastPhysicalUp=0;
+ ROOT.addEventListener('pointerup',e=>{if(e.pointerType!=='mouse')lastPhysicalUp=performance.now()},{capture:true,passive:true});
+ ROOT.addEventListener('click',e=>{
+   if(bridging)return; // synthetic click created above: allow it through
+   if(e.detail===0)return; // keyboard/programmatic accessibility click
+   if(performance.now()-lastPhysicalUp<650 && ordinaryButton(e.target)){
+     e.preventDefault();e.stopImmediatePropagation();
+   }
+ },{capture:true});
+
+ // Remove stale pressed/drag visuals whenever a normal control is used.
+ ROOT.addEventListener('click',e=>{
+   const b=ordinaryButton(e.target);if(!b)return;
+   document.querySelectorAll('.hold-active,.pressed').forEach(x=>x.classList.remove('hold-active','pressed'));
+ },{capture:false});
+
+ window.LA_INPUT_AUDIT=()=>({
+   version:window.LUNA_ALTER_APP_META?.version,
+   mode:'pointerup-to-existing-click',
+   legacyDeckTouchShim:!!document.getElementById('la-02110-deck-stepper-touch'),
+   endTurnClickOnly:!!document.getElementById('endTurn'),
+   modalOk:!!document.getElementById('modalOk')
+ });
+ const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${window.LUNA_ALTER_APP_META.version} / ${window.LUNA_ALTER_APP_META.label}`;
+})();
+</script>
+
 </body>
 </html>
