@@ -959,8 +959,8 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.21.10",
-  label:"バトル可読性・操作UI・デッキ編成修復"
+  version:"0.21.12",
+  label:"キャラクター別カードフレーム"
 });
 </script>
 
@@ -4879,6 +4879,131 @@ body:has(#battleMenuScreen.active) .app{width:100vw!important;max-width:none!imp
  const step=(btn)=>{const cardEl=btn.closest('.deck-card'),id=cardEl?.dataset.cardId;if(!id)return false;const old=Number(workingCounts[id]||0);let next=old;if(btn.dataset.a==='plus'&&old<3)next=old+1;if(btn.dataset.a==='minus'&&old>0)next=old-1;if(next===old)return false;workingCounts[id]=next;const q=cardEl.querySelector('.qty b');if(q)q.textContent=`${next}枚`;cardEl.classList.toggle('at-cap',next>=3);if(typeof refreshDeckSummary0217==='function')refreshDeckSummary0217();return true};
  grid.addEventListener('touchend',e=>{const btn=e.target.closest('.qty button');if(!btn||!grid.contains(btn))return;e.preventDefault();e.stopImmediatePropagation();lastTouch=Date.now();step(btn)}, {capture:true,passive:false});
  grid.addEventListener('click',e=>{if(Date.now()-lastTouch<700)return;},true);
+})();
+</script>
+
+<style id="la-02111-deck-live-count">
+/* 0.21.11 — deck count is live editing state, and remains visible while editing. */
+#deckScreen #deckCountSticky{
+  display:flex!important;position:sticky!important;top:0!important;z-index:9500!important;
+  justify-content:flex-end!important;pointer-events:none!important;margin:0 0 8px!important;padding:4px 6px!important;
+}
+#deckScreen #deckCountSticky .deck-count-pill{pointer-events:auto!important;font-size:13px!important;padding:8px 13px!important}
+body.deck-view #deckScreen .deck-editor-head{
+  position:sticky!important;top:0!important;z-index:9400!important;background:rgba(248,243,233,.97)!important;
+  backdrop-filter:blur(10px)!important;-webkit-backdrop-filter:blur(10px)!important;
+}
+/* The pill sits immediately below the editor header instead of disappearing with the card list. */
+body.deck-view #deckScreen #deckCountSticky{top:72px!important}
+@media(max-width:760px){body.deck-view #deckScreen #deckCountSticky{top:62px!important}}
+</style>
+<script id="la-02111-deck-live-count-js">
+(()=>{
+ const $=id=>document.getElementById(id);
+ function syncDeckCount(){
+   const total=deckTotal(workingCounts||{}), count=$('deckCount'), warn=$('deckWarning'), pill=$('deckCountStickyPill');
+   if(count) count.textContent=String(total);
+   if(warn){
+     warn.classList.toggle('hidden',total===40);
+     warn.textContent=total<40?`あと${40-total}枚追加してください。`:`${total-40}枚減らしてください。`;
+   }
+   if(pill){
+     pill.textContent=`現在 ${total} / 40枚`;
+     pill.classList.toggle('complete',total===40);
+     pill.classList.toggle('over',total>40);
+   }
+ }
+ // Every render and every +/- edit reads the live workingCounts object, never the saved deck count.
+ const prevRender=renderDeckCards;
+ renderDeckCards=function(){const r=prevRender.apply(this,arguments);syncDeckCount();return r};
+ window.renderDeckCards=renderDeckCards;
+ const grid=$('deckGrid');
+ if(grid){
+   grid.addEventListener('click',()=>queueMicrotask(syncDeckCount),false);
+   grid.addEventListener('touchend',()=>queueMicrotask(syncDeckCount),{passive:true});
+ }
+ const prevManager=renderDeckManager;
+ renderDeckManager=function(){const r=prevManager.apply(this,arguments);syncDeckCount();return r};
+ window.renderDeckManager=renderDeckManager;
+ syncDeckCount();
+})();
+</script>
+
+
+<style id="la-card-frame-02112">
+/* 0.21.12 — restrained character card frames. The illustration stays dominant;
+   character identity is carried by a thin metallic edge and one bottom jewel. */
+.card.la-char-frame,.choice-card.la-char-frame,.deck-card.la-char-frame{
+  --la-frame:#8b8b91;--la-frame-hi:#d8d8dc;--la-gem:#aeb0b8;--la-gem-hi:#f4f5f7;
+  position:relative!important;
+  border:2px solid var(--la-frame)!important;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--la-frame-hi) 72%,transparent),0 3px 10px rgba(0,0,0,.18);
+  overflow:visible!important;
+}
+.card.la-char-frame::before,.choice-card.la-char-frame::before,.deck-card.la-char-frame::before{
+  content:"";position:absolute;inset:3px;z-index:6;pointer-events:none;border-radius:inherit;
+  border:1px solid color-mix(in srgb,var(--la-frame-hi) 48%,transparent);
+}
+.card.la-char-frame::after,.choice-card.la-char-frame::after,.deck-card.la-char-frame::after{
+  content:"";position:absolute;z-index:12;pointer-events:none;left:50%;bottom:-7px;
+  width:14px;height:14px;transform:translateX(-50%) rotate(45deg);
+  border:2px solid var(--la-frame-hi);border-radius:2px;
+  background:linear-gradient(135deg,var(--la-gem-hi) 0 18%,var(--la-gem) 38% 68%,color-mix(in srgb,var(--la-gem) 62%,#111) 100%);
+  box-shadow:0 0 0 2px rgba(20,18,20,.62),0 0 8px color-mix(in srgb,var(--la-gem) 72%,transparent);
+}
+.card.la-frame-giovanni,.choice-card.la-frame-giovanni,.deck-card.la-frame-giovanni{
+  --la-frame:#a77a28;--la-frame-hi:#f0d58d;--la-gem:#d39b35;--la-gem-hi:#fff0b0;
+}
+.card.la-frame-kenshi,.choice-card.la-frame-kenshi,.deck-card.la-frame-kenshi{
+  --la-frame:#8e2631;--la-frame-hi:#e48a91;--la-gem:#b61f38;--la-gem-hi:#ff9a9f;
+}
+.card.la-frame-shiranui,.choice-card.la-frame-shiranui,.deck-card.la-frame-shiranui{
+  --la-frame:#65409a;--la-frame-hi:#c5a3ef;--la-gem:#7b42b5;--la-gem-hi:#e0c1ff;
+}
+/* Keep the existing blue playable glow outside the decorative frame. */
+#battleScreen #myHand>.card.la-char-frame:not(.disabled){
+  outline:3px solid #55b9ff!important;outline-offset:2px!important;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--la-frame-hi) 72%,transparent),0 0 0 2px rgba(55,160,255,.34),0 0 18px 5px rgba(55,160,255,.78),0 6px 18px rgba(0,0,0,.28)!important;
+}
+#battleScreen #myHand>.card.la-char-frame.disabled{
+  outline:1px solid rgba(255,255,255,.18)!important;outline-offset:2px!important;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--la-frame-hi) 72%,transparent),0 4px 12px rgba(0,0,0,.22)!important;
+}
+/* Small cards get a smaller jewel so it never eats the text area. */
+.choice-card.la-char-frame::after,.deck-card.la-char-frame::after{width:11px;height:11px;bottom:-6px}
+</style>
+<script id="la-card-frame-02112-js">
+(()=>{
+ const classes=['la-frame-giovanni','la-frame-kenshi','la-frame-shiranui'];
+ function byId(id){try{return DEF?.[id]||null}catch(_){return null}}
+ function infer(el,id){
+   const c=byId(id);
+   if(c?.pool==='giovanni'||String(id||'').startsWith('j')||id==='knife')return'giovanni';
+   if(c?.pool==='kenshi'||String(id||'').startsWith('k'))return'kenshi';
+   if(c?.pool==='shiranui'||String(id||'').startsWith('s')||id==='sf')return'shiranui';
+   if(el.closest('#deckGrid')){try{return workingCharacter||'giovanni'}catch(_){}}
+   if(el.closest('#myHand')){try{return currentView?.me?.character||'giovanni'}catch(_){}}
+   if(el.closest('#modalBody')){try{const pid=currentView?.pending?.pid;return pid===currentView?.me?.pid?currentView?.me?.character:(currentView?.opp?.character||'giovanni')}catch(_){}}
+   if(el.closest('#playedStage')){try{const a=currentView?.lastAction;return a?.pid===currentView?.me?.pid?currentView?.me?.character:(currentView?.opp?.character||'giovanni')}catch(_){}}
+   return'giovanni';
+ }
+ function idOf(el){
+   if(el.dataset.cardId)return el.dataset.cardId;
+   const uid=el.dataset.uid;
+   if(uid){try{const c=currentView?.me?.hand?.find(x=>String(x.uid)===String(uid));if(c)return c.id}catch(_){}}
+   const n=el.querySelector('.cname,h3')?.textContent?.replace(/\s+/g,'')||'';
+   try{const c=CARD_DEFS.find(x=>n.includes(String(x.name).replace(/\s+/g,'')));if(c)return c.id}catch(_){}
+   return'';
+ }
+ function decorate(root=document){
+   root.querySelectorAll?.('.card,.choice-card,.deck-card').forEach(el=>{
+     const id=idOf(el),ch=infer(el,id);
+     el.classList.add('la-char-frame');classes.forEach(x=>el.classList.remove(x));el.classList.add(`la-frame-${ch}`);
+   });
+ }
+ let queued=false;const obs=new MutationObserver(()=>{if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;decorate()})});
+ obs.observe(document.body,{childList:true,subtree:true});decorate();
+ window.LUNA_DECORATE_CARD_FRAMES=decorate;
 })();
 </script>
 </body>
