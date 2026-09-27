@@ -959,7 +959,7 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.21.7",
+  version:"0.21.9",
   label:"バトル可読性・操作UI・デッキ編成修復"
 });
 </script>
@@ -1272,7 +1272,7 @@ const KENSHI_CARD_DEFS=[
  {id:'k14',name:'不退転',type:'setup',cost:5,text:'自分のターン開始時、自分のリーダーを5回復する。',pool:'kenshi'},
  {id:'k15',name:'泰然自若',type:'setup',cost:6,text:'自分のリーダーが受けるダメージを2軽減する。',pool:'kenshi'},
  {id:'k16',name:'軽妙なる足捌き',type:'skill',cost:1,text:'カードを1枚引く。その後、手札のカード1枚のコストを1下げる。手札を離れると元に戻る。',pool:'kenshi'},
- {id:'k17',name:'束の間の休息',type:'spell',cost:3,text:'自分のリーダーを10回復する。',pool:'kenshi'},
+ {id:'k17',name:'束の間の休息',type:'spell',cost:2,text:'自分のリーダーを10回復する。',pool:'kenshi'},
  {id:'k18',name:'剣戟の残響',type:'setup',cost:3,text:'自分が元コスト4以上のカードを使ったターンの終了時、カードを1枚引く。',pool:'kenshi'},
  {id:'k19',name:'取捨選択',type:'skill',cost:1,text:'カードを2枚引く。その後、手札の中で最もコストが低いカード1枚を捨てる。',pool:'kenshi'},
  {id:'k20',name:'二刀流',type:'attack',cost:4,text:'20ダメージを与える。自分の手札にコスト5以上のカードがある場合、さらに5ダメージ。',pool:'kenshi'},
@@ -1385,7 +1385,7 @@ function renderDeckCards(){
  const savedScrollTop=grid?grid.scrollTop:0;
  const total=deckTotal(workingCounts);$('deckCount').textContent=total;const warn=$('deckWarning');warn.classList.toggle('hidden',total===40);warn.textContent=total<40?`あと${40-total}枚追加してください。`:`${total-40}枚減らしてください。`;
  grid.innerHTML='';
- const renderPool=(title,cards)=>{const h=document.createElement('div');h.className='pool-heading';h.innerHTML=`<span>${title}</span><span class="pool-count">${cards.length}種類</span>`;grid.appendChild(h);const typeOrder={attack:0,skill:1,spell:2,setup:3};[...cards].sort((a,b)=>(typeOrder[a.type]-typeOrder[b.type])||(a.cost-b.cost)||a.name.localeCompare(b.name,'ja')).forEach(c=>{const n=workingCounts[c.id]||0,d=document.createElement('div');d.className=`deck-card ${c.type} ${n>=3?'at-cap':''}`;d.innerHTML=`<h3>${c.name}</h3><div class="small">${typeLabel(c.type)} / ${c.cost}コスト</div><div class="effect">${c.text}</div><div class="qty"><button data-a="minus">−</button><b>${n}枚</b><button data-a="plus">＋</button></div>`;d.querySelector('[data-a=minus]').onclick=()=>{if(n>0){workingCounts[c.id]=n-1;renderDeckCards()}};d.querySelector('[data-a=plus]').onclick=()=>{if(n<3&&deckTotal(workingCounts)<40){workingCounts[c.id]=n+1;renderDeckCards()}};grid.appendChild(d)})};
+ const renderPool=(title,cards)=>{const h=document.createElement('div');h.className='pool-heading';h.innerHTML=`<span>${title}</span><span class="pool-count">${cards.length}種類</span>`;grid.appendChild(h);const typeOrder={attack:0,skill:1,spell:2,setup:3};[...cards].sort((a,b)=>(typeOrder[a.type]-typeOrder[b.type])||(a.cost-b.cost)||a.name.localeCompare(b.name,'ja')).forEach(c=>{const n=workingCounts[c.id]||0,d=document.createElement('div');d.className=`deck-card ${c.type} ${n>=3?'at-cap':''}`;d.innerHTML=`<h3>${c.name}</h3><div class="small">${typeLabel(c.type)} / ${c.cost}コスト</div><div class="effect">${c.text}</div><div class="qty"><button data-a="minus">−</button><b>${n}枚</b><button data-a="plus">＋</button></div>`;d.querySelector('[data-a=minus]').onclick=()=>{if(n>0){workingCounts[c.id]=n-1;renderDeckCards()}};d.querySelector('[data-a=plus]').onclick=()=>{if(n<3){workingCounts[c.id]=n+1;renderDeckCards()}};grid.appendChild(d)})};
  renderPool('クラス共通',COMMON_CARD_DEFS);renderPool(CHARACTER_LABELS[workingCharacter],workingCharacter==='kenshi'?KENSHI_CARD_DEFS:workingCharacter==='shiranui'?SHIRANUI_CARD_DEFS:GIOVANNI_CARD_DEFS);
  // Restore immediately (layout is synchronous) and once more on the next frame for iOS/WebKit.
  grid.scrollTop=savedScrollTop;
@@ -3742,7 +3742,7 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
 #battleMenuScreen .mode-card{min-height:0!important;height:100%!important;padding:20px 22px!important;border-radius:20px!important;display:flex!important;flex-direction:column!important;overflow:hidden!important;background:rgba(255,253,248,.92)!important}
 #battleMenuScreen .mode-card .home-icon{font-size:30px!important}#battleMenuScreen .mode-card h2{font-size:24px!important;margin:8px 0 4px!important}#battleMenuScreen .mode-card p{font-size:11px!important;margin-bottom:4px!important}
 #battleMenuScreen .mode-card .room-fields{display:grid!important;grid-template-columns:1fr 1fr!important;gap:9px 12px!important;margin-top:10px!important}#battleMenuScreen .mode-card .room-fields .field:first-child{grid-column:1/-1!important}
-#battleMenuScreen .mode-card-action{margin-top:auto!important;height:46px!important;font-size:14px!important;font-weight:900!important}#battleMenuScreen #goRoom{margin-top:auto!important;height:46px!important;font-size:14px!important;font-weight:900!important}
+#battleMenuScreen .mode-card-action{margin-top:auto!important;height:46px!important;font-size:14px!important;font-weight:900!important}
 /* Deck screen: compact command rail + persistent deck list + wide card library. */
 #deckScreen{padding:14px 18px 72px!important}#deckScreen>.page-title{height:44px!important;margin:0 0 10px!important}#deckScreen>.page-title h1{font-size:25px!important}
 #deckScreen .deck-layout{height:calc(100% - 54px)!important;grid-template-columns:220px minmax(0,1fr)!important;gap:12px!important}
@@ -4806,7 +4806,7 @@ body.deck-view #deckScreen #deckGrid{height:auto!important;max-height:none!impor
  function deckCardsForCharacter(){return workingCharacter==='kenshi'?KENSHI_CARD_DEFS:workingCharacter==='shiranui'?SHIRANUI_CARD_DEFS:GIOVANNI_CARD_DEFS}
  function refreshDeckSummary0217(){const total=deckTotal(workingCounts),count=document.getElementById('deckCount'),warn=document.getElementById('deckWarning'),pill=document.getElementById('deckCountStickyPill');if(count)count.textContent=total;if(warn){warn.classList.toggle('hidden',total===40);warn.textContent=total<40?`あと${40-total}枚追加してください。`:`${total-40}枚減らしてください。`}if(pill){pill.textContent=`現在 ${total} / 40枚`;pill.classList.toggle('complete',total===40);pill.classList.toggle('over',total>40)}}
  if(grid){
-   grid.addEventListener('click',e=>{const btn=e.target.closest('.qty button');if(!btn||!grid.contains(btn))return;e.preventDefault();e.stopPropagation();const cardEl=btn.closest('.deck-card'),title=cardEl?.querySelector('h3'),card=title&&cardByName(title.textContent.trim());if(!card)return;const old=Number(workingCounts[card.id]||0),total=deckTotal(workingCounts);let next=old;if(btn.dataset.a==='plus'&&old<3&&total<40)next=old+1;if(btn.dataset.a==='minus'&&old>0)next=old-1;if(next===old)return;workingCounts[card.id]=next;cardEl.querySelector('.qty b').textContent=`${next}枚`;cardEl.classList.toggle('at-cap',next>=3);refreshDeckSummary0217()},true);
+   grid.addEventListener('click',e=>{const btn=e.target.closest('.qty button');if(!btn||!grid.contains(btn))return;e.preventDefault();e.stopPropagation();const cardEl=btn.closest('.deck-card'),title=cardEl?.querySelector('h3'),card=title&&cardByName(title.textContent.trim());if(!card)return;const old=Number(workingCounts[card.id]||0),total=deckTotal(workingCounts);let next=old;if(btn.dataset.a==='plus'&&old<3)next=old+1;if(btn.dataset.a==='minus'&&old>0)next=old-1;if(next===old)return;workingCounts[card.id]=next;cardEl.querySelector('.qty b').textContent=`${next}枚`;cardEl.classList.toggle('at-cap',next>=3);refreshDeckSummary0217()},true);
  }
  // Replace renderer so Shiranui gets Shiranui cards and +/- does not rebuild the whole scroller.
  const originalRenderDeckCards=renderDeckCards;
@@ -4815,5 +4815,62 @@ body.deck-view #deckScreen #deckGrid{height:auto!important;max-height:none!impor
 })();
 </script>
 
+
+<style id="la-0218-battle-hub-canonical">
+/* 0.21.9 — battle mode selector owns a single landscape viewport. */
+body:has(#battleMenuScreen.active){overflow:hidden!important}
+body:has(#battleMenuScreen.active) .topbar{display:none!important}
+body:has(#battleMenuScreen.active) .app{width:100vw!important;max-width:none!important;height:100dvh!important;margin:0!important;overflow:hidden!important}
+#battleMenuScreen.active{
+  display:block!important;position:fixed!important;inset:0!important;
+  width:100vw!important;height:100dvh!important;min-height:0!important;
+  box-sizing:border-box!important;padding:0 0 64px!important;overflow:hidden!important;
+  background:linear-gradient(135deg,#f8f3e9 0%,#eee5d6 100%)!important;
+}
+#battleMenuScreen .battle-hub-wrap{
+  box-sizing:border-box!important;width:min(1380px,100%)!important;height:100%!important;
+  max-width:none!important;margin:0 auto!important;padding:24px 54px 24px!important;
+  display:grid!important;grid-template-rows:auto minmax(0,1fr)!important;gap:18px!important;
+}
+#battleMenuScreen .battle-hub-head{align-self:start!important;min-height:0!important}
+#battleMenuScreen .battle-hub-head .eyebrow{font-size:11px!important;letter-spacing:.30em!important;margin:0 0 3px!important}
+#battleMenuScreen .battle-hub-head h1{font-size:38px!important;line-height:1!important;margin:0!important}
+#battleMenuScreen .battle-hub-head p{display:none!important}
+#battleMenuScreen .battle-hub-choices{
+  min-width:0!important;min-height:0!important;width:100%!important;height:100%!important;
+  display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  grid-template-rows:minmax(0,1fr)!important;gap:24px!important;padding:0!important;margin:0!important;
+  align-items:stretch!important;
+}
+#battleMenuScreen .battle-hub-card,
+#battleMenuScreen #goCpuSetup,
+#battleMenuScreen #goRoom{
+  box-sizing:border-box!important;position:relative!important;inset:auto!important;
+  width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;
+  max-width:none!important;max-height:none!important;margin:0!important;padding:30px 38px!important;
+  border:1.5px solid rgba(169,123,42,.42)!important;border-radius:26px!important;
+  background:rgba(255,253,248,.94)!important;box-shadow:0 10px 28px rgba(62,48,27,.08)!important;
+  display:grid!important;grid-template-columns:minmax(0,1fr) 36px!important;grid-template-rows:1fr!important;
+  align-items:center!important;align-self:stretch!important;justify-self:stretch!important;gap:18px!important;
+  transform:none!important;overflow:hidden!important;
+}
+#battleMenuScreen .hub-copy{min-width:0!important;display:flex!important;flex-direction:column!important;gap:10px!important}
+#battleMenuScreen .hub-copy b{font-size:38px!important;line-height:1.05!important}
+#battleMenuScreen .hub-copy small{font-size:14px!important;line-height:1.45!important}
+#battleMenuScreen .hub-arrow{font-size:48px!important;line-height:1!important}
+#battleMenuScreen .section-bottom-nav{position:absolute!important;left:0!important;right:0!important;bottom:0!important;height:64px!important}
+@media(max-width:760px){
+ #battleMenuScreen.active{padding-bottom:50px!important}
+ #battleMenuScreen .battle-hub-wrap{padding:12px 24px 12px!important;gap:9px!important}
+ #battleMenuScreen .battle-hub-head .eyebrow{font-size:8px!important}
+ #battleMenuScreen .battle-hub-head h1{font-size:25px!important}
+ #battleMenuScreen .battle-hub-choices{grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-template-rows:minmax(0,1fr)!important;gap:12px!important}
+ #battleMenuScreen .battle-hub-card,#battleMenuScreen #goCpuSetup,#battleMenuScreen #goRoom{height:100%!important;margin:0!important;padding:16px 20px!important;border-radius:17px!important;grid-template-columns:minmax(0,1fr) 22px!important;gap:9px!important}
+ #battleMenuScreen .hub-copy b{font-size:23px!important}
+ #battleMenuScreen .hub-copy small{font-size:9px!important}
+ #battleMenuScreen .hub-arrow{font-size:29px!important}
+ #battleMenuScreen .section-bottom-nav{height:50px!important}
+}
+</style>
 </body>
 </html>
