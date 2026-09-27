@@ -959,8 +959,8 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.21.15",
-  label:"入力系一元化"
+  version:"0.22.0",
+  label:"ランタイム・リファクタリング"
 });
 </script>
 
@@ -4788,31 +4788,6 @@ body.deck-view #deckScreen #deckGrid{height:auto!important;max-height:none!impor
 #deckScreen .qty button{position:relative!important;z-index:5!important;min-width:42px!important;min-height:38px!important;font-size:20px!important;pointer-events:auto!important;touch-action:manipulation!important}
 @media(max-width:760px){body.deck-view #deckScreen{overflow-y:auto!important}body.deck-view #deckScreen .deck-layout{height:auto!important}body.deck-view #deckScreen #deckGrid{overflow:visible!important}}
 </style>
-<script id="la-0217-usability-fixes-js">
-(()=>{
- const screen=document.getElementById('battleScreen');
- if(!screen)return;
- // Turn splash is keyed by pid+turn number, so redraws do not replay it.
- let splash=document.getElementById('laTurnSplash');
- if(!splash){splash=document.createElement('div');splash.id='laTurnSplash';splash.innerHTML='<div class="inner"><div class="your">YOUR TURN</div><div class="turn"></div></div>';screen.appendChild(splash)}
- let lastTurnKey='';
- const showTurnSplash=()=>{const v=currentView;if(!v?.me)return;const mine=v.current===v.me.pid&&!v.over;const key=`${v.current}:${v.me.turnNo||0}`;if(mine&&key!==lastTurnKey){lastTurnKey=key;splash.querySelector('.turn').textContent=`TURN ${v.me.turnNo||0}`;splash.classList.remove('show');void splash.offsetWidth;splash.classList.add('show')}else if(!mine){lastTurnKey=key}};
- const prevRender=renderBattleView;
- renderBattleView=function(){const r=prevRender.apply(this,arguments);showTurnSplash();return r};window.renderBattleView=renderBattleView;
-
- // Deck editing: one delegated controller, no legacy document-capture guards.
- const grid=document.getElementById('deckGrid');
- function deckCardsForCharacter(){return workingCharacter==='kenshi'?KENSHI_CARD_DEFS:workingCharacter==='shiranui'?SHIRANUI_CARD_DEFS:GIOVANNI_CARD_DEFS}
- function refreshDeckSummary0217(){const total=deckTotal(workingCounts),count=document.getElementById('deckCount'),warn=document.getElementById('deckWarning'),pill=document.getElementById('deckCountStickyPill');if(count)count.textContent=total;if(warn){warn.classList.toggle('hidden',total===40);warn.textContent=total<40?`あと${40-total}枚追加してください。`:`${total-40}枚減らしてください。`}if(pill){pill.textContent=`現在 ${total} / 40枚`;pill.classList.toggle('complete',total===40);pill.classList.toggle('over',total>40)}}
- if(grid){
-   grid.addEventListener('click',e=>{const btn=e.target.closest('.qty button');if(!btn||!grid.contains(btn))return;e.preventDefault();e.stopPropagation();const cardEl=btn.closest('.deck-card'),cardId=cardEl?.dataset.cardId;if(!cardId)return;const old=Number(workingCounts[cardId]||0);let next=old;if(btn.dataset.a==='plus'&&old<3)next=old+1;if(btn.dataset.a==='minus'&&old>0)next=old-1;if(next===old)return;workingCounts[cardId]=next;cardEl.querySelector('.qty b').textContent=`${next}枚`;cardEl.classList.toggle('at-cap',next>=3);refreshDeckSummary0217()},true);
- }
- // Replace renderer so Shiranui gets Shiranui cards and +/- does not rebuild the whole scroller.
- const originalRenderDeckCards=renderDeckCards;
- renderDeckCards=function(){originalRenderDeckCards(); /* core renderer now has the corrected 3-way pool selection */ };
- window.renderDeckCards=renderDeckCards;
-})();
-</script>
 
 
 <style id="la-0218-battle-hub-canonical">
@@ -4887,37 +4862,6 @@ body.deck-view #deckScreen .deck-editor-head{
 body.deck-view #deckScreen #deckCountSticky{top:72px!important}
 @media(max-width:760px){body.deck-view #deckScreen #deckCountSticky{top:62px!important}}
 </style>
-<script id="la-02111-deck-live-count-js">
-(()=>{
- const $=id=>document.getElementById(id);
- function syncDeckCount(){
-   const total=deckTotal(workingCounts||{}), count=$('deckCount'), warn=$('deckWarning'), pill=$('deckCountStickyPill');
-   if(count) count.textContent=String(total);
-   if(warn){
-     warn.classList.toggle('hidden',total===40);
-     warn.textContent=total<40?`あと${40-total}枚追加してください。`:`${total-40}枚減らしてください。`;
-   }
-   if(pill){
-     pill.textContent=`現在 ${total} / 40枚`;
-     pill.classList.toggle('complete',total===40);
-     pill.classList.toggle('over',total>40);
-   }
- }
- // Every render and every +/- edit reads the live workingCounts object, never the saved deck count.
- const prevRender=renderDeckCards;
- renderDeckCards=function(){const r=prevRender.apply(this,arguments);syncDeckCount();return r};
- window.renderDeckCards=renderDeckCards;
- const grid=$('deckGrid');
- if(grid){
-   grid.addEventListener('click',()=>queueMicrotask(syncDeckCount),false);
-   grid.addEventListener('touchend',()=>queueMicrotask(syncDeckCount),{passive:true});
- }
- const prevManager=renderDeckManager;
- renderDeckManager=function(){const r=prevManager.apply(this,arguments);syncDeckCount();return r};
- window.renderDeckManager=renderDeckManager;
- syncDeckCount();
-})();
-</script>
 
 
 <style id="la-premium-frames-02113">
@@ -5109,61 +5053,79 @@ body.deck-view #deckScreen #deckCountSticky{top:72px!important}
 })();
 </script>
 
-<style id="la-input-unified-02115">
-/* 0.21.15 — one tap = one action. Ordinary controls use a single pointer->click bridge. */
-button,.btn,[role="button"]{
-  touch-action:manipulation;
-  -webkit-tap-highlight-color:rgba(255,255,255,.08);
-}
+<style id="la-runtime-0220-style">
+/* 0.22.0 — canonical interaction runtime. Native buttons use native click; only card drag uses Pointer Events. */
+button,.btn,[role="button"]{touch-action:manipulation;-webkit-tap-highlight-color:rgba(255,255,255,.08)}
 button:disabled,.btn:disabled{pointer-events:none}
-#modal:not(.hidden),#logModal:not(.hidden),#setupDetailModal:not(.hidden),#pileModal:not(.hidden){pointer-events:auto}
 </style>
-<script id="la-input-unified-02115-js">
+<script id="la-runtime-0220">
 (()=>{
- const ROOT=document;
- let bridging=false;
- const isDragSurface=el=>!!el.closest('#myHand .card,#laDropGuide,#laSwipeGhost,input,textarea,select,option,a[href]');
- const ordinaryButton=target=>{
-   const b=target.closest?.('button,.btn,[role="button"]');
-   if(!b||b.disabled||b.getAttribute('aria-disabled')==='true'||isDragSurface(target))return null;
-   return b;
- };
- // Mobile Safari occasionally lets the first tap get consumed by overlapping/legacy gesture state.
- // Normalize physical pointer release into exactly one existing click path; do not create a second business-action handler.
- ROOT.addEventListener('pointerup',e=>{
-   if(bridging||e.pointerType==='mouse'||e.button!==0)return;
-   const b=ordinaryButton(e.target); if(!b)return;
-   e.preventDefault();
-   e.stopPropagation();
-   bridging=true;
-   try{ b.click(); } finally { queueMicrotask(()=>{bridging=false}) }
- },{capture:true,passive:false});
+ const $=id=>document.getElementById(id);
+ const meta=window.LUNA_ALTER_APP_META;
 
- // Kill ghost/native clicks that can follow the bridged touch/pen pointerup.
- let lastPhysicalUp=0;
- ROOT.addEventListener('pointerup',e=>{if(e.pointerType!=='mouse')lastPhysicalUp=performance.now()},{capture:true,passive:true});
- ROOT.addEventListener('click',e=>{
-   if(bridging)return; // synthetic click created above: allow it through
-   if(e.detail===0)return; // keyboard/programmatic accessibility click
-   if(performance.now()-lastPhysicalUp<650 && ordinaryButton(e.target)){
-     e.preventDefault();e.stopImmediatePropagation();
-   }
- },{capture:true});
+ // ---- One render wrapper: turn splash + live deck summary. ----
+ let splash=$('laTurnSplash');
+ if(!splash){
+   splash=document.createElement('div');splash.id='laTurnSplash';
+   splash.innerHTML='<div class="inner"><div class="your">YOUR TURN</div><div class="turn"></div></div>';
+   $('battleScreen')?.appendChild(splash);
+ }
+ let lastTurnKey='';
+ function syncTurnSplash(){
+   const v=currentView;if(!v?.me||!splash)return;
+   const no=Number(v.me.turnNo||0),mine=v.current===v.me.pid&&!v.over;
+   const key=`${v.current}:${no}`;
+   if(mine&&no>0&&key!==lastTurnKey){
+     lastTurnKey=key;splash.querySelector('.turn').textContent=`TURN ${no}`;
+     splash.classList.remove('show');void splash.offsetWidth;splash.classList.add('show');
+   }else if(!mine){lastTurnKey=key}
+ }
+ function syncDeckSummary(){
+   const total=deckTotal(workingCounts||{}),count=$('deckCount'),warn=$('deckWarning'),pill=$('deckCountStickyPill');
+   if(count)count.textContent=String(total);
+   if(warn){warn.classList.toggle('hidden',total===40);warn.textContent=total<40?`あと${40-total}枚追加してください。`:`${total-40}枚減らしてください。`}
+   if(pill){pill.textContent=`現在 ${total} / 40枚`;pill.classList.toggle('complete',total===40);pill.classList.toggle('over',total>40)}
+ }
+ const battleRenderCore=renderBattleView;
+ renderBattleView=function(){const r=battleRenderCore.apply(this,arguments);syncTurnSplash();return r};
+ window.renderBattleView=renderBattleView;
+ const deckRenderCore=renderDeckCards;
+ renderDeckCards=function(){const r=deckRenderCore.apply(this,arguments);syncDeckSummary();return r};
+ window.renderDeckCards=renderDeckCards;
+ const deckManagerCore=renderDeckManager;
+ renderDeckManager=function(){const r=deckManagerCore.apply(this,arguments);syncDeckSummary();return r};
+ window.renderDeckManager=renderDeckManager;
 
- // Remove stale pressed/drag visuals whenever a normal control is used.
- ROOT.addEventListener('click',e=>{
-   const b=ordinaryButton(e.target);if(!b)return;
-   document.querySelectorAll('.hold-active,.pressed').forEach(x=>x.classList.remove('hold-active','pressed'));
- },{capture:false});
+ // ---- Deck editor: exactly one delegated +/- controller. No touchend shim, no capture guard. ----
+ const grid=$('deckGrid');
+ if(grid){
+   grid.addEventListener('click',e=>{
+     const btn=e.target.closest('.qty button');if(!btn||!grid.contains(btn))return;
+     e.preventDefault();e.stopPropagation();
+     const card=btn.closest('.deck-card'),id=card?.dataset.cardId;if(!id)return;
+     const old=Number(workingCounts[id]||0);
+     const next=btn.dataset.a==='plus'?Math.min(3,old+1):btn.dataset.a==='minus'?Math.max(0,old-1):old;
+     if(next===old)return;
+     workingCounts[id]=next;
+     card.querySelector('.qty b').textContent=`${next}枚`;
+     card.classList.toggle('at-cap',next>=3);
+     syncDeckSummary();
+   });
+ }
 
- window.LA_INPUT_AUDIT=()=>({
-   version:window.LUNA_ALTER_APP_META?.version,
-   mode:'pointerup-to-existing-click',
-   legacyDeckTouchShim:!!document.getElementById('la-02110-deck-stepper-touch'),
-   endTurnClickOnly:!!document.getElementById('endTurn'),
-   modalOk:!!document.getElementById('modalOk')
+ // Normal controls deliberately have no pointerup/touchend bridge here.
+ // Browser click is the single activation path; hand-card dragging remains in the battle controller.
+ window.LA_RUNTIME_AUDIT=()=>({
+   version:meta?.version,
+   ordinaryControlPath:'native-click',
+   deckStepperHandlers:1,
+   renderWrappers:{battle:1,deck:1,deckManager:1},
+   cardDragPath:'pointer-events',
+   legacyPointerClickBridge:false,
+   legacyDeckTouchShim:false
  });
- const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${window.LUNA_ALTER_APP_META.version} / ${window.LUNA_ALTER_APP_META.label}`;
+ const vl=$('appVersionLabel');if(vl)vl.textContent=`${meta.version} / ${meta.label}`;
+ syncDeckSummary();
 })();
 </script>
 
