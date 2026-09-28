@@ -959,8 +959,8 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.24.2",
-  label:"X系条件表示・夜行絵巻演出修正"
+  version:"0.24.5",
+  label:"カード使用時・中央大型表示"
 });
 </script>
 <style id="la-title-transition-style">
@@ -1232,7 +1232,7 @@ const GIOVANNI_CARD_DEFS=[
  {id:'j20',name:'断捨離',type:'setup',cost:1,text:'ターン終了時、手札のカードを1枚選んで捨てる。',pool:'giovanni'},
  {id:'j21',name:'最後の一皿',type:'attack',cost:1,text:'6ダメージを与える。このカードがカード効果によって手札から捨てられたとき、6ダメージを与える。',pool:'giovanni'},
  {id:'j22',name:'袖の下',type:'skill',cost:1,text:'ナイフを1枚手札に加える。その後、カードを1枚引く。',pool:'giovanni'},
- {id:'j23',name:'大盤振る舞い',type:'attack',cost:2,text:'8ダメージを与える。ナイフを2枚手札に加える。',pool:'giovanni'},
+ {id:'j23',name:'大盤振る舞い',type:'attack',cost:2,text:'3ダメージを与える。ナイフを2枚手札に加える。',pool:'giovanni'},
  {id:'j24',name:'準備周到',type:'skill',cost:3,text:'カードを2枚引く。このカードがカード効果によって手札から捨てられたとき、カードを1枚引く。',pool:'giovanni'},
  {id:'j25',name:'剣の舞',type:'attack',cost:1,text:'このターンにカード効果で引いたカードの枚数と同じダメージを与える。',pool:'giovanni'},
  {id:'j26',name:'仕立ての良いコート',type:'setup',cost:1,text:'設置時、カードを1枚引く。次の自分のターン開始時まで、受けるダメージを1回ごとに1軽減する。',pool:'giovanni'},
@@ -1245,7 +1245,7 @@ const KENSHI_CARD_DEFS=[
  {id:'k3',name:'戦化粧',type:'skill',cost:1,text:'カードを1枚引く。その後、手札のカード1枚は「保留」を得る。',pool:'kenshi'},
  {id:'k4',name:'不動要塞',type:'setup',cost:5,text:'自分のリーダーが受けるダメージを合計20までブロックする。残量が0になったら捨て札へ。',pool:'kenshi'},
  {id:'k5',name:'気炎万丈',type:'setup',cost:4,text:'このカードが場にある限り、自分の最大エナジーを1上げる。',pool:'kenshi'},
- {id:'k6',name:'袈裟斬り',type:'attack',cost:3,text:'20ダメージを与える。',pool:'kenshi'},
+ {id:'k6',name:'袈裟斬り',type:'attack',cost:3,text:'15ダメージを与える。',pool:'kenshi'},
  {id:'k7',name:'正眼の構え',type:'spell',cost:1,text:'《刹那の踏み込み》を手札に加える。',pool:'kenshi'},
  {id:'k8',name:'明鏡止水',type:'setup',cost:6,text:'自分はダメージを受けない。次の自分のターン開始時、廃棄。',pool:'kenshi'},
  {id:'k9',name:'静謐の鞘',type:'setup',cost:3,text:'このカードが場にある限り、自分の手札のカードはすべて「保留」を得る。',pool:'kenshi'},
@@ -1259,7 +1259,7 @@ const KENSHI_CARD_DEFS=[
  {id:'k17',name:'束の間の休息',type:'spell',cost:2,text:'自分のリーダーを10回復する。',pool:'kenshi'},
  {id:'k18',name:'剣戟の残響',type:'setup',cost:3,text:'自分が元コスト4以上のカードを使ったターンの終了時、カードを1枚引く。',pool:'kenshi'},
  {id:'k19',name:'取捨選択',type:'skill',cost:1,text:'カードを2枚引く。その後、手札の中で最もコストが低いカード1枚を捨てる。',pool:'kenshi'},
- {id:'k20',name:'二刀流',type:'attack',cost:4,text:'20ダメージを与える。自分の手札にコスト5以上のカードがある場合、さらに5ダメージ。',pool:'kenshi'},
+ {id:'k20',name:'二刀流',type:'attack',cost:4,text:'15ダメージを与える。自分の手札にコスト5以上のカードが2枚以上ある場合、さらに5ダメージ。',pool:'kenshi'},
  {id:'k21',name:'剣気',type:'attack',cost:1,text:'自分の手札にあるコスト4以上のカードの枚数×3ダメージを与える。',pool:'kenshi'},
  {id:'k22',name:'一閃',type:'attack',cost:1,text:'6ダメージを与える。保留。',pool:'kenshi',retain:true},
  {id:'k23',name:'一念の太刀',type:'attack',cost:3,text:'5ダメージを与える。このカードが保留されるたび、ダメージが5ずつ上がる。',pool:'kenshi'},
@@ -1550,7 +1550,7 @@ function generateGuard(pid){const p=game.players[pid],g=makeCard('guard');g.gene
 function afterPlayTriggers(pid,c){const p=game.players[pid];noteHeavyPlay(pid,c);if(c.cost>=4&&hasSetup(pid,'k12')&&!game.over)generateGuard(pid)}
 function playCard(pid,uid,dest){const p=game.players[pid],c=p.hand.find(x=>x.uid===uid);if(!c||!canPlay(pid,c))return;const cost=cardCost(pid,c);removeHand(pid,uid);p.energy-=cost;reveal(pid,c,cost);
  if(c.type==='setup'){if(c.id==='k4')c.fortressHp=20;if(c.id==='guard')c.fortressHp=5;if(dest==='personal'){if(p.personal){p.hand.push(c);p.energy+=cost;return}p.personal=c;addLog(`${p.name}：《${c.name}》を独自枠へ。`)}else{game.shared.push({owner:pid,card:c});addLog(`${p.name}：《${c.name}》を共有枠へ。`);if(game.shared.length>3)pushOldest('共有枠超過')}syncEnergyCap(pid);if(c.id==='j18'){discardAllHandByEffect(pid,'《本気の一張羅》');addLog(`${p.name}：《本気の一張羅》で残り手札を全て捨てる。`)}if(c.id==='j26'){const n=drawCards(pid,1,true);addLog(`${p.name}：《仕立ての良いコート》設置時に${n}枚ドロー。`)}afterPlayTriggers(pid,c);return}
- if(c.type==='attack'){if(c.id==='strike')damage(pid,modifiedDamage(pid,c,6),'《ストライク》');else if(c.id==='j4')damage(pid,modifiedDamage(pid,c,20),'《ロイヤルストレートフラッシュ》');else if(c.id==='j5')damage(pid,modifiedDamage(pid,c,p.hand.length+3),'《アクロバティックダガー》');else if(c.id==='j12'){const n=p.hand.length;discardAllHandByEffect(pid,'《ちゃぶ台返し》');for(let i=0;i<n&&!game.over;i++)damage(pid,modifiedDamage(pid,c,1),`《ちゃぶ台返し》 ${i+1}/${n}`)}else if(c.id==='j21')damage(pid,modifiedDamage(pid,c,6),`《${c.name}》`);else if(c.id==='j27'){damage(pid,modifiedDamage(pid,c,3),`《${c.name}》`);if(!game.over){addToHand(pid,makeCard('knife'));addLog(`${p.name}：《袖の短剣》でナイフ1枚を手札に加える。`)}}else if(c.id==='j23'){damage(pid,modifiedDamage(pid,c,8),'《大盤振る舞い》');if(!game.over){addToHand(pid,makeCard('knife'));addToHand(pid,makeCard('knife'));addLog(`${p.name}：《大盤振る舞い》でナイフ2枚。`)}}else if(c.id==='j25')damage(pid,modifiedDamage(pid,c,p.turnSkillDraws),'《剣の舞》');else if(c.id==='knife')damage(pid,modifiedDamage(pid,c,3+(c.knifeBonus||0)),'《ナイフ》');else if(c.id==='k1')damage(pid,modifiedDamage(pid,c,33),'《紅蓮一文字》');else if(c.id==='k6')damage(pid,modifiedDamage(pid,c,20),'《袈裟斬り》');else if(c.id==='kt2')damage(pid,modifiedDamage(pid,c,50),'《魂の一閃》');else if(c.id==='k10'){damage(pid,modifiedDamage(pid,c,20),'《活人剣》');if(!game.over)heal(pid,10,'《活人剣》')}else if(c.id==='k20'){const bonus=p.hand.some(x=>cardCost(pid,x)>=5)?5:0;damage(pid,modifiedDamage(pid,c,20+bonus),'《二刀流》')}else if(c.id==='k21'){const n=p.hand.filter(x=>cardCost(pid,x)>=4).length;damage(pid,modifiedDamage(pid,c,n*3),'《剣気》')}else if(c.id==='k22')damage(pid,modifiedDamage(pid,c,6),'《一閃》');else if(c.id==='k23')damage(pid,modifiedDamage(pid,c,5),'《一念の太刀》');else if(c.id==='k25'){for(let i=0;i<2&&!game.over;i++)damage(pid,modifiedDamage(pid,c,3),`《燕返し》 ${i+1}/2`)}else if(c.id==='k26'){damage(pid,modifiedDamage(pid,c,5),'《宵待ち》');if(!game.over){const attacks=p.hand.filter(x=>x.type==='attack');if(attacks.length)game.pending={pid,type:'buffAttack',count:1,title:'《宵待ち》：強化するアタックを1枚選択',cardsOverride:attacks.map(x=>x.uid),amount:5,source:'《宵待ち》'}}}afterPlayTriggers(pid,c);(c.id==='knife'?p.exhaust:p.discard).push(c);return}
+ if(c.type==='attack'){if(c.id==='strike')damage(pid,modifiedDamage(pid,c,6),'《ストライク》');else if(c.id==='j4')damage(pid,modifiedDamage(pid,c,20),'《ロイヤルストレートフラッシュ》');else if(c.id==='j5')damage(pid,modifiedDamage(pid,c,p.hand.length+3),'《アクロバティックダガー》');else if(c.id==='j12'){const n=p.hand.length;discardAllHandByEffect(pid,'《ちゃぶ台返し》');for(let i=0;i<n&&!game.over;i++)damage(pid,modifiedDamage(pid,c,1),`《ちゃぶ台返し》 ${i+1}/${n}`)}else if(c.id==='j21')damage(pid,modifiedDamage(pid,c,6),`《${c.name}》`);else if(c.id==='j27'){damage(pid,modifiedDamage(pid,c,3),`《${c.name}》`);if(!game.over){addToHand(pid,makeCard('knife'));addLog(`${p.name}：《袖の短剣》でナイフ1枚を手札に加える。`)}}else if(c.id==='j23'){damage(pid,modifiedDamage(pid,c,3),'《大盤振る舞い》');if(!game.over){addToHand(pid,makeCard('knife'));addToHand(pid,makeCard('knife'));addLog(`${p.name}：《大盤振る舞い》でナイフ2枚。`)}}else if(c.id==='j25')damage(pid,modifiedDamage(pid,c,p.turnSkillDraws),'《剣の舞》');else if(c.id==='knife')damage(pid,modifiedDamage(pid,c,3+(c.knifeBonus||0)),'《ナイフ》');else if(c.id==='k1')damage(pid,modifiedDamage(pid,c,33),'《紅蓮一文字》');else if(c.id==='k6')damage(pid,modifiedDamage(pid,c,15),'《袈裟斬り》');else if(c.id==='kt2')damage(pid,modifiedDamage(pid,c,50),'《魂の一閃》');else if(c.id==='k10'){damage(pid,modifiedDamage(pid,c,20),'《活人剣》');if(!game.over)heal(pid,10,'《活人剣》')}else if(c.id==='k20'){const bonus=p.hand.filter(x=>cardCost(pid,x)>=5).length>=2?5:0;damage(pid,modifiedDamage(pid,c,15+bonus),'《二刀流》')}else if(c.id==='k21'){const n=p.hand.filter(x=>cardCost(pid,x)>=4).length;damage(pid,modifiedDamage(pid,c,n*3),'《剣気》')}else if(c.id==='k22')damage(pid,modifiedDamage(pid,c,6),'《一閃》');else if(c.id==='k23')damage(pid,modifiedDamage(pid,c,5),'《一念の太刀》');else if(c.id==='k25'){for(let i=0;i<2&&!game.over;i++)damage(pid,modifiedDamage(pid,c,3),`《燕返し》 ${i+1}/2`)}else if(c.id==='k26'){damage(pid,modifiedDamage(pid,c,5),'《宵待ち》');if(!game.over){const attacks=p.hand.filter(x=>x.type==='attack');if(attacks.length)game.pending={pid,type:'buffAttack',count:1,title:'《宵待ち》：強化するアタックを1枚選択',cardsOverride:attacks.map(x=>x.uid),amount:5,source:'《宵待ち》'}}}afterPlayTriggers(pid,c);(c.id==='knife'?p.exhaust:p.discard).push(c);return}
  if(c.id==='j1'){p.discard.push(c);const n=drawCards(pid,2,true);addLog(`${p.name}：《果実の選別》で${n}枚ドロー。`);if(p.hand.length)game.pending={pid,type:'discardAfterDraw',count:1,title:'《果実の選別》：捨てるカードを1枚選択'}}
  else if(c.id==='j9'){p.discard.push(c);game.pending={pid,type:'returnDiscard',count:2,title:'《再読》：山札に戻す捨て札を2枚選択',excludeUid:c.uid}}
  else if(c.id==='j13'){p.discard.push(c);drawCards(pid,2,true);const n=Math.min(2,p.hand.length);if(n)game.pending={pid,type:'discardHand',count:n,title:`《選り好み》：捨てるカードを${n}枚選択`}}
@@ -1726,7 +1726,7 @@ function renderBattleView(){const v=currentView;if(!v)return;const me=v.me,op=v.
 function activeViewHasSetup(v,pid,id){if(pid===v.me.pid&&v.me.personal?.id===id)return true;if(pid===v.opp.pid&&v.opp.personal?.id===id)return true;return v.shared.some(x=>x.owner===pid&&x.card.id===id)}
 function viewCost(v,c){let base=c.id==='j2'?Math.max(0,4-(v.me.turnSkillDraws||0)):c.cost;base=Math.max(0,base+(c.costMod||0));if(activeViewHasSetup(v,v.me.pid,'k2'))base=Math.max(0,base-1);return base}
 function canPlayView(v,c){const cost=viewCost(v,c),me=v.me;if(cost>me.energy)return false;if(c.id==='j4'&&me.handCount!==10)return false;if(c.id==='j1'&&me.handCount<2)return false;if(c.id==='j9'&&me.discardCount<2)return false;if(c.id==='k11'&&!me.hand.some(x=>x.uid!==c.uid&&x.type==='attack'))return false;if(c.type==='setup'&&activeViewHasSetup(v,me.pid,c.id))return false;return true}
-function showLastPlayed(v){const a=v.lastAction;if(!a||a.pid===v.me.pid||a.seq===lastShownAction)return;lastShownAction=a.seq;const c=a.card,stage=$('playedStage');stage.innerHTML=`<div class="played-label">${escapeHtml(v.opp.name)}が使用</div><div class="card ${c.type} played"><div class="head"><div><div class="cname">${c.name}</div><div class="type">${typeLabel(c.type)}</div></div><div class="cost">${a.cost}</div></div><div class="text">${cardText(c)}</div></div>`;stage.classList.remove('hidden');setTimeout(()=>stage.classList.add('hidden'),2800)}
+function showLastPlayed(v){const a=v.lastAction;if(!a||a.pid===v.me.pid||a.seq===lastShownAction)return;lastShownAction=a.seq;const c=a.card,stage=$('playedStage');stage.innerHTML=`<div class="played-label">${escapeHtml(v.opp.name)}が使用</div><div class="card ${c.type} played"><div class="head"><div><div class="cname">${c.name}</div><div class="type">${typeLabel(c.type)}</div></div><div class="cost">${a.cost}</div></div><div class="text">${cardText(c)}</div></div>`;stage.classList.remove('hidden');setTimeout(()=>stage.classList.add('hidden'),1800)}
 function openPending(p){const key=`${p.type}:${p.cards.map(c=>c.uid).join(',')}`;if(modalPendingKey===key)return;modalPendingKey=key;const selected=new Set();$('modalTitle').textContent=p.title;$('modalBody').innerHTML='';p.cards.forEach(c=>{const b=document.createElement('button');b.className=`choice-card ${c.type}`;b.innerHTML=`<div class="head"><div><div class="cname">${c.name}</div><div class="type">${typeLabel(c.type)}</div></div><div class="cost">${Number.isFinite(c.choiceCost)?c.choiceCost:c.cost}</div></div><div class="text">${cardText(c)}</div>${choiceModifierHtml(c)}`;b.onclick=()=>{if(selected.has(c.uid)){selected.delete(c.uid);b.classList.remove('selected')}else if(selected.size<p.count){selected.add(c.uid);b.classList.add('selected')}};$('modalBody').appendChild(b)});let posSelect=null;if(p.type==='reorderShared'){const wrap=document.createElement('div');wrap.className='reorder-controls';wrap.innerHTML='<b>移動先</b>';posSelect=document.createElement('select');for(let i=0;i<p.positionCount;i++){const o=document.createElement('option');o.value=i;o.textContent=i===0?'一番左（最古）':i===p.positionCount-1?'一番右（最新）':`${i+1}番目`;posSelect.appendChild(o)}wrap.appendChild(posSelect);$('modalBody').appendChild(wrap)}$('modalOk').onclick=()=>{if(selected.size!==p.count)return alert(`${p.count}枚選んでください。`);dispatchAction({type:'choose',uids:[...selected],targetIndex:posSelect?Number(posSelect.value):null})};$('modal').classList.remove('hidden')}
 function closePending(){modalPendingKey='';$('modal').classList.add('hidden')}
 $('battleScreen').addEventListener('click',e=>{if(!e.target.closest('#myHand .card'))collapseHandSelection()});
@@ -1740,7 +1740,7 @@ const SHIRANUI_CARD_DEFS=[
  {id:'s2',name:'百鬼夜行',type:'attack',cost:0,text:'自分のターン中にカードを8枚プレイしたとき、山札か捨て札にあるこのカード1枚を手札に加える。このカードをプレイするのが9枚目の場合、49ダメージを与える。',pool:'shiranui'},
  {id:'s3',name:'誘い火',type:'setup',cost:3,text:'自分のターン開始時、狐火1枚を手札に加える。',pool:'shiranui'},
  {id:'s4',name:'火遊び',type:'attack',cost:0,text:'2ダメージを与える。',pool:'shiranui'},
- {id:'s5',name:'輪廻の理',type:'skill',cost:1,text:'捨て札から、このターン中に使った「このカード以外」のカード1枚を手札に加える。',pool:'shiranui'},
+ {id:'s5',name:'輪廻の理',type:'skill',cost:1,text:'捨て札から、このターン中に使った「輪廻の理」以外のカード1枚を手札に加える。',pool:'shiranui'},
  {id:'s6',name:'千本桜',type:'attack',cost:5,text:'廃棄札にあるカードの枚数×4ダメージを、単発で与える。',pool:'shiranui'},
  {id:'s7',name:'化け猫',type:'attack',cost:1,text:'4ダメージを与える。このカードのプレイが3枚目の場合、12ダメージを与える。',pool:'shiranui'},
  {id:'s8',name:'浮世火',type:'setup',cost:1,text:'ターン中にカードを3枚プレイするごとに、そのカードの処理終了後、狐火1枚を手札に加える。',pool:'shiranui'},
@@ -1996,7 +1996,7 @@ function playShiranuiCard(pid,c,dest){
  if(c.id==='s1'){p.discard.push(c);addToHand(pid,makeCard('sf'));addLog(`${p.name}：《宵のはじまり》で狐火1枚。`);shiranuiFinish(pid,c);return}
  if(c.id==='s5'){
    p.discard.push(c);
-   const used=new Set(p.usedUidsThisTurn||[]),cards=p.discard.filter(x=>x.uid!==c.uid&&used.has(x.uid));
+   const used=new Set(p.usedUidsThisTurn||[]),cards=p.discard.filter(x=>x.id!=='s5'&&used.has(x.uid));
    if(cards.length){shiranuiPending(pid,c,{type:'returnUsed',count:1,title:'《輪廻の理》：戻すカードを1枚選択',cardsOverride:cards.map(x=>x.uid)});return}
    addLog(`${p.name}：《輪廻の理》で戻せるカードがない。`);shiranuiFinish(pid,c);return
  }
@@ -2328,7 +2328,7 @@ function showSpecialCutin(v){
    }
    if(c.id==='sf'){const n=drawCards(pid,1,true);sendExhaust(pid,c,'《狐火》');addLog(`${p.name}：《狐火》で${n}枚ドローし、廃棄。`);shiranuiFinish(pid,c);return}
    if(c.id==='s5'){
-     p.discard.push(c);const used=new Set(p.usedUidsThisTurn||[]),cards=p.discard.filter(x=>x.uid!==c.uid&&used.has(x.uid));
+     p.discard.push(c);const used=new Set(p.usedUidsThisTurn||[]),cards=p.discard.filter(x=>x.id!=='s5'&&used.has(x.uid));
      if(cards.length){shiranuiPending(pid,c,{type:'returnUsed',count:1,title:'《輪廻の理》：戻すカードを1枚選択',cardsOverride:cards.map(x=>x.uid)});return}
      addLog(`${p.name}：《輪廻の理》で戻せるカードがない。`);shiranuiFinish(pid,c);return
    }
@@ -3231,7 +3231,7 @@ function showSpecialCutin(v){
    const a=v.lastAction;if(!a||a.seq===lastShownAction)return;lastShownAction=a.seq;
    const mine=a.pid===v.me.pid,c=a.card,stage=$('playedStage');
    stage.innerHTML=`<div class="played-label">${mine?'あなた':escapeHtml(v.opp.name)}が使用</div><div class="card ${c.type} played"><div class="head"><div><div class="cname">${cardNameHtml(c)}</div><div class="type">${typeLabel(c.type)}</div></div><div class="cost">${a.cost}</div></div><div class="text">${linkedRulesHtml(c)}</div></div>`;
-   stage.classList.remove('hidden');if(playedHideTimerV56)clearTimeout(playedHideTimerV56);playedHideTimerV56=setTimeout(()=>stage.classList.add('hidden'),700)
+   stage.classList.remove('hidden');if(playedHideTimerV56)clearTimeout(playedHideTimerV56);playedHideTimerV56=setTimeout(()=>stage.classList.add('hidden'),1800)
  };
 
  // Damage feedback lingers longer; multi-hit cadence is deliberately readable.
@@ -4357,7 +4357,7 @@ button:disabled,.btn:disabled{pointer-events:none}
 </style>
 <script id="la-app-runtime-0240">(()=>{
 'use strict';
-/* LUNA ALTER 0.24.2 — canonical app UI/input runtime.
+/* LUNA ALTER 0.24.4 — canonical app UI/input runtime.
    Contract: this module owns battle geometry, battle buttons, hand drag, conditional glow,
    turn splash, VS intro, post-game home routing, and live deck-editor input/summary.
    Game rules remain in the engine; this module does not duplicate card resolution. */
@@ -4723,6 +4723,73 @@ body.deck-view #deckScreen #deckCountSticky{top:72px!important}
 #laVsIntro .order-kicker{font-size:12px;font-weight:900;letter-spacing:.22em;color:#d9c797}
 #laVsIntro .order-main{margin-top:8px;font-size:30px;font-weight:1000;letter-spacing:.04em}
 #laVsIntro.fade{animation:laVsFade .32s ease forwards}@keyframes laVsFade{to{opacity:0}}
+</style>
+
+<style id="la-played-card-focus-0245">
+/* 0.24.5 — Every played card is presented prominently in the center of battle. */
+#battleScreen #playedStage.played-stage{
+  position:absolute!important;
+  left:50%!important;
+  top:50%!important;
+  width:270px!important;
+  max-width:270px!important;
+  transform:translate(-50%,-50%)!important;
+  z-index:12000!important;
+  pointer-events:none!important;
+  filter:drop-shadow(0 22px 34px rgba(0,0,0,.48));
+}
+#battleScreen #playedStage .played-label{
+  width:max-content;
+  max-width:100%;
+  margin:0 auto 8px!important;
+  padding:6px 15px!important;
+  border:1px solid rgba(255,255,255,.3);
+  background:rgba(13,14,18,.9)!important;
+  box-shadow:0 6px 20px rgba(0,0,0,.3);
+  font-size:13px!important;
+  letter-spacing:.05em;
+}
+#battleScreen #playedStage .card.played{
+  width:270px!important;
+  min-width:270px!important;
+  height:390px!important;
+  min-height:390px!important;
+  max-height:390px!important;
+  padding:12px!important;
+  border-radius:16px!important;
+  overflow:visible!important;
+  transform-origin:50% 50%;
+  animation:laPlayedCardFocus .24s cubic-bezier(.2,.85,.25,1.08) both!important;
+  box-shadow:0 24px 65px rgba(0,0,0,.52)!important;
+}
+#battleScreen #playedStage .card.played .head{min-height:42px;align-items:flex-start}
+#battleScreen #playedStage .card.played .cname{font-size:20px!important;line-height:1.12!important}
+#battleScreen #playedStage .card.played .type{font-size:11px!important;margin-top:3px}
+#battleScreen #playedStage .card.played .cost{font-size:28px!important;line-height:1!important}
+#battleScreen #playedStage .card.played .card-art{
+  height:205px!important;
+  min-height:205px!important;
+  margin:7px 0 9px!important;
+  border-radius:10px!important;
+}
+#battleScreen #playedStage .card.played .text{
+  display:block!important;
+  opacity:1!important;
+  font-size:13px!important;
+  line-height:1.38!important;
+  overflow:auto;
+}
+#battleScreen #playedStage .card.played .card-actions{display:none!important}
+@keyframes laPlayedCardFocus{
+  from{opacity:0;transform:translateY(28px) scale(.78)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+@media(max-width:760px){
+  #battleScreen #playedStage.played-stage{width:250px!important;max-width:250px!important}
+  #battleScreen #playedStage .card.played{width:250px!important;min-width:250px!important;height:360px!important;min-height:360px!important;max-height:360px!important}
+  #battleScreen #playedStage .card.played .card-art{height:182px!important;min-height:182px!important}
+}
+@media(prefers-reduced-motion:reduce){#battleScreen #playedStage .card.played{animation:none!important}}
 </style>
 </body>
 </html>
