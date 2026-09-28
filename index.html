@@ -959,8 +959,8 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.23.0",
-  label:"構造整理・単一UIランタイム"
+  version:"0.24.0",
+  label:"エンジン/UI分離リファクタリング"
 });
 </script>
 <style id="la-title-transition-style">
@@ -1603,7 +1603,15 @@ async function cpuTurn(){
  cpuBusy=false;
 }
 
-function setupSlot(x,mePid){if(!x)return'<div class="slot"></div>';const owner=x.owner===mePid?'自分':'相手';return`<button type="button" class="slot occupied setup-detail-trigger" data-setup-uid="${x.card.uid}" aria-label="${escapeHtml(x.card.name)}の詳細を見る"><div class="name">${escapeHtml(x.card.name)}</div><div class="owner">${owner}</div><div class="mini-effect">${escapeHtml(cardText(x.card))}</div></button>`}
+function setupSlot(x,mePid){
+ if(!x)return'<div class="slot"></div>';
+ const c=x.card,src=window.LUNA_CARD_ART?.[c.id]||'',self=x.owner===mePid,effect=cardText(c);
+ let badge='';
+ if((c.id==='k4'||c.id==='s11')&&Number.isFinite(c.fortressHp))badge=`<span class="setup-state-badge block">🛡${Math.max(0,c.fortressHp)}</span>`;
+ else if(c.id==='s18'&&Number.isFinite(c.shieldCharges))badge=`<span class="setup-state-badge shield">☾${Math.max(0,c.shieldCharges)}</span>`;
+ else if(c.id==='s26')badge=`<span class="setup-state-badge progress">X${Number.isFinite(c.yakouX)?c.yakouX:1}</span>`;
+ return `<button type="button" class="slot occupied setup-detail-trigger ${self?'owner-self':'owner-opponent'}" data-setup-uid="${escapeHtml(c.uid)}" aria-label="${escapeHtml(c.name)}の詳細を見る"><div class="setup-art-bg">${src?`<img src="${src}" alt="" draggable="false">`:''}</div><div class="setup-caption"><div class="name">${typeof cardNameHtml==='function'?cardNameHtml(c):escapeHtml(c.name)}</div><div class="owner">${self?'自分':'相手'}のセットアップ</div><div class="mini-effect">${escapeHtml(effect)}</div></div>${badge}</button>`
+}
 function visibleSetupByUid(uid){const v=currentView;if(!v)return null;const n=Number(uid),all=[];if(v.me.personal)all.push({owner:v.me.pid,card:v.me.personal});if(v.opp.personal)all.push({owner:v.opp.pid,card:v.opp.personal});(v.shared||[]).forEach(x=>all.push(x));return all.find(x=>Number(x.card?.uid)===n)||null}
 function openSetupDetail(uid){const x=visibleSetupByUid(uid),v=currentView;if(!x||!v)return;const c=x.card,owner=x.owner===v.me.pid?'自分':'相手';$('setupDetailTitle').textContent=`《${c.name}》`;$('setupDetailBody').innerHTML=`<div class="card ${c.type} setup-detail-preview"><div class="head"><div><div class="cname">${escapeHtml(c.name)}</div><div class="type">${typeLabel(c.type)}</div></div><div class="cost">${c.cost}</div></div><div class="text">${escapeHtml(cardText(c))}</div></div><div class="setup-detail-owner">所有者：${owner}</div>`;$('setupDetailModal').classList.remove('hidden')}
 function bindSetupDetailClicks(){document.querySelectorAll('.setup-detail-trigger').forEach(b=>b.addEventListener('click',()=>openSetupDetail(b.dataset.setupUid)))}
@@ -2172,7 +2180,7 @@ canPlayView=function(v,c){
 };
 function cardConditionReady(v,c){
  const n=(v.me.cardsPlayedThisTurn||0)+1;
- return (c.id==='j4'&&v.me.handCount===10)||(c.id==='s2'&&n===9)||(c.id==='s7'&&n===3)||(c.id==='s12'&&n===5)||(c.id==='s14'&&n===3)||(c.id==='s19'&&n===5)||(c.id==='s20'&&viewCost(v,c)===0)
+ return (c.id==='j4'&&v.me.handCount===10)||(c.id==='s2'&&n===10)||(c.id==='s7'&&n===3)||(c.id==='s12'&&n===5)||(c.id==='s14'&&n===3)||(c.id==='s19'&&n===5)||(c.id==='s20'&&viewCost(v,c)===0)||(c.id==='s25'&&n===3)
 }
 
 function choiceModifierHtml(c){
@@ -2374,10 +2382,6 @@ function showSpecialCutin(v){
    if(c.id==='j4'&&me.handCount!==10)return false;if(c.id==='j9'&&me.discardCount<2)return false;
    if(c.id==='k11'&&!me.hand.some(x=>x.uid!==c.uid&&x.type==='attack'))return false;if(c.type==='setup'&&activeViewHasSetup(v,me.pid,c.id))return false;return true
  };
- cardConditionReady=function(v,c){
-   const n=(v.me.cardsPlayedThisTurn||0)+1;
-   return (c.id==='j4'&&v.me.handCount===10)||(c.id==='s2'&&n===10)||(c.id==='s7'&&n===3)||(c.id==='s12'&&n===5)||(c.id==='s14'&&n===3)||(c.id==='s19'&&n===5)||(c.id==='s20'&&viewCost(v,c)===0)
- };
 
 })();
 /* ===== end v43 patch ===== */
@@ -2460,11 +2464,6 @@ function showSpecialCutin(v){
    return _scoreCardV44(pid,c)
  };
 
- const _cardConditionReadyV44=cardConditionReady;
- cardConditionReady=function(v,c){
-   if(c.id==='s25')return (v.me.cardsPlayedThisTurn||0)+1===3;
-   return _cardConditionReadyV44(v,c)
- };
 
 })();
 /* ===== end v45 patch ===== */
@@ -3620,16 +3619,6 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
 /* The global app already rotates portrait phones as one landscape canvas. Keep these screens wide instead of re-entering old stacked mobile CSS. */
 @media(max-width:760px){#battleMenuScreen .mode-wrap{padding:10px 14px 8px!important}#battleMenuScreen .mode-choices{grid-template-columns:1.18fr .82fr!important;gap:10px!important}#battleMenuScreen .mode-card{padding:12px!important}#battleMenuScreen .mode-card h2{font-size:18px!important}#battleMenuScreen .mode-card p{font-size:9px!important}#battleMenuScreen .mode-card .room-fields{grid-template-columns:1fr 1fr!important;gap:5px 7px!important}#battleMenuScreen .field label{font-size:8px!important}#battleMenuScreen .field input,#battleMenuScreen .field select{padding:5px!important;font-size:10px!important}.section-bottom-nav{height:50px}.section-bottom-nav button span{font-size:16px}.section-bottom-nav button b{font-size:9px}#battleMenuScreen,#deckScreen{padding-bottom:50px!important}#deckScreen{padding:7px 10px 55px!important}#deckScreen .deck-layout{grid-template-columns:170px minmax(0,1fr)!important;height:calc(100% - 42px)!important}#deckScreen>.page-title{height:34px!important;margin-bottom:6px!important}#deckScreen>.page-title h1{font-size:19px!important}#deckScreen .deck-editor-head{grid-template-columns:minmax(260px,1fr) auto!important;padding:6px!important}#deckScreen .deck-fields{grid-template-columns:110px minmax(140px,1fr)!important}#deckScreen .deck-meta-actions .btn{font-size:9px!important;padding:5px!important}#deckScreen .card-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}.deck-card .effect{font-size:7.5px!important;min-height:28px!important}}
 </style>
-<script id="la-0139-menu-landscape-js">
-(function(){
- const go=(name)=>{ if(name==='settings'){alert('設定は準備中です。');return;} showScreen(name); };
- document.querySelectorAll('.section-bottom-nav').forEach(nav=>nav.addEventListener('click',e=>{const b=e.target.closest('button[data-nav]');if(b)go(b.dataset.nav)}));
- const oldShow=window.showScreen;
- window.showScreen=function(name){const r=oldShow.apply(this,arguments);document.querySelectorAll('.section-bottom-nav button').forEach(b=>b.classList.toggle('active',b.dataset.nav===(name==='battleMenu'?'battle':name)));return r};
- document.querySelectorAll('#battleMenuScreen .section-bottom-nav button[data-nav="battle"],#deckScreen .section-bottom-nav button[data-nav="deck"]').forEach(b=>b.classList.add('active'));
- const meta=window.LUNA_ALTER_APP_META;document.title=`ルナオルタ ${meta.version}`;const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${meta.version} / ${meta.label}`;
-})();
-</script>
 <style id="la-01310-battle-flow">
 /* 0.13.10 — battle flow rebuilt as hub -> dedicated setup screens. */
 #battleMenuScreen,#cpuSetupScreen,#roomScreen{position:relative!important;overflow:hidden!important;padding:0 0 64px!important;background:linear-gradient(135deg,#f8f3e9 0%,#eee5d6 100%)!important}
@@ -3643,16 +3632,6 @@ window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(matchMode==='on
 #roomScreen{padding:14px 28px 72px!important;overflow:hidden!important}#roomScreen>.page-title{height:40px;margin:0 0 8px!important}#roomScreen>.page-title h1{font-size:24px!important}#roomScreen>.room-layout{display:grid!important;grid-template-columns:1fr 1fr!important;gap:12px!important;margin-bottom:8px!important}#roomScreen .room-card{padding:12px 14px!important;margin:0!important}#roomScreen .room-card h2{font-size:18px!important;margin:0 0 3px!important}#roomScreen .room-card .small{font-size:9px!important}#roomScreen .room-fields{gap:6px!important;margin-top:6px!important}#roomScreen .field label{font-size:8px!important}#roomScreen input,#roomScreen select{padding:6px 7px!important;font-size:10px!important}#roomScreen .btn{padding:7px 9px!important;font-size:10px!important}#roomScreen>div.panel:last-of-type{display:none!important}#roomScreen #lobbyPanel{margin:8px 0 0!important;padding:10px!important;max-height:calc(100% - 150px);overflow:auto}
 @media(max-width:760px){#battleMenuScreen,#cpuSetupScreen,#roomScreen{padding-bottom:50px!important}.battle-hub-wrap{padding:16px 24px 12px;gap:10px}.battle-hub-head h1{font-size:27px}.battle-hub-head p{font-size:9px}.battle-hub-choices{gap:12px}.battle-hub-card{padding:15px 18px;border-radius:18px;grid-template-columns:50px 1fr 24px;gap:10px}.hub-symbol{font-size:34px}.hub-copy b{font-size:22px}.hub-copy small{font-size:9px}.hub-arrow{font-size:32px}.battle-sub-wrap{padding:8px 22px 10px;grid-template-rows:24px auto minmax(0,1fr) 38px;gap:5px}.battle-sub-head h1{font-size:21px}.battle-sub-head p{display:none}.cpu-setup-grid{grid-template-columns:1fr 42px 1fr;gap:7px}.cpu-player-panel{padding:9px 12px!important;gap:5px}.cpu-player-panel h2{font-size:19px}.cpu-player-panel input,.cpu-player-panel select{padding:5px 6px!important;font-size:9px!important}.cpu-hint{font-size:7px}.cpu-start-btn{height:38px!important;font-size:11px!important}#roomScreen{padding:6px 14px 54px!important}#roomScreen>.page-title{height:30px;margin-bottom:4px!important}#roomScreen>.page-title h1{font-size:18px!important}#roomScreen>.room-layout{gap:7px!important}#roomScreen .room-card{padding:7px 9px!important}#roomScreen .room-card h2{font-size:14px!important}#roomScreen .room-card .small{font-size:7px!important}#roomScreen input,#roomScreen select{padding:4px 5px!important;font-size:8px!important}}
 </style>
-<script id="la-01310-battle-flow-js">
-(function(){
- const oldShow=window.showScreen;
- window.showScreen=function(name){const r=oldShow.apply(this,arguments);document.querySelectorAll('.section-bottom-nav button').forEach(b=>b.classList.toggle('active',b.dataset.nav===((name==='battleMenu'||name==='cpuSetup'||name==='room')?'battle':name)));return r};
- const cpu=document.getElementById('goCpuSetup'),back=document.getElementById('backBattleModes');if(cpu)cpu.onclick=()=>showScreen('cpuSetup');if(back)back.onclick=()=>showScreen('battleMenu');
- document.querySelectorAll('#cpuSetupScreen .section-bottom-nav,#roomScreen .section-bottom-nav').forEach(nav=>nav.addEventListener('click',e=>{const b=e.target.closest('button[data-nav]');if(!b)return;const n=b.dataset.nav;if(n==='settings')return alert('設定は準備中です。');showScreen(n==='battle'?'battleMenu':n)}));
- document.querySelectorAll('#battleMenuScreen .section-bottom-nav button[data-nav="battle"],#cpuSetupScreen .section-bottom-nav button[data-nav="battle"],#roomScreen .section-bottom-nav button[data-nav="battle"]').forEach(b=>b.classList.add('active'));
- const m=window.LUNA_ALTER_APP_META,v=document.getElementById('appVersionLabel');document.title=`ルナオルタ ${m.version}`;if(v)v.textContent=`${m.version} / ${m.label}`;
-})();
-</script>
 <style id="la-01311-battle-menu-fit">
 /* 0.13.11 — landscape battle menus: no decorative chess glyphs, everything fits above persistent nav. */
 #battleMenuScreen,#cpuSetupScreen{box-sizing:border-box!important;padding:0 0 64px!important;overflow:hidden!important}
@@ -3734,48 +3713,6 @@ body.la-battle-subview #roomScreen{height:100vh!important;min-height:100vh!impor
  #roomScreen.la-room-lobby #lobbyPanel{padding:9px 11px!important}
 }
 </style>
-<script id="la-01313-battle-room-fix-js">
-(function(){
- const meta=window.LUNA_ALTER_APP_META;
- // Keep the global header only where it is useful. Battle setup/room use the persistent bottom bar.
- const prevShow=window.showScreen;
- window.showScreen=function(name){
-   const r=prevShow.apply(this,arguments);
-   document.body.classList.toggle('la-battle-subview',name==='cpuSetup'||name==='room');
-   if(name!=='room')document.getElementById('roomScreen')?.classList.remove('la-room-lobby');
-   return r;
- };
- // setupLobby is the single successful transition point used by both host and guest.
- const oldSetup=window.setupLobby||setupLobby;
- window.setupLobby=setupLobby=function(code){
-   const r=oldSetup(code);
-   const rs=document.getElementById('roomScreen');
-   if(rs)rs.classList.add('la-room-lobby');
-   return r;
- };
- // Firebase creation can take a moment on first anonymous sign-in. Give immediate visual feedback.
- function wrapAsyncButton(id,label){
-   const b=document.getElementById(id);if(!b)return;
-   const original=b.onclick;if(typeof original!=='function')return;
-   b.onclick=async function(ev){
-     if(b.classList.contains('la-working'))return;
-     const old=b.textContent;b.classList.add('la-working');b.textContent=label;
-     let progress=b.parentElement?.querySelector('.la-room-progress');
-     if(!progress){progress=document.createElement('div');progress.className='la-room-progress';b.insertAdjacentElement('afterend',progress)}
-     progress.textContent='通信を準備しています…';
-     try{await original.call(this,ev)}finally{
-       b.classList.remove('la-working');b.textContent=old;
-       if(document.getElementById('lobbyPanel')?.classList.contains('hidden'))progress.textContent='';
-     }
-   };
- }
- // Firebase override is installed earlier in the document, so wrapping here captures the real handler.
- wrapAsyncButton('createRoom','ルームを作成中…');
- wrapAsyncButton('joinRoom','接続中…');
- document.title=`ルナオルタ ${meta.version}`;
- const v=document.getElementById('appVersionLabel');if(v)v.textContent=`${meta.version} / ${meta.label}`;
-})();
-</script>
 <!-- LUNA ALTER 0.13.14: setup board effect text + delegated detail tap -->
 <style id="la-01314-setup-detail">
 #battleScreen .slot.occupied{cursor:pointer!important}
@@ -3788,47 +3725,6 @@ body.la-battle-subview #roomScreen{height:100vh!important;min-height:100vh!impor
 #battleScreen .slot.occupied .setup-caption .mini-effect{display:-webkit-box!important;-webkit-box-orient:vertical!important;-webkit-line-clamp:4!important;overflow:hidden!important;font-size:8.5px!important;line-height:1.18!important;color:#fff!important;margin-top:2px!important;white-space:normal!important}
 #battleScreen #oppPersonal .slot.occupied .setup-caption .mini-effect,#battleScreen #myPersonal .slot.occupied .setup-caption .mini-effect{-webkit-line-clamp:3!important;font-size:8px!important}
 </style>
-<script id="la-01314-setup-detail-js">
-(()=>{
-  function esc(v){try{return escapeHtml(String(v??''))}catch(_){return String(v??'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]))}}
-  function artFor(c){try{return (window.LUNA_CARD_ART&&window.LUNA_CARD_ART[c.id])||''}catch(_){return ''}}
-  function effectFor(c){try{return cardText(c)||''}catch(_){return c?.text||''}}
-  function setupSlot01314(x,mePid){
-    if(!x)return '<div class="slot"></div>';
-    const c=x.card,owner=x.owner===mePid?'自分':'相手',src=artFor(c),effect=effectFor(c);
-    const art=src?`<div class="setup-art-bg"><img src="${src}" alt="" draggable="false"></div>`:'<div class="setup-art-bg"></div>';
-    let badge='';try{badge=typeof setupStateBadge==='function'?setupStateBadge(x,mePid):''}catch(_){}
-    return `<button type="button" class="slot occupied setup-detail-trigger" data-setup-uid="${esc(c.uid)}" aria-label="${esc(c.name)}の詳細を見る">${art}<div class="setup-caption"><div class="name">${esc(c.name)}</div><div class="owner">${owner}</div><div class="mini-effect">${esc(effect)}</div></div>${badge}</button>`;
-  }
-  window.setupSlot=setupSlot01314;try{setupSlot=setupSlot01314}catch(_){}
-
-  // The old renderer bound listeners to nodes that are replaced on every render.
-  // Delegate from battleScreen so taps keep working after every redraw / DOM rearrangement.
-  const battle=document.getElementById('battleScreen');
-  if(battle&&!battle.dataset.setupDetailDelegated){
-    battle.dataset.setupDetailDelegated='1';
-    battle.addEventListener('click',e=>{
-      const trigger=e.target.closest?.('.setup-detail-trigger');
-      if(!trigger||!battle.contains(trigger))return;
-      e.preventDefault();e.stopPropagation();
-      try{openSetupDetail(trigger.dataset.setupUid)}catch(err){console.error('setup detail',err)}
-    });
-  }
-  // UID comparison must work for both numeric local games and string/wire IDs.
-  window.visibleSetupByUid=function(uid){
-    const v=window.currentView||currentView;if(!v)return null;
-    const key=String(uid),all=[];
-    if(v.me?.personal)all.push({owner:v.me.pid,card:v.me.personal});
-    if(v.opp?.personal)all.push({owner:v.opp.pid,card:v.opp.personal});
-    (v.shared||[]).forEach(x=>all.push(x));
-    return all.find(x=>String(x.card?.uid)===key)||null;
-  };
-  try{visibleSetupByUid=window.visibleSetupByUid}catch(_){}
-  // Force one redraw so already-visible setups adopt the new renderer immediately.
-  try{if((window.currentView||currentView)&&typeof renderBattleView==='function')renderBattleView()}catch(_){}
-  const meta=window.LUNA_ALTER_APP_META,vl=document.getElementById('appVersionLabel');document.title=`ルナオルタ ${meta.version}`;if(vl)vl.textContent=`${meta.version} / ${meta.label}`;
-})();
-</script>
 <!-- LUNA ALTER 0.13.4: definitive landscape battle rebuild -->
 <script>
 
@@ -4106,17 +4002,6 @@ document.querySelectorAll('.tut2-course').forEach(b=>b.addEventListener('click',
 #endTurn.hold-active,#backHome.hold-active{transform:none!important;filter:none!important;box-shadow:none!important}
 </style>
 <!-- LUNA ALTER 0.10.1: compact deck/discard shelf -->
-<script id="la-0101-pile-patch">
-(function(){
-  const {version:VERSION,label:LABEL}=window.LUNA_ALTER_APP_META;
-  window.LUNA_ALTER_APP_META=Object.freeze({version:VERSION,label:LABEL});
-  document.title=`ルナオルタ ${VERSION}`;
-  const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${VERSION} / ${LABEL}`;
-  const deck=document.getElementById('laDeckBox'),discard=document.getElementById('laDiscardBox');
-  if(deck)deck.innerHTML='<span class="la-pile-icon" aria-hidden="true"></span><strong>山札</strong>';
-  if(discard)discard.innerHTML='<span class="la-pile-icon" aria-hidden="true"></span><strong>捨て札</strong>';
-})();
-</script>
 <!-- LUNA ALTER 0.10.2: rebuilt self utility row + honest draw animation -->
 <!-- LUNA ALTER 0.10.3: self-zone rebuild + deck-to-hand reveal -->
 <!-- LUNA ALTER 0.10.4: online input recovery -->
@@ -4187,23 +4072,6 @@ document.querySelectorAll('.tut2-course').forEach(b=>b.addEventListener('click',
 })();
 </script>
 <!-- LUNA ALTER 0.10.6: mobile battle layout cleanup -->
-<script id="la-v0151-character-fix">
-/* 0.15.1: canonical three-character selection. */
-(function(){
-  const VALID_CHARACTERS=new Set(['giovanni','kenshi','shiranui']);
-  const normalizeCharacter=c=>VALID_CHARACTERS.has(c)?c:'giovanni';
-  window.LA_normalizeCharacter=normalizeCharacter;
-  // Keep the deck editor's character value authoritative; older code used a two-character ternary.
-  const sel=document.getElementById('deckCharacter');
-  if(sel){
-    sel.addEventListener('change',()=>{
-      const c=normalizeCharacter(sel.value);
-      if(typeof workingCharacter!=='undefined') workingCharacter=c;
-      sel.value=c;
-    });
-  }
-})();
-</script>
 <style id="battle-menu-0152">
 #battleScreen{position:relative}
 #battleScreen .battle-menu-toggle{position:absolute;left:14px;top:14px;z-index:9200;width:46px;height:42px;border:1px solid rgba(255,255,255,.28);border-radius:11px;background:rgba(10,12,18,.72);backdrop-filter:blur(8px);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;padding:0;box-shadow:0 5px 18px rgba(0,0,0,.22)}
@@ -4216,26 +4084,6 @@ document.querySelectorAll('.tut2-course').forEach(b=>b.addEventListener('click',
 #battleScreen .battle-menu-action.primary{background:#fff;color:#111}
 #battleScreen .battle-menu-action.danger{background:#7d2027;border-color:#a73a43}
 </style>
-<script id="battle-menu-runtime-0152">
-(()=>{
- const $id=id=>document.getElementById(id);
- const toggle=$id('battleMenuToggle'),menu=$id('battlePauseMenu'),resume=$id('battleResume'),settings=$id('battleSettings'),surrender=$id('battleSurrender');
- if(!toggle||!menu)return;
- const close=()=>{menu.classList.add('hidden');toggle.setAttribute('aria-expanded','false')};
- const open=()=>{menu.classList.remove('hidden');toggle.setAttribute('aria-expanded','true')};
- toggle.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();menu.classList.contains('hidden')?open():close()});
- resume?.addEventListener('click',close);
- menu.addEventListener('click',e=>{if(e.target===menu)close()});
- settings?.addEventListener('click',()=>{close();alert('設定は準備中です。')});
- surrender?.addEventListener('click',()=>{
-   const v=window.currentView||currentView;
-   if(!v||v.over){close();return}
-   if(!confirm('この対戦を降参しますか？\n降参すると相手の勝利になります。'))return;
-   close();
-   dispatchAction({type:'surrender'});
- });
-})();
-</script>
 <style id="la-result-home-style-0153">
 #battleScreen .result-overlay.show{pointer-events:auto}
 #battleScreen .result-actions{margin-top:22px;opacity:0;transform:translateY(8px)}
@@ -4243,16 +4091,6 @@ document.querySelectorAll('.tut2-course').forEach(b=>b.addEventListener('click',
 #battleScreen .result-home-btn{min-width:180px;min-height:46px;padding:10px 24px;border:1px solid rgba(255,255,255,.55);border-radius:999px;background:rgba(10,11,16,.72);color:#fff;font:800 14px/1 system-ui,-apple-system,sans-serif;letter-spacing:.08em;box-shadow:0 8px 28px rgba(0,0,0,.28);backdrop-filter:blur(5px)}
 #battleScreen .result-home-btn:active{transform:scale(.97)}
 </style>
-<script id="la-result-home-runtime-0153">
-(()=>{
- const btn=document.getElementById('resultHome');
- if(!btn)return;
- btn.addEventListener('click',()=>{
-   try{ leaveRoom(); }catch(e){}
-   try{ showScreen('home'); renderHomeLeader(); }catch(e){ location.reload(); }
- });
-})();
-</script>
 <!-- LUNA ALTER 0.15.4: canonical Firebase room transport -->
 <style id="la-0161-landscape-modal-hud-fix">
 /* 0.16.1 — landscape-first overlays. Never require portrait rotation to read logs or choices. */
@@ -4303,20 +4141,6 @@ document.querySelectorAll('.tut2-course').forEach(b=>b.addEventListener('click',
   #logModal .log-rules{display:none!important}
 }
 </style>
-<script id="la-0161-modal-runtime">
-(()=>{
-  const modal=document.getElementById('modal'), cancel=document.getElementById('modalCancel'), peek=document.getElementById('modalPeek');
-  // "Cancel" means park the mandatory effect selection, not undo an already-played card.
-  // It uses the same safe path as "盤面を見る", so the player can always return to the pending choice.
-  if(cancel&&!cancel.dataset.la0161){
-    cancel.dataset.la0161='1';
-    cancel.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();if(peek)peek.click();else modal?.classList.add('hidden')});
-  }
-  // Keep overlays attached to the viewport even if the battle board itself is scaled/rotated.
-  [modal,document.getElementById('logModal'),document.getElementById('setupDetailModal'),document.getElementById('pileModal')].forEach(el=>{if(el&&el.parentElement!==document.body)document.body.appendChild(el)});
-  const meta=window.LUNA_ALTER_APP_META; document.title=`ルナオルタ ${meta.version}`; const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=`${meta.version} / ${meta.label}`;
-})();
-</script>
 <!-- LUNA ALTER 0.18.0 CLEANUP MANIFEST
      - one build metadata source
      - one 1280x720 scaling runtime
@@ -4530,9 +4354,9 @@ button:disabled,.btn:disabled{pointer-events:none}
 #battleScreen #myHand,#battleScreen #myHand>.card,#battleScreen #myHand>.card *{touch-action:none!important}
 #battleScreen #myHand>.card.condition-ready{outline:3px solid #ffd84b!important;box-shadow:0 0 0 3px rgba(255,216,75,.36),0 0 24px 9px rgba(255,196,35,.82),0 10px 30px rgba(0,0,0,.28)!important;filter:brightness(1.07) saturate(1.08)}
 </style>
-<script id="la-battle-runtime-0230">(()=>{
+<script id="la-app-runtime-0240">(()=>{
 'use strict';
-/* LUNA ALTER 0.23.0 — canonical presentation/input runtime.
+/* LUNA ALTER 0.24.0 — canonical app UI/input runtime.
    Contract: this module owns battle geometry, battle buttons, hand drag, conditional glow,
    turn splash, VS intro, post-game home routing, and live deck-editor input/summary.
    Game rules remain in the engine; this module does not duplicate card resolution. */
@@ -4555,8 +4379,6 @@ function moveToStage(el){if(el&&el.parentElement!==stage)stage.appendChild(el)}
 function arrange(){if(stage.parentElement!==screen)screen.insertBefore(stage,screen.firstChild);['myLeaderUnit','oppLeaderUnit','laDeckBox','laDiscardBox','laOppHandZone','openLog'].forEach(id=>moveToStage($(id)));moveToStage(screen.querySelector('.center-board'));moveToStage(screen.querySelector('.battle-controls'));moveToStage(screen.querySelector('.hand-wrap'));[selfHud,oppHud,selfEnergy,oppEnergy].forEach(moveToStage)}
 
 // ---------- setup rendering (single final renderer) ----------
-function setupBadge(x){const c=x?.card;if(!c)return'';if((c.id==='k4'||c.id==='s11')&&Number.isFinite(c.fortressHp))return `<span class="setup-state-badge block">🛡${Math.max(0,c.fortressHp)}</span>`;if(c.id==='s18'&&Number.isFinite(c.shieldCharges))return `<span class="setup-state-badge shield">☾${Math.max(0,c.shieldCharges)}</span>`;if(c.id==='s26')return `<span class="setup-state-badge progress">X${Number.isFinite(c.yakouX)?c.yakouX:1}</span>`;return''}
-setupSlot=function(x,mePid){if(!x)return'<div class="slot"></div>';const c=x.card,src=art(c),effect=cardText(c);return `<button type="button" class="slot occupied setup-detail-trigger ${x.owner===mePid?'owner-self':'owner-opponent'}" data-setup-uid="${esc(c.uid)}"><div class="setup-art-bg">${src?`<img src="${src}" alt="" draggable="false">`:''}</div><div class="setup-caption"><div class="name">${typeof cardNameHtml==='function'?cardNameHtml(c):esc(c.name)}</div><div class="owner">${x.owner===mePid?'自分':'相手'}のセットアップ</div><div class="mini-effect">${esc(effect)}</div></div>${setupBadge(x)}</button>`};window.setupSlot=setupSlot;
 
 // ---------- HUD ----------
 function pile(label,n,kind,self){return self?`<button type="button" data-own-pile="${kind}">${label}<strong>${n??0}</strong></button>`:`<span>${label}<strong>${n??0}</strong></span>`}
@@ -4564,16 +4386,23 @@ function stats(p,self){return `<div class="la-stat-card ${self?'self':'opponent'
 function syncHud(v){if(!v?.me)return;const op=v.opp||v.op||{};selfHud.innerHTML=stats(v.me,true);oppHud.innerHTML=stats(op,false);selfEnergy.innerHTML=`<span>⚡</span><b>${v.me.energy??0}/${v.me.maxEnergy??0}</b>`;oppEnergy.innerHTML=`<span>⚡</span><b>${op.energy??0}/${op.maxEnergy??0}</b>`;const mh=$('myHpText'),oh=$('oppHpText');if(mh)mh.textContent=`${Math.max(0,v.me.hp??0)} / ${v.me.maxHp||100}`;if(oh)oh.textContent=`${Math.max(0,op.hp??0)} / ${op.maxHp||100}`;const tl=$('turnLabel');if(tl){const no=Number(v.me.turnNo||0);tl.innerHTML=v.over?'<b>対戦終了</b>':`<b>${no>0?`第${no}ターン`:'BATTLE START'}</b><small>${v.current===v.me.pid?'あなたのターン':'相手のターン'}</small>`}document.querySelectorAll('#myHand>.card').forEach(el=>{const c=v.me.hand?.find(x=>String(x.uid)===el.dataset.uid),src=c&&art(c);if(!c)return;if(src&&!el.querySelector('.card-art')){const a=document.createElement('div');a.className='card-art';a.innerHTML=`<img src="${src}" alt="" draggable="false">`;el.querySelector('.head')?.after(a)}const n=el.querySelector('.cname');if(n&&typeof cardNameHtml==='function')n.innerHTML=cardNameHtml(c);const tx=el.querySelector('.text');if(tx&&c.id==='s11'){const used=Number(v.me.cardsPlayedThisTurn||0),x=(used+1)*2;tx.textContent=`X＝（現在の使用枚数${used}＋このカード1枚）×2＝${x}。耐久値Xの防壁になり、次のターン開始時までリーダーへのダメージをブロックする。超過分はリーダーが受ける。次のターン開始時、捨て札へ。`}});const uc=$('shiranuiUseCount');if(uc){if(v.me.character==='shiranui'){uc.textContent=`現在の使用枚数：${v.me.cardsPlayedThisTurn||0}`;uc.classList.remove('hidden')}else uc.classList.add('hidden')};$('keepHint').textContent=activeViewHasSetup(v,v.me.pid,'j15')?'《お取り置き》：ターン終了時に選択':'';document.querySelectorAll('#myHand>.card').forEach(el=>{const c=v.me.hand?.find(x=>String(x.uid)===el.dataset.uid);if(!c)return;el.querySelectorAll('.card-actions button').forEach(b=>{if(b.textContent==='次ターンに保持'||b.textContent==='保持解除')b.remove()});const retained=c.retain||c.retainedOnce||activeViewHasSetup(v,v.me.pid,'k9')||v.me.keepUid===c.uid;if(retained&&!el.querySelector('.retain-badge')){const b=document.createElement('span');b.className='retain-badge';b.textContent='保留';el.querySelector('.head>div:first-child')?.appendChild(b)}});if(typeof showSpecialCutin==='function')showSpecialCutin(v);document.querySelectorAll('#playedStage .card,#modalBody .choice-card').forEach(el=>{const n=el.querySelector('.cname');if(!n||typeof cardByName!=='function'||typeof cardNameHtml!=='function')return;const c=cardByName(n.textContent.trim());if(c)n.innerHTML=cardNameHtml(c)})}
 
 // ---------- one source of truth for "condition is live now" ----------
-function conditionActive(v,c){if(!v?.me||!c||v.over||v.pending||v.current!==v.me.pid)return false;if(typeof canPlayView==='function'&&!canPlayView(v,c))return false;const used=Number(v.me.cardsPlayedThisTurn||0),next=used+1;
+const LunaRules=window.LunaRules=Object.freeze({
+ canPlay(v,c){return !!(v?.me&&c&&!v.over&&!v.pending&&v.current===v.me.pid&&(!window.canPlayView||canPlayView(v,c)))},
+ used(v){return Number(v?.me?.cardsPlayedThisTurn||0)},
+ conditionActive(v,c){
+  if(!this.canPlay(v,c))return false;
+  const used=this.used(v),next=used+1;
   switch(c.id){
-    case 'j4': return v.me.handCount===10;
-    case 's2': return used===9;            // 百鬼夜行: this card is the 10th use
-    case 's7': case 's14': case 's25': return next===3;
-    case 's12': case 's19': return next===5;
-    case 's20': return typeof viewCost==='function'&&viewCost(v,c)===0;
-    default: return typeof cardConditionReady==='function'&&!!cardConditionReady(v,c);
+   case 's25': return next===3;            // 葬送歌: this card is the 3rd use
+   case 's2':  return used===9;            // 百鬼夜行: this card is the 10th use
+   case 's8':  return next===5;            // 5th-use conditional card
+   case 's11': return true;                // value scales directly with current use count
+   case 's26': return next===7;            // 夜行絵巻: placing/using on the 7th-use window
+   default: return typeof cardConditionReady==='function'&&!!cardConditionReady(v,c);
   }
-}
+ }
+});
+function conditionActive(v,c){return LunaRules.conditionActive(v,c)}
 window.LA_CONDITION_ACTIVE=conditionActive;
 function decorateConditions(v){document.querySelectorAll('#myHand>.card').forEach(el=>{const c=v?.me?.hand?.find(x=>String(x.uid)===el.dataset.uid);el.classList.toggle('condition-ready',!!(c&&conditionActive(v,c)))})}
 
@@ -4614,7 +4443,54 @@ function syncDeckSummary(){if(typeof workingCounts==='undefined'||typeof deckTot
 const deckGrid=$('deckGrid');if(deckGrid){deckGrid.addEventListener('click',e=>{const btn=e.target.closest('.qty button');if(!btn||!deckGrid.contains(btn))return;e.preventDefault();e.stopPropagation();const card=btn.closest('.deck-card'),id=card?.dataset.cardId;if(!id)return;const action=btn.dataset.a||(/＋|\+/.test(btn.textContent)?'plus':'minus'),now=Number(workingCounts[id]||0);workingCounts[id]=action==='plus'?Math.min(3,now+1):Math.max(0,now-1);const n=card.querySelector('.qty span');if(n)n.textContent=String(workingCounts[id]);syncDeckSummary()})}
 const deckRenderCore=renderDeckCards;renderDeckCards=function(){const r=deckRenderCore.apply(this,arguments);syncDeckSummary();if(typeof cardByName==='function'&&typeof cardNameHtml==='function')document.querySelectorAll('#deckGrid .deck-card h3').forEach(h=>{const c=cardByName(h.textContent.trim());if(c)h.innerHTML=cardNameHtml(c)});return r};window.renderDeckCards=renderDeckCards;const managerCore=renderDeckManager;renderDeckManager=function(){const r=managerCore.apply(this,arguments);syncDeckSummary();return r};window.renderDeckManager=renderDeckManager;
 
-window.LA_RUNTIME_AUDIT=()=>{const v=view();return{version:meta.version,runtime:'0.23.0',pointerDrag:true,touchDragShim:false,conditionSource:'LA_CONDITION_ACTIVE',current:v?.current,me:v?.me?.pid,pending:!!v?.pending,turnNo:v?.me?.turnNo||0}};
+
+/* 0.24.0 module boundary: legacy menu/modal/setup/frame patches are consolidated here. */
+const LunaUI=window.LunaUI=window.LunaUI||{};
+LunaUI.showScreen=(name)=>showScreen(name);
+LunaUI.go=(name)=>{if(name==='settings')return alert('設定は準備中です。');showScreen(name==='battle'?'battleMenu':name)};
+document.addEventListener('click',e=>{
+ const nav=e.target.closest?.('.section-bottom-nav button[data-nav]');
+ if(nav){e.preventDefault();LunaUI.go(nav.dataset.nav);return}
+ const setup=e.target.closest?.('#battleScreen .setup-detail-trigger');
+ if(setup){e.preventDefault();e.stopPropagation();try{openSetupDetail(setup.dataset.setupUid)}catch(err){console.error('setup detail',err)}return}
+});
+const coreShowScreen=window.showScreen||showScreen;
+window.showScreen=showScreen=function(name){
+ const r=coreShowScreen.apply(this,arguments),battleTab=(name==='battleMenu'||name==='cpuSetup'||name==='room')?'battle':name;
+ document.querySelectorAll('.section-bottom-nav button[data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav===battleTab));
+ document.body.classList.toggle('la-battle-subview',name==='cpuSetup'||name==='room');
+ if(name!=='room')$('roomScreen')?.classList.remove('la-room-lobby');
+ return r;
+};
+$('goCpuSetup')?.addEventListener('click',()=>showScreen('cpuSetup'));
+$('backBattleModes')?.addEventListener('click',()=>showScreen('battleMenu'));
+const coreSetupLobby=window.setupLobby||setupLobby;
+window.setupLobby=setupLobby=function(code){const r=coreSetupLobby(code);$('roomScreen')?.classList.add('la-room-lobby');return r};
+window.visibleSetupByUid=function(uid){const v=view();if(!v)return null;const key=String(uid),all=[];if(v.me?.personal)all.push({owner:v.me.pid,card:v.me.personal});if(v.opp?.personal)all.push({owner:v.opp.pid,card:v.opp.personal});(v.shared||[]).forEach(x=>all.push(x));return all.find(x=>String(x.card?.uid)===key)||null};
+try{visibleSetupByUid=window.visibleSetupByUid}catch(_){}
+const menu=$('battlePauseMenu'),toggle=$('battleMenuToggle');
+const closeBattleMenu=()=>{menu?.classList.add('hidden');toggle?.setAttribute('aria-expanded','false')};
+toggle?.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const opening=menu?.classList.contains('hidden');menu?.classList.toggle('hidden',!opening);toggle.setAttribute('aria-expanded',opening?'true':'false')});
+$('battleResume')?.addEventListener('click',closeBattleMenu);
+menu?.addEventListener('click',e=>{if(e.target===menu)closeBattleMenu()});
+$('battleSettings')?.addEventListener('click',()=>alert('設定は準備中です。'));
+$('resultHome')?.addEventListener('click',()=>{try{leaveRoom()}catch(_){}try{showScreen('home');renderHomeLeader()}catch(_){location.reload()}});
+const modal=$('modal'),peek=$('modalPeek');
+$('modalCancel')?.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();peek?peek.click():modal?.classList.add('hidden')});
+[modal,$('logModal'),$('setupDetailModal'),$('pileModal')].forEach(el=>{if(el&&el.parentElement!==document.body)document.body.appendChild(el)});
+const VALID_CHARACTERS=new Set(['giovanni','kenshi','shiranui']);
+window.LA_normalizeCharacter=c=>VALID_CHARACTERS.has(c)?c:'giovanni';
+$('deckCharacter')?.addEventListener('change',e=>{const c=window.LA_normalizeCharacter(e.currentTarget.value);if(typeof workingCharacter!=='undefined')workingCharacter=c;e.currentTarget.value=c});
+const deckBox=$('laDeckBox'),discardBox=$('laDiscardBox');
+if(deckBox)deckBox.innerHTML='<span class="la-pile-icon" aria-hidden="true"></span><strong>山札</strong>';
+if(discardBox)discardBox.innerHTML='<span class="la-pile-icon" aria-hidden="true"></span><strong>捨て札</strong>';
+const FRAME_CLASSES=['la-frame-giovanni','la-frame-kenshi','la-frame-shiranui'];
+function frameCharacter(el,id){const c=DEF?.[id];if(c?.pool==='giovanni'||String(id||'').startsWith('j')||id==='knife')return'giovanni';if(c?.pool==='kenshi'||String(id||'').startsWith('k'))return'kenshi';if(c?.pool==='shiranui'||String(id||'').startsWith('s')||id==='sf')return'shiranui';if(el.closest('#deckGrid'))return typeof workingCharacter!=='undefined'?workingCharacter:'giovanni';if(el.closest('#myHand'))return view()?.me?.character||'giovanni';return view()?.me?.character||'giovanni'}
+function decorateFrames(root=document){root.querySelectorAll?.('.card,.choice-card,.deck-card').forEach(el=>{let id=el.dataset?.cardId||el.dataset?.id||'';if(!id){const n=el.querySelector('.cname')?.textContent?.trim();if(n)id=cardByName(n)?.id||''}const ch=frameCharacter(el,id);el.classList.add('la-char-frame');FRAME_CLASSES.forEach(x=>el.classList.remove(x));el.classList.add('la-frame-'+ch)})}
+window.LUNA_DECORATE_CARD_FRAMES=decorateFrames;decorateFrames();
+new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(n=>{if(n.nodeType===1)decorateFrames(n)}))).observe(document.body,{childList:true,subtree:true});
+
+window.LA_RUNTIME_AUDIT=()=>{const v=view();return{version:meta.version,runtime:'0.24.0',pointerDrag:true,touchDragShim:false,conditionSource:'LunaRules.conditionActive',current:v?.current,me:v?.me?.pid,pending:!!v?.pending,turnNo:v?.me?.turnNo||0}};
 arrange();fit();if(view())renderBattleView();syncDeckSummary();document.title=`ルナオルタ ${meta.version}`;const vl=$('appVersionLabel');if(vl)vl.textContent=`${meta.version} / ${meta.label}`;
 })();</script>
 <style id="la-0217-usability-fixes">
@@ -4786,16 +4662,6 @@ body.deck-view #deckScreen #deckCountSticky{top:72px!important}
 .deck-item.active::before{border-color:rgba(113,73,157,.42)}
 .deck-item.active::after{color:#8650b7}
 </style>
-<script id="la-premium-frames-02113-js">
-(()=>{
- const classes=['la-frame-giovanni','la-frame-kenshi','la-frame-shiranui'];
- function byId(id){try{return DEF?.[id]||null}catch(_){return null}}
- function infer(el,id){const c=byId(id);if(c?.pool==='giovanni'||String(id||'').startsWith('j')||id==='knife')return'giovanni';if(c?.pool==='kenshi'||String(id||'').startsWith('k'))return'kenshi';if(c?.pool==='shiranui'||String(id||'').startsWith('s')||id==='sf')return'shiranui';if(el.closest('#deckGrid')){try{return workingCharacter||'giovanni'}catch(_){}}if(el.closest('#myHand')){try{return currentView?.me?.character||'giovanni'}catch(_){}}if(el.closest('#modalBody')){try{const pid=currentView?.pending?.pid;return pid===currentView?.me?.pid?currentView?.me?.character:(currentView?.opp?.character||'giovanni')}catch(_){}}if(el.closest('#playedStage')){try{const a=currentView?.lastAction;return a?.pid===currentView?.me?.pid?currentView?.me?.character:(currentView?.opp?.character||'giovanni')}catch(_){}}return'giovanni'}
- function idOf(el){if(el.dataset.cardId)return el.dataset.cardId;const uid=el.dataset.uid;if(uid){try{const c=currentView?.me?.hand?.find(x=>String(x.uid)===String(uid));if(c)return c.id}catch(_){}}const n=el.querySelector('.cname,h3')?.textContent?.replace(/\s+/g,'')||'';try{const c=CARD_DEFS.find(x=>n.includes(String(x.name).replace(/\s+/g,'')));if(c)return c.id}catch(_){}return''}
- function decorate(root=document){root.querySelectorAll?.('.card,.choice-card,.deck-card').forEach(el=>{const id=idOf(el),ch=infer(el,id);el.classList.add('la-char-frame');classes.forEach(x=>el.classList.remove(x));el.classList.add(`la-frame-${ch}`)})}
- let queued=false;const obs=new MutationObserver(()=>{if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;decorate()})});obs.observe(document.body,{childList:true,subtree:true});decorate();window.LUNA_DECORATE_CARD_FRAMES=decorate;
-})();
-</script>
 <style id="la-02114-battle-polish">
 /* 0.21.14 — battle ownership, intro, stronger affordances */
 #battleScreen .slot.occupied.owner-self{
