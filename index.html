@@ -959,8 +959,8 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.24.9",
-  label:"プレイヤー設定"
+  version:"0.25.0",
+  label:"CPU戦略思考強化"
 });
 </script>
 <style id="la-title-transition-style">
@@ -1762,7 +1762,7 @@ const SHIRANUI_CARD_DEFS=[
  {id:'s6',name:'千本桜',type:'attack',cost:5,text:'廃棄札にあるカードの枚数×4ダメージを、単発で与える。',pool:'shiranui'},
  {id:'s7',name:'化け猫',type:'attack',cost:1,text:'4ダメージを与える。このカードのプレイが3枚目の場合、12ダメージを与える。',pool:'shiranui'},
  {id:'s8',name:'浮世火',type:'setup',cost:1,text:'ターン中にカードを3枚プレイするごとに、そのカードの処理終了後、狐火1枚を手札に加える。',pool:'shiranui'},
- {id:'s9',name:'彼岸送り',type:'skill',cost:0,text:'手札のカードを2枚まで選んで廃棄する。自分のエナジーを1回復する。',pool:'shiranui'},
+ {id:'s9',name:'彼岸送り',type:'skill',cost:0,text:'手札のカードを2枚廃棄する。自分のエナジーを1回復する。',pool:'shiranui'},
  {id:'s10',name:'緋色の舞',type:'attack',cost:3,text:'20ダメージを与える。その後、残りの手札からランダムに1枚を廃棄する。',pool:'shiranui'},
  {id:'s11',name:'狐の社',type:'setup',cost:1,text:'次のターン開始時まで、リーダーへのXダメージをブロックする。Xはこのカード自身を含む、このカードの使用までに使用したカードの枚数×2。ターン開始時、捨て札へ。',pool:'shiranui'},
  {id:'s12',name:'宵月斬',type:'attack',cost:3,text:'10ダメージを与える。このカードのプレイが5枚目なら、30ダメージを与える。',pool:'shiranui'},
@@ -2020,9 +2020,16 @@ function playShiranuiCard(pid,c,dest){
    addLog(`${p.name}：《輪廻の理》で戻せるカードがない。`);shiranuiFinish(pid,c);return
  }
  if(c.id==='s9'){
-   p.discard.push(c);const n=Math.min(2,p.hand.length);
-   if(n){shiranuiPending(pid,c,{type:'exhaustUpTo2',count:n,title:`《彼岸送り》：廃棄するカードを${n}枚選択`});return}
-   p.energy=Math.min(p.maxEnergy,p.energy+1);addLog(`${p.name}：《彼岸送り》でエナジーを1回復。`);shiranuiFinish(pid,c);return
+   p.discard.push(c);
+   const n=Math.min(2,p.hand.length);
+   // No cards remain after playing 彼岸送り: resolve immediately and never open an empty selection state.
+   if(n===0){
+     if(game.pending?.pid===pid&&game.pending?.type==='exhaustUpTo2')game.pending=null;
+     p.energy=Math.min(p.maxEnergy,p.energy+1);
+     addLog(`${p.name}：《彼岸送り》は廃棄できる手札がないため、選択を省略してエナジーを1回復。`);
+     shiranuiFinish(pid,c);return
+   }
+   shiranuiPending(pid,c,{type:'exhaustUpTo2',count:n,title:`《彼岸送り》：廃棄するカードを${n}枚選択`});return
  }
  if(c.id==='s13'){p.discard.push(c);addToHand(pid,makeCard('sf'));addToHand(pid,makeCard('sf'));addLog(`${p.name}：《口寄せ》で狐火2枚。`);shiranuiFinish(pid,c);return}
  if(c.id==='s14'){p.discard.push(c);const n=drawCards(pid,playNo===3?3:1,true);addLog(`${p.name}：《夜行》で${n}枚ドロー。`);shiranuiFinish(pid,c);return}
@@ -2066,6 +2073,13 @@ endPlayerTurn=function(pid){
 const _resolvePendingV41=resolvePending;
 resolvePending=function(pid,uids,targetIndex=null){
  const x=game.pending,p=game.players[pid];if(!x||x.pid!==pid||!Array.isArray(uids))return;
+ // Fail-safe for 彼岸送り: an empty hand must never leave the battle trapped in a selection pending.
+ if(x.type==='exhaustUpTo2'&&p.hand.length===0){
+   const c=x.afterPlayCard;game.pending=null;
+   p.energy=Math.min(p.maxEnergy,p.energy+1);
+   addLog(`${p.name}：《彼岸送り》は廃棄できる手札がないため、選択を終了してエナジーを1回復。`);
+   if(c)shiranuiFinish(pid,c);return
+ }
  const uniq=new Set(uids);if(uniq.size!==uids.length)return;
  const min=Number.isInteger(x.minCount)?x.minCount:x.count,max=Number.isInteger(x.maxCount)?x.maxCount:x.count;
  if(uids.length<min||uids.length>max)return;
@@ -3792,186 +3806,456 @@ document.querySelectorAll('.tut2-course').forEach(b=>b.addEventListener('click',
 </script>
 <!-- v57: normal played-card reveal shortened from 1.5s to 0.7s -->
 <script>
-/* ===== v59: CPU routine overhaul ===== */
+/* ===== v60: canonical offline CPU strategist ===== */
 (function(){
-
- const prevScore=scoreCard, prevDest=cpuSetupDest;
- const dangerBase={s26:105,s13:82,s8:86,s3:74,s21:82,s24:80,j2:78,j3:100,j10:82,j11:88,j18:78,j20:66,j26:64,k2:108,k5:100,k9:86,k12:72,k13:76,k14:72,k15:94,k18:78,k24:84};
- function oppPid(pid){return other(pid)}
+ const baseScore=scoreCard;
+ const THREAT={
+   s26:118,s21:100,s8:92,s3:82,s13:86,s24:86,s18:72,s11:54,
+   j3:106,j11:104,j10:96,j18:94,j20:80,j2:78,j15:72,j28:66,
+   k2:122,k5:116,k9:102,k13:92,k12:88,k15:104,k24:98,k14:82,k18:78,k4:74,
+   guard:38
+ };
+ const PERSONAL_PRIORITY=new Set(['j11','j10','j6','j15','j18','j20','j26','k2','k4','k5','k9','k12','k13','k14','k15','k18','k24','guard','s11','s17','s18']);
+ const SHARED_ENGINES=new Set(['s26','s13','s8','s3','s21','s24','j3','j28']);
+ const exactMilestones={3:new Set(['s7','s14']),4:new Set(['s25']),5:new Set(['s12','s19'])};
+ const otherPid=pid=>other(pid);
+ const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
  function setupThreat(c){
-   if(!c)return 0;let v=dangerBase[c.id]||32;
-   if(c.id==='s26')v+=(Number.isFinite(c.yakouX)?c.yakouX:1)*18;
-   if(Number.isFinite(c.fortressHp))v+=Math.min(30,c.fortressHp);
-   return v
+   if(!c)return 0;
+   let v=THREAT[c.id]||34;
+   if(c.id==='s26')v+=(Number.isFinite(c.yakouX)?c.yakouX:1)*22;
+   if(Number.isFinite(c.fortressHp))v+=Math.min(34,Math.max(0,c.fortressHp))*1.3;
+   if(c.id==='s18')v+=(c.shieldCharges||0)*6;
+   return v;
  }
- function oldestEnemyThreat(pid){const z=game.shared?.[0];return z&&z.owner!==pid?setupThreat(z.card):0}
- function handHas(pid,id){return game.players[pid].hand.some(c=>c.id===id)}
- function countHand(pid,fn){return game.players[pid].hand.filter(fn).length}
- function attackDamage(pid,c){
-   const p=game.players[pid];
-   if(c.id==='strike')return 6+(c.damageBonus||0);
-   if(c.id==='knife')return 3+(c.knifeBonus||0)+(c.damageBonus||0);
-   if(c.id==='j4')return p.hand.length===10?20:0;
-   if(c.id==='j5')return p.hand.length+2+(c.damageBonus||0);
-   if(c.id==='j21')return 6+(c.damageBonus||0);if(c.id==='j23')return 8+(c.damageBonus||0);if(c.id==='j25')return (p.turnSkillDraws||0)+(c.damageBonus||0);if(c.id==='j27')return 3+(c.damageBonus||0);
-   if(c.id==='k1')return 33+(c.damageBonus||0);if(c.id==='k6')return 20+(c.damageBonus||0);if(c.id==='kt2')return 50+(c.damageBonus||0);if(c.id==='k10')return 20+(c.damageBonus||0);if(c.id==='k20')return 20+(p.hand.some(x=>x.uid!==c.uid&&cardCost(pid,x)>=5)?5:0)+(c.damageBonus||0);if(c.id==='k21')return p.hand.filter(x=>x.uid!==c.uid&&cardCost(pid,x)>=4).length*3+(c.damageBonus||0);if(c.id==='k22')return 6+(c.damageBonus||0);if(c.id==='k23')return 5+(c.damageBonus||0);if(c.id==='k25')return 6+(c.damageBonus||0);if(c.id==='k26')return 5+(c.damageBonus||0);
-   if(c.id==='s2'){const bonus=activeSetups(pid).filter(x=>x.id==='s26').reduce((n,x)=>n+(Number.isFinite(x.yakouX)?x.yakouX:1),0);return (p.cardsPlayedThisTurn||0)>=8?9*(4+bonus):0}
-   if(c.id==='s4')return 2;if(c.id==='s6')return (p.exhaust?.length||0)*4;if(c.id==='s7')return (p.cardsPlayedThisTurn||0)===2?12:4;if(c.id==='s10')return 20;if(c.id==='s12')return (p.cardsPlayedThisTurn||0)===4?30:10;if(c.id==='s16')return 3;if(c.id==='s23')return (p.exhaust||[]).filter(x=>x.id==='sf').length*2;
-   return 0
+ function ownSetups(pid){return activeSetups(pid)||[]}
+ function oldestShared(){return game.shared?.[0]||null}
+ function oldestEnemyThreat(pid){const z=oldestShared();return z&&z.owner!==pid?setupThreat(z.card):0}
+ function oldestOwnThreat(pid){const z=oldestShared();return z&&z.owner===pid?setupThreat(z.card):0}
+ function boardThreat(pid){
+   const oid=otherPid(pid);let v=0;
+   for(const c of ownSetups(oid))v+=setupThreat(c);
+   return v;
  }
- function lethalBonus(pid,c){const d=attackDamage(pid,c),hp=game.players[oppPid(pid)].hp;return d>=hp&&d>0?2500:0}
- function affordableAfter(pid,c,target){const p=game.players[pid];return p.energy-cardCost(pid,c)>=cardCost(pid,target)}
- function giovanniScore(pid,c){
-   const p=game.players[pid],op=game.players[other(pid)];let x=0;
-   x+=lethalBonus(pid,c);
-   // Never throw away an immediately available finisher to cycle first.
-   const lethal=p.hand.find(z=>z.uid!==c.uid&&canPlay(pid,z)&&attackDamage(pid,z)>=op.hp);
-   if(lethal&&c.uid!==lethal.uid)x-=220;
-   if(c.id==='j4')x+=p.hand.length===10?260:-500;
-   if(c.id==='j5')x+=Math.max(0,p.hand.length-5)*8;
-   if(c.id==='j25')x+=(p.turnSkillDraws||0)*8;
-   if(c.id==='j12'){x+=p.hand.length>=6?65:-90;if(p.hand.some(z=>['j21','j24','j27'].includes(z.id)))x+=55}
-   if(c.id==='j1'||c.id==='j13'){if(p.hand.length>=9)x-=80;else x+=25;if(p.hand.some(z=>['j21','j24','j27'].includes(z.id)))x+=30}
-   if(c.id==='j8')x+=p.hand.length<=6?45:-70;
-   if(c.id==='j14'){x+=p.hand.length>=5?40:-80;if(hasSetup(pid,'j11'))x+=35}
-   if(c.id==='j19')x+=countHand(pid,z=>z.id==='knife')*18;
-   if(c.id==='j22'||c.id==='j23'||c.id==='j27')x+=hasSetup(pid,'j11')?25:8;
-   if(c.id==='j9')x+=p.discard.length>=6?28:-45;
-   if(c.type==='setup'&&oldestEnemyThreat(pid)>=70)x+=70;
-   return x
+ function opponentBurstRisk(pid){
+   const op=game.players[otherPid(pid)];if(!op)return 0;
+   let v=op.character==='shiranui'?24:op.character==='kenshi'?22:18;
+   v+=Math.max(0,(op.maxEnergy||0)-3)*5;
+   const ids=new Set(ownSetups(op.pid).map(c=>c.id));
+   if(ids.has('s26'))v+=16;if(ids.has('s8'))v+=8;if(ids.has('s21'))v+=9;
+   if(ids.has('j11'))v+=10;if(ids.has('j10'))v+=7;if(ids.has('j18'))v+=12;
+   if(ids.has('k2'))v+=10;if(ids.has('k5'))v+=8;if(ids.has('k13'))v+=8;if(ids.has('k24'))v+=7;
+   return v;
  }
- function masaScore(pid,c){
-   const p=game.players[pid],op=game.players[other(pid)];let x=lethalBonus(pid,c);
-   const sixes=p.hand.filter(z=>z.uid!==c.uid&&z.cost>=6).length;
-   if(c.id==='k5')x+=p.maxEnergy<6?260:-100;
-   if(c.id==='k2')x+=p.maxEnergy>=6?125:20;
-   if(c.id==='k9')x+=p.hand.some(z=>z.id==='k23'||z.id==='k22')?105:35;
-   if(c.id==='k23')x+=(c.damageBonus||0)*10+(hasSetup(pid,'k9')?35:0);
-   if(c.id==='k11')x+=p.hand.some(z=>z.type==='attack'&&z.uid!==c.uid)?60:-120;
-   if(c.id==='k16')x+=sixes?55:12;
-   if(c.id==='k24')x+=countHand(pid,z=>z.type==='attack')*12;
-   if(c.id==='k17')x+=p.hp<=45?90:p.hp<=70?25:-100;
-   if(c.id==='k10')x+=p.hp<=70?45:0;
-   if(c.id==='k4')x+=p.hp<=60?90:p.hp>=90?-35:20;
-   if(c.id==='k8')x+=op.hp<=35?10:55;
-   // Preserve energy for a lethal/high-value six-cost card already playable this turn.
-   const big=p.hand.find(z=>z.uid!==c.uid&&canPlay(pid,z)&&(attackDamage(pid,z)>=op.hp||z.id==='kt2'||z.id==='k1'));
-   if(big&&!affordableAfter(pid,c,big))x-=180;
-   return x
+ function handHas(pid,id,except=null){return game.players[pid].hand.some(c=>c.id===id&&c.uid!==except)}
+ function handCount(pid,fn){return game.players[pid].hand.filter(fn).length}
+ function costAfterOneUse(pid,c){
+   const p=game.players[pid],used=(p.cardsPlayedThisTurn||0)+1;
+   let base;
+   if(c.id==='s19'&&used===4)base=0;
+   else if(c.id==='s20')base=Math.max(0,12-used);
+   else base=c.cost;
+   base=Math.max(0,base+(c.costMod||0));if(hasSetup(pid,'k2'))base=Math.max(0,base-1);
+   return base;
  }
- function shiraScore(pid,c){
-   const p=game.players[pid],op=game.players[other(pid)],used=p.cardsPlayedThisTurn||0,next=used+1;let x=lethalBonus(pid,c);
-   // Exact milestone planning: don't let filler steal a 3rd/5th-card payoff.
-   const third=p.hand.some(z=>z.uid!==c.uid&&canPlay(pid,z)&&['s7','s14'].includes(z.id));
-   const fifth=p.hand.some(z=>z.uid!==c.uid&&canPlay(pid,z)&&['s12','s19'].includes(z.id));
-   if(next===3&&third&&!['s25','s7','s14'].includes(c.id))x-=150;
-   if(next===5&&fifth&&!['s12','s19'].includes(c.id))x-=170;
-   if(c.id==='s25')x+=next===4?210:next<4?20:-80;
-   if(c.id==='s7'||c.id==='s14')x+=next===3?130:0;
-   if(c.id==='s12'||c.id==='s19')x+=next===5?175:next>5?-25:0;
-   if(c.id==='sf'){
-     if(next===3&&third)x-=180;if(next===5&&fifth)x-=190;
-     if(next===7&&hasSetup(pid,'s26'))x+=150;
-     if(next===9)x+=260;
+ function modifiedPure(pid,c,base){
+   const p=game.players[pid];let x=base+(c.damageBonus||0);
+   if(cardCost(pid,c)===0&&hasSetup(pid,'j11'))x+=3;
+   if(c.cost>=4&&hasSetup(pid,'k13'))x+=5;
+   if(p.attackDouble)x*=2;
+   return Math.max(0,x);
+ }
+ function rawHits(pid,c){
+   const p=game.players[pid],used=p.cardsPlayedThisTurn||0,useNo=used+1;
+   let bases=[];
+   if(c.id==='strike')bases=[6];
+   else if(c.id==='knife')bases=[3+(c.knifeBonus||0)];
+   else if(c.id==='j4')bases=p.hand.length===10?[20]:[];
+   else if(c.id==='j5')bases=[Math.max(0,p.hand.length-1)+3];
+   else if(c.id==='j12')bases=Array(Math.max(0,p.hand.length-1)).fill(1);
+   else if(c.id==='j21')bases=[6];
+   else if(c.id==='j23')bases=[3];
+   else if(c.id==='j25')bases=[p.turnSkillDraws||0];
+   else if(c.id==='j27')bases=[3];
+   else if(c.id==='k1')bases=[33];
+   else if(c.id==='k6')bases=[15];
+   else if(c.id==='kt2')bases=[50];
+   else if(c.id==='k10')bases=[20];
+   else if(c.id==='k20')bases=[15+(p.hand.filter(x=>x.uid!==c.uid&&cardCost(pid,x)>=5).length>=2?5:0)];
+   else if(c.id==='k21')bases=[p.hand.filter(x=>x.uid!==c.uid&&cardCost(pid,x)>=4).length*3];
+   else if(c.id==='k22')bases=[6];
+   else if(c.id==='k23')bases=[5];
+   else if(c.id==='k25')bases=[3,3];
+   else if(c.id==='k26')bases=[5];
+   else if(c.id==='s2'){
+     if(used!==9)return [];
+     const bonus=ownSetups(pid).filter(x=>x.id==='s26').reduce((n,x)=>n+(Number.isFinite(x.yakouX)?x.yakouX:1),0);
+     bases=Array(4+bonus).fill(9);
    }
-   if(c.id==='s2')x+=used>=8?1800:-1800;
-   if(c.id==='s26')x+=used<=4?90:25;
-   if(c.id==='s13')x+=used<=5?65:15;
-   if(c.id==='s6')x+=(p.exhaust?.length||0)>=6?80:-35;
-   if(c.id==='s23')x+=(p.exhaust||[]).filter(z=>z.id==='sf').length*13;
-   if(c.id==='s20')x+=cardCost(pid,c)<=p.energy?120+used*12:-50;
-   if(c.id==='s15')x+=p.drawPile?.length>4?25:-60;
-   if(c.type==='setup'&&oldestEnemyThreat(pid)>=70)x+=70;
-   return x
+   else if(c.id==='s4')bases=[2];
+   else if(c.id==='s6')bases=[(p.exhaust?.length||0)*3];
+   else if(c.id==='s7')bases=[useNo===3?12:4];
+   else if(c.id==='s10')bases=[20];
+   else if(c.id==='s12')bases=[useNo===5?22:10];
+   else if(c.id==='s16')bases=[3];
+   else if(c.id==='s23')bases=[(p.exhaust||[]).filter(x=>x.id==='sf').length*2];
+   const hits=bases.map(x=>modifiedPure(pid,c,x));
+   if(c.id==='j12'){
+     for(const x of p.hand){
+       if(x.uid===c.uid)continue;
+       if(x.id==='j21')hits.push(modifiedPure(pid,x,6));
+     }
+   }
+   return hits;
+ }
+ function effectiveDamage(pid,c){
+   const oid=otherPid(pid),op=game.players[oid];if(!op)return 0;
+   let hits=rawHits(pid,c);if(!hits.length)return 0;
+   if(hasSetup(oid,'k8'))return 0;
+   const set=ownSetups(oid);
+   let parry=set.some(x=>x.id==='j16'),white=set.some(x=>x.id==='j17'),coat=set.some(x=>x.id==='j26'),calm=set.some(x=>x.id==='k15');
+   let moon=set.find(x=>x.id==='s18')?.shieldCharges||0;
+   const blocks=set.filter(x=>(x.id==='guard'||x.id==='k4'||x.id==='s11')&&(x.fortressHp||0)>0).map(x=>({hp:x.fortressHp}));
+   let total=0;
+   for(let dmg of hits){
+     if(parry){dmg=Math.ceil(dmg/2);parry=false}
+     if(white)dmg=Math.ceil(dmg/2);
+     if(coat)dmg=Math.max(0,dmg-1);
+     if(calm)dmg=Math.max(0,dmg-2);
+     if(moon>0&&dmg>0){dmg=Math.max(0,dmg-7);moon--}
+     if(blocks.length&&dmg>0){
+       const b=blocks[0],take=Math.min(b.hp,dmg);b.hp-=take;dmg-=take;if(b.hp<=0)blocks.shift();
+     }
+     total+=dmg;
+   }
+   return total;
+ }
+ function lethalBonus(pid,c){const d=effectiveDamage(pid,c),hp=game.players[otherPid(pid)]?.hp||999;return d>=hp&&d>0?6000+d*10:0}
+ function defenseNeed(pid){
+   const p=game.players[pid],risk=opponentBurstRisk(pid),board=boardThreat(pid);
+   return clamp((70-p.hp)*1.5+risk*.65+board*.08,0,130);
+ }
+ function discardDesire(pid,c){
+   const p=game.players[pid];let d=-futureValue(pid,c);
+   if(p.character==='giovanni'){
+     if(c.id==='j21')d+=270;if(c.id==='j27')d+=230;if(c.id==='j24')d+=205;
+     if(c.id==='j9'&&p.discard.length<2)d+=90;
+   }else if(p.character==='shiranui'){
+     if(c.id==='s2')return -99999;
+     if(c.id==='sf')d+=hasSetup(pid,'s21')?135:45;
+     if(c.id==='s4')d+=60;
+     if(hasSetup(pid,'s21'))d+=32;
+     if(handHas(pid,'s6')||handHas(pid,'s23'))d+=22;
+   }else if(p.character==='kenshi'){
+     if(c.id==='k23')d-=420+(c.damageBonus||0)*18;
+     if(c.id==='kt2'||c.id==='k1')d-=330;
+     if(c.id==='k22')d-=90;
+   }
+   return d;
+ }
+ function exhaustDesire(pid,c){
+   let d=discardDesire(pid,c);const p=game.players[pid];
+   if(p.character==='shiranui'){
+     if(c.id==='sf')d+=45;if(hasSetup(pid,'s21'))d+=55;
+     if(handHas(pid,'s6'))d+=18;if(handHas(pid,'s23')&&c.id==='sf')d+=38;
+   }
+   return d;
+ }
+ function futureValue(pid,c){
+   const p=game.players[pid];let v=baseScore(pid,c);
+   if(c.id==='s2')v+=2000;if(c.id==='kt2')v+=950;if(c.id==='k1')v+=300;
+   if(c.id==='k23')v+=180+(c.damageBonus||0)*16;
+   if(c.id==='j4')v+=p.hand.length>=8?190:40;
+   if(c.id==='s20')v+=260;
+   if(c.id==='s26')v+=150+(Number.isFinite(c.yakouX)?c.yakouX:1)*25;
+   if(c.id==='sf')v+=55;
+   if(c.type==='setup')v+=setupThreat(c)*.45;
+   return v;
+ }
+ function shiranuiMilestoneScore(pid,c){
+   const p=game.players[pid],used=p.cardsPlayedThisTurn||0,next=used+1,hand=p.hand;let s=0;
+   const exact=exactMilestones[next];
+   if(exact){
+     const payoff=hand.some(x=>x.uid!==c.uid&&exact.has(x.id)&&canPlay(pid,x));
+     if(payoff&&!exact.has(c.id))s-=420;
+     if(exact.has(c.id))s+=280;
+   }
+   if(next===7&&hasSetup(pid,'s26'))s+=125;
+   if(next===9&&!hand.some(x=>x.id==='s2'))s+=210; // 9枚目で百鬼夜行を呼ぶ
+   if(next===10&&hand.some(x=>x.id==='s2')&&c.id!=='s2')s-=900;
+   if(c.id==='s2')s+=used===9?3600:-5000;
+   if(c.id==='s25')s+=next===4?350:next<4?25:-100;
+   if(c.id==='s7'||c.id==='s14')s+=next===3?245:next>3?-35:0;
+   if(c.id==='s12'||c.id==='s19')s+=next===5?300:next>5?-45:0;
+   if(c.id==='sf'){
+     if(next===7&&hasSetup(pid,'s26'))s+=140;
+     if(next===9)s+=260;
+     if(used>=6)s+=75;
+   }
+   if(c.id==='s16'){
+     // 宴は繰り返し使えるため、節目までの安全な枚数稼ぎとして高評価。
+     const soon=[3,4,5,7,9].some(n=>n===next||n===next+1);if(soon)s+=85;
+   }
+   if(c.id==='s20'){
+     if(cardCost(pid,c)<=p.energy)s+=used>=6?850:520;
+     else s-=600;
+   }
+   if(c.id==='s9'){
+     const remaining=p.hand.length-1;
+     if(remaining<2)s-=420;
+     else{s+=45;if(hasSetup(pid,'s21'))s+=120;if(handHas(pid,'s6')||handHas(pid,'s23'))s+=55}
+   }
+   if(c.id==='s13')s+=(used>=2?95:25);
+   if(c.id==='s26')s+=used<=3?145:45;
+   if(c.id==='s21')s+=p.exhaust.length<5?90:45;
+   return s;
+ }
+ function giovanniScore(pid,c){
+   const p=game.players[pid],op=game.players[otherPid(pid)],d=effectiveDamage(pid,c),cost=cardCost(pid,c);let s=lethalBonus(pid,c);
+   const knives=handCount(pid,x=>x.id==='knife'),discardables=handCount(pid,x=>['j21','j24','j27'].includes(x.id));
+   if(c.id==='j4')s+=p.hand.length===10?720:-1200;
+   if(c.id==='j5')s+=d*11+Math.max(0,p.hand.length-5)*10;
+   if(c.id==='j12'){
+     s+=d*12+discardables*95;
+     if(p.hand.some(x=>x.uid!==c.uid&&effectiveDamage(pid,x)>=op.hp))s-=800;
+     if(p.hand.length<=2)s-=80;
+   }
+   if(c.id==='knife')s+=d*11+80+(c.knifeBonus||0)*12;
+   if(c.id==='j19')s+=knives?knives*110:-220;
+   if(c.id==='j11')s+=knives*65+handCount(pid,x=>['j22','j23','j27'].includes(x.id))*28;
+   if(c.id==='j22'||c.id==='j23'||c.id==='j27')s+=hasSetup(pid,'j11')?105:35;
+   if(c.id==='j25')s+=d*12+(p.turnSkillDraws||0)*20;
+   if(['j1','j8','j13','j22','j24'].includes(c.id)){
+     const draw={j1:2,j8:3,j13:2,j22:1,j24:2}[c.id]||0;
+     if(handHas(pid,'j25'))s+=draw*50;
+     if(p.hand.length>=9)s-=120;
+     if(discardables&&['j1','j13'].includes(c.id))s+=discardables*80;
+   }
+   if(c.id==='j14')s+=hasSetup(pid,'j11')?220:20, s+=discardables*70;
+   if(c.id==='j18'){
+     s+=p.turnNo<=4?80:25;s+=discardables*60;
+     if(p.hand.some(x=>x.uid!==c.uid&&x.type==='attack'))s-=170;
+   }
+   if(c.id==='j9')s+=p.discard.length>=8?70:-25;
+   if(c.id==='j16'||c.id==='j17'||c.id==='guard'||c.id==='j26')s+=defenseNeed(pid)*.9;
+   if(c.type==='attack')s+=d*7;
+   if(cost===0)s+=20;
+   return s;
+ }
+ function masamuneScore(pid,c){
+   const p=game.players[pid],op=game.players[otherPid(pid)],d=effectiveDamage(pid,c),cost=cardCost(pid,c);let s=lethalBonus(pid,c);
+   if(c.type==='attack')s+=d*10;
+   if(c.id==='k5')s+=p.maxEnergy<6?620:-300;
+   if(c.id==='k2')s+=p.maxEnergy>=6?360:75;
+   if(c.id==='k9')s+=handHas(pid,'k23')?300:120;
+   if(c.id==='k24')s+=handCount(pid,x=>x.type==='attack')*62;
+   if(c.id==='k13')s+=handCount(pid,x=>x.type==='attack'&&x.cost>=4)*90;
+   if(c.id==='k12')s+=handCount(pid,x=>x.cost>=4)*52;
+   if(c.id==='k18')s+=handCount(pid,x=>x.cost>=4)*45;
+   if(c.id==='k23')s+=220+(c.damageBonus||0)*24+(hasSetup(pid,'k9')?130:0);
+   if(c.id==='k11'){
+     const attacks=p.hand.filter(x=>x.uid!==c.uid&&x.type==='attack');
+     const best=Math.max(0,...attacks.map(x=>effectiveDamage(pid,x)+(x.damageBonus||0)));
+     s+=best?170+best*5:-500;
+   }
+   if(c.id==='k16'){
+     const enable=p.hand.some(x=>x.uid!==c.uid&&cardCost(pid,x)===p.energy+1);
+     s+=enable?260:65;
+   }
+   if(c.id==='k3')s+=handHas(pid,'k23')?190:75;
+   if(c.id==='k7')s+=p.maxEnergy>=6?130:35;
+   if(c.id==='kt1')s+=p.energy>=cardCost(pid,c)+Math.max(0,6-(hasSetup(pid,'k2')?1:0))?420:150;
+   if(c.id==='k17')s+=p.hp<=45?300:p.hp<=70?95:-240;
+   if(c.id==='k10')s+=p.hp<=65?130:20;
+   if(['k4','k8','k15','guard'].includes(c.id))s+=defenseNeed(pid)*1.15;
+   // 既に大技でリーサルなら準備札でエナジーを使わない。
+   const lethal=p.hand.some(x=>x.uid!==c.uid&&canPlay(pid,x)&&effectiveDamage(pid,x)>=op.hp);
+   if(lethal&&c.type!=='attack')s-=650;
+   return s;
+ }
+ function genericScore(pid,c){
+   const p=game.players[pid],cost=cardCost(pid,c);let s=baseScore(pid,c)+lethalBonus(pid,c);
+   if(c.type==='attack')s+=effectiveDamage(pid,c)*6;
+   if(c.type==='setup'){
+     const enemy=oldestEnemyThreat(pid),own=oldestOwnThreat(pid);
+     if(game.shared.length>=3&&enemy)s+=Math.max(0,enemy-25)*2.4;
+     if(game.shared.length>=3&&own>70&&!enemy)s-=own*1.9;
+     s+=setupThreat(c)*.22;
+   }
+   if(c.id==='seat'){
+     const enemyMax=Math.max(0,...game.shared.filter(z=>z.owner!==pid).map(z=>setupThreat(z.card)));
+     const ownOld=oldestOwnThreat(pid);s+=enemyMax>=75?110:0;s+=ownOld>=75?140:0;
+   }
+   s-=cost*5;
+   return s;
+ }
+ function followupBonus(pid,c){
+   const p=game.players[pid],afterE=p.energy-cardCost(pid,c)+(c.id==='s9'?1:0);let b=0;
+   for(const z of p.hand){
+     if(z.uid===c.uid)continue;
+     let zc=costAfterOneUse(pid,z);if(zc>afterE)continue;
+     if(c.id==='j19'&&z.id==='knife')b=Math.max(b,150);
+     if(c.id==='j11'&&z.type==='attack'&&zc===0)b=Math.max(b,135);
+     if(['j1','j8','j22','j24'].includes(c.id)&&z.id==='j25')b=Math.max(b,105);
+     if(c.id==='k11'&&z.type==='attack')b=Math.max(b,210);
+     if(c.id==='k26'&&z.type==='attack')b=Math.max(b,105);
+     if(c.id==='k16'&&cardCost(pid,z)===p.energy+1)b=Math.max(b,230);
+     if(c.id==='k13'&&z.type==='attack'&&z.cost>=4)b=Math.max(b,130);
+     if(p.character==='shiranui'){
+       const nextAfter=(p.cardsPlayedThisTurn||0)+2;
+       if(exactMilestones[nextAfter]?.has(z.id))b=Math.max(b,190);
+       if(nextAfter===10&&z.id==='s2')b=Math.max(b,900);
+       if(z.id==='s20'&&costAfterOneUse(pid,z)<=afterE)b=Math.max(b,360);
+     }
+   }
+   return b;
  }
  function strategicScore(pid,c){
-   let v=prevScore(pid,c);const p=game.players[pid];
-   if(p.character==='giovanni')v+=giovanniScore(pid,c);
-   else if(p.character==='kenshi')v+=masaScore(pid,c);
-   else if(p.character==='shiranui')v+=shiraScore(pid,c);
-   if(c.type==='setup'&&game.shared?.length>=3)v+=Math.max(0,oldestEnemyThreat(pid)-30);
-   return v
+   const p=game.players[pid];let s=genericScore(pid,c);
+   if(p.character==='giovanni')s+=giovanniScore(pid,c);
+   else if(p.character==='kenshi')s+=masamuneScore(pid,c);
+   else if(p.character==='shiranui')s+=shiranuiMilestoneScore(pid,c);
+   s+=followupBonus(pid,c);
+   // Shared FIFO is a real tactical resource: reward ejecting enemy engines, protect our own engines.
+   if(c.type==='setup'&&game.shared.length>=3){
+     const enemy=oldestEnemyThreat(pid),own=oldestOwnThreat(pid);
+     if(enemy)s+=enemy*2.1;
+     else if(own>=70&&cpuSetupDest(pid,c)==='shared')s-=own*2.2;
+   }
+   return s;
  }
  scoreCard=function(pid,c){return strategicScore(pid,c)};
 
  cpuSetupDest=function(pid,c){
-   const p=game.players[pid],push=oldestEnemyThreat(pid);
-   if(game.shared?.length>=3&&push>=62)return 'shared';
-   // Interactive/growing engines belong in shared space so both players can contest them.
-   if(p.character==='shiranui'&&['s26','s13','s8','s3','s21','s24'].includes(c.id))return 'shared';
-   // Protect truly strategic engines in the personal slot when it is free.
-   if(!p.personal&&((p.character==='kenshi'&&['k5','k2','k9','k24'].includes(c.id))||(p.character==='giovanni'&&['j10','j11','j18'].includes(c.id))))return 'personal';
-   return prevDest(pid,c)
+   const p=game.players[pid],enemy=oldestEnemyThreat(pid),own=oldestOwnThreat(pid);
+   if(game.shared.length>=3&&enemy>=58)return 'shared';
+   if(SHARED_ENGINES.has(c.id))return 'shared';
+   if(!p.personal&&PERSONAL_PRIORITY.has(c.id))return 'personal';
+   if(!p.personal&&game.shared.length>=3&&own>=70)return 'personal';
+   return 'shared';
  };
 
- function choiceValue(pid,c,mode){
-   const p=game.players[pid];let v=scoreCard(pid,c);
-   if(c.id==='s2')v+=10000;if(c.id==='kt2')v+=900;if(c.id==='k23')v+=(c.damageBonus||0)*15;
-   if(mode==='discard'){
-     let d=-v;
-     if(p.character==='giovanni'&&['j21','j24','j27'].includes(c.id))d+=220;
-     if(p.character==='shiranui'&&c.id==='sf')d+=45;
-     if(p.character==='kenshi'&&c.id==='k23')d-=300;
-     return d
-   }
-   if(mode==='exhaust'){
-     let d=-v;if(p.character==='shiranui'&&c.id==='sf')d+=95;if(c.id==='s2')d-=10000;return d
-   }
-   return v
+ function keepValue(pid,c){
+   let v=futureValue(pid,c);const p=game.players[pid];
+   if(p.character==='kenshi'&&c.id==='k23')v+=500+(c.damageBonus||0)*25;
+   if(c.id==='s2')v+=10000;if(c.id==='kt2')v+=2500;
+   if(c.id==='j4')v+=p.hand.length>=8?300:0;
+   return v;
  }
- function choosePending(pid,x,pool){
-   const p=game.players[pid];
-   if(x.type==='transformDraw')return [...pool].sort((a,b)=>{const protect=z=>z.id==='s2'?10000:(dangerBase[z.id]||0)+Math.max(0,z.cost*8);return protect(a)-protect(b)});
-   if(x.type==='returnUsed')return [...pool].sort((a,b)=>choiceValue(pid,b,'keep')-choiceValue(pid,a,'keep'));
-   if(['discardAfterDraw','discardHand','discardLowest','endTurnDiscardV42','endTurnDiscard'].includes(x.type))return [...pool].sort((a,b)=>choiceValue(pid,b,'discard')-choiceValue(pid,a,'discard'));
-   if(['foxMaskExhaust','startTurnExhaust','exhaustUpTo2','exhaustAny'].includes(x.type))return [...pool].sort((a,b)=>choiceValue(pid,b,'exhaust')-choiceValue(pid,a,'exhaust'));
-   if(x.type==='buffAttack')return [...pool].sort((a,b)=>attackDamage(pid,b)-attackDamage(pid,a));
-   if(x.type==='reduceCost')return [...pool].sort((a,b)=>(cardCost(pid,b)*25+choiceValue(pid,b,'keep'))-(cardCost(pid,a)*25+choiceValue(pid,a,'keep')));
-   return [...pool].sort((a,b)=>choiceValue(pid,b,'keep')-choiceValue(pid,a,'keep'))
+ function buffValue(pid,c){
+   let v=effectiveDamage(pid,c)*20+keepValue(pid,c);
+   if(c.id==='k23')v+=280+(c.damageBonus||0)*16;
+   if(c.id==='kt2'||c.id==='k1')v+=500;
+   return v;
  }
- function chooseCount(pid,x,ordered){
-   const min=Number.isInteger(x.minCount)?x.minCount:(x.count||0),max=Number.isInteger(x.maxCount)?x.maxCount:(x.count||min);
+ function reduceValue(pid,c){
+   const p=game.players[pid],cost=cardCost(pid,c);let v=keepValue(pid,c)+cost*45;
+   if(cost===p.energy+1)v+=500;if(cost>p.energy&&cost-1<=p.energy)v+=700;
+   if(c.id==='kt2'||c.id==='k1'||c.id==='k2')v+=350;
+   return v;
+ }
+ function choosePendingOrder(pid,x,pool){
+   if(x.type==='transformDraw')return [...pool].sort((a,b)=>{
+     if(a.id==='s2')return 1;if(b.id==='s2')return -1;
+     return keepValue(pid,a)-keepValue(pid,b);
+   });
+   if(x.type==='returnUsed'||x.type==='returnDiscard'||x.type==='grantRetain'||x.type==='endTurnKeep')return [...pool].sort((a,b)=>keepValue(pid,b)-keepValue(pid,a));
+   if(['discardAfterDraw','discardHand','discardLowest','endTurnDiscardV42','endTurnDiscard'].includes(x.type))return [...pool].sort((a,b)=>discardDesire(pid,b)-discardDesire(pid,a));
+   if(['foxMaskExhaust','startTurnExhaust','exhaustUpTo2','exhaustAny'].includes(x.type))return [...pool].sort((a,b)=>exhaustDesire(pid,b)-exhaustDesire(pid,a));
+   if(x.type==='buffAttack')return [...pool].sort((a,b)=>buffValue(pid,b)-buffValue(pid,a));
+   if(x.type==='reduceCost')return [...pool].sort((a,b)=>reduceValue(pid,b)-reduceValue(pid,a));
+   return [...pool].sort((a,b)=>keepValue(pid,b)-keepValue(pid,a));
+ }
+ function choosePendingCount(pid,x,ordered){
+   const min=Number.isInteger(x.minCount)?x.minCount:(Number.isInteger(x.count)?x.count:0);
+   const max=Number.isInteger(x.maxCount)?x.maxCount:(Number.isInteger(x.count)?x.count:min);
+   // 彼岸送りは「最大2枚」ではなく、存在する分を強制廃棄。x.countを必ず満たす。
+   if(x.type==='exhaustUpTo2')return clamp(Number(x.count)||0,0,ordered.length);
    if(x.type==='exhaustAny'){
-     // 十六夜: don't blindly burn two cards; spend low-value cards only when the shield is useful.
-     const p=game.players[pid],op=game.players[other(pid)];if(p.hp>78&&op.hp<45)return min;
-     let n=0;for(const c of ordered){if(n>=max)break;if(choiceValue(pid,c,'exhaust')>0)n++}
-     return Math.max(min,n)
+     const p=game.players[pid],risk=opponentBurstRisk(pid),need=clamp(Math.ceil(Math.max(0,risk-p.hp*0.22)/7),0,max);
+     let useful=0;for(const c of ordered){if(useful>=max)break;if(exhaustDesire(pid,c)>0||useful<need)useful++;else break}
+     if(p.hp<=35)useful=Math.max(useful,Math.min(max,3));
+     if(p.hp>=80&&risk<28)useful=Math.min(useful,1);
+     return clamp(useful,min,Math.min(max,ordered.length));
    }
-   if(x.type==='exhaustUpTo2')return Math.min(max,Math.max(min,ordered.filter(c=>choiceValue(pid,c,'exhaust')>0).length));
-   return Math.min(max,Math.max(min,x.count??min))
+   return clamp(Number.isInteger(x.count)?x.count:min,min,Math.min(max,ordered.length));
  }
-
+ function chooseReorder(pid){
+   const shared=game.shared||[];if(shared.length<2)return null;
+   const oldest=shared[0];
+   // First protect a valuable own engine sitting on the FIFO cliff.
+   if(oldest.owner===pid&&setupThreat(oldest.card)>=68)return{card:oldest.card,index:shared.length-1};
+   // If a dangerous enemy engine is not oldest and we can plausibly follow with a setup, expose it to the next push.
+   const p=game.players[pid],futureSetup=p.hand.some(c=>c.type==='setup'&&canPlay(pid,c));
+   const enemies=shared.map((z,i)=>({z,i,v:z.owner===pid?0:setupThreat(z.card)})).sort((a,b)=>b.v-a.v);
+   if(futureSetup&&enemies[0]?.v>=65&&enemies[0].i>0)return{card:enemies[0].z.card,index:0};
+   // Otherwise keep our most valuable shared engine as new as possible.
+   const own=shared.map((z,i)=>({z,i,v:z.owner===pid?setupThreat(z.card):0})).sort((a,b)=>b.v-a.v)[0];
+   if(own?.v>=60&&own.i<shared.length-1)return{card:own.z.card,index:shared.length-1};
+   return{card:shared[0].card,index:shared.length-1};
+ }
+ function resolveCpuPending(pid){
+   const x=game.pending,p=game.players[pid];if(!x||x.pid!==pid)return false;
+   if(x.type==='reorderShared'){
+     const pick=chooseReorder(pid);if(pick)resolvePending(pid,[pick.card.uid],pick.index);else game.pending=null;
+     return true;
+   }
+   const pool=pendingPoolCards(pid,x).filter(c=>c.uid!==x.excludeUid&&(!x.cardsOverride||x.cardsOverride.includes(c.uid)));
+   const ordered=choosePendingOrder(pid,x,pool),take=choosePendingCount(pid,x,ordered);
+   const min=Number.isInteger(x.minCount)?x.minCount:(Number.isInteger(x.count)?x.count:0);
+   if(pool.length<min){console.warn('[CPU] impossible pending cleared',x.type,min,pool.length);game.pending=null;return true}
+   resolvePending(pid,ordered.slice(0,take).map(c=>c.uid));
+   // Never allow a malformed/obsolete choice state to freeze offline play forever.
+   if(game.pending===x){
+     const exact=Number.isInteger(x.count)?x.count:min;
+     if(exact<=ordered.length)resolvePending(pid,ordered.slice(0,exact).map(c=>c.uid));
+     if(game.pending===x){console.warn('[CPU] unresolved pending cleared',x.type);game.pending=null}
+   }
+   return true;
+ }
+ function bestPlayable(pid){
+   const p=game.players[pid],legal=p.hand.filter(c=>canPlay(pid,c));if(!legal.length)return null;
+   // One-card lethal is absolute priority and uses mitigation-aware damage, not printed damage.
+   const lethal=legal.filter(c=>effectiveDamage(pid,c)>=game.players[otherPid(pid)].hp&&effectiveDamage(pid,c)>0).sort((a,b)=>cardCost(pid,a)-cardCost(pid,b)||effectiveDamage(pid,b)-effectiveDamage(pid,a));
+   if(lethal.length)return{card:lethal[0],score:99999};
+   let best=null;
+   for(const c of legal){const s=strategicScore(pid,c);if(!best||s>best.score)best={card:c,score:s}}
+   return best;
+ }
+ function chooseEndKeep(pid){
+   const p=game.players[pid];if(!hasSetup(pid,'j15')||!p.hand.length)return;
+   p.keepUid=[...p.hand].sort((a,b)=>keepValue(pid,b)-keepValue(pid,a))[0]?.uid||null;
+ }
  cpuTurn=async function(){
    const pid='p2',battle=game;if(!battle||battle.over||battle.current!==pid){cpuBusy=false;return}
-   let actions=0;
-   while(game===battle&&!battle.over&&battle.current===pid&&actions++<40){
+   let actions=0,stalls=0;
+   while(game===battle&&!battle.over&&battle.current===pid&&actions++<60){
      if(battle.pending?.pid===pid){
-       const x=battle.pending,p=battle.players[pid],pool=pendingPoolCards(pid,x).filter(c=>c.uid!==x.excludeUid&&(!x.cardsOverride||x.cardsOverride.includes(c.uid)));
-       if(x.type==='reorderShared'){
-         // Put our most valuable shared setup at the newest end; if none, rotate the oldest.
-         const own=game.shared.filter(z=>z.owner===pid).sort((a,b)=>setupThreat(b.card)-setupThreat(a.card))[0],target=own?.card||game.shared[0]?.card;
-         if(target)resolvePending(pid,[target.uid],game.shared.length-1);else battle.pending=null
-       }else{
-         const ordered=choosePending(pid,x,pool),take=chooseCount(pid,x,ordered);resolvePending(pid,ordered.slice(0,take).map(c=>c.uid))
-       }
-       broadcastState();await wait(620);continue
+       const before=battle.pending;resolveCpuPending(pid);broadcastState();await wait(540);
+       if(battle.pending===before){if(++stalls>=2){battle.pending=null;break}}else stalls=0;
+       continue;
      }
-     const p=battle.players[pid],legal=p.hand.filter(c=>canPlay(pid,c));if(!legal.length)break;
-     // Re-score after every action: combo milestones and lethal can change with each card.
-     legal.sort((a,b)=>scoreCard(pid,b)-scoreCard(pid,a));const best=legal[0],bestScore=scoreCard(pid,best);
-     if(bestScore<8)break;
-     const dest=best.type==='setup'?cpuSetupDest(pid,best):undefined;playCard(pid,best.uid,dest);broadcastState();await wait(760)
+     const pick=bestPlayable(pid);if(!pick)break;
+     // Negative/very low value plays are skipped, except Shiranui combo filler near a payoff.
+     const p=battle.players[pid],comboPush=p.character==='shiranui'&&(p.cardsPlayedThisTurn||0)>=6;
+     if(pick.score<12&&!comboPush)break;
+     const c=pick.card,dest=c.type==='setup'?cpuSetupDest(pid,c):undefined;
+     const beforeCount=p.cardsPlayedThisTurn||0,beforeHand=p.hand.length,beforeEnergy=p.energy;
+     playCard(pid,c.uid,dest);broadcastState();await wait(580);
+     const now=battle.players[pid];
+     if(!battle.pending&&(now.cardsPlayedThisTurn||0)===beforeCount&&now.hand.length===beforeHand&&now.energy===beforeEnergy){
+       console.warn('[CPU] play made no progress',c.id);break;
+     }
    }
    if(game===battle&&!battle.over&&battle.current===pid&&!battle.pending){
-     const p=battle.players[pid];
-     if(hasSetup(pid,'j15')&&p.hand.length){const best=[...p.hand].sort((a,b)=>choiceValue(pid,b,'keep')-choiceValue(pid,a,'keep'))[0];p.keepUid=best?.uid||null}
-     await wait(360);endPlayerTurn(pid);broadcastState()
+     chooseEndKeep(pid);await wait(300);endPlayerTurn(pid);broadcastState()
    }
    cpuBusy=false;if(game===battle&&!battle.over&&battle.current===pid)scheduleCpuTurn()
  };
- scheduleCpuTurn=function(){if(matchMode!=='cpu'||roomRole!=='host'||cpuBusy||!game||game.over||game.current!=='p2')return;cpuBusy=true;setTimeout(cpuTurn,820)};
+ scheduleCpuTurn=function(){if(matchMode!=='cpu'||roomRole!=='host'||cpuBusy||!game||game.over||game.current!=='p2')return;cpuBusy=true;setTimeout(cpuTurn,620)};
+ window.LUNA_CPU_AI={scoreCard:strategicScore,effectiveDamage,setupThreat,version:'v60'};
 })();
-/* ===== end v59 CPU routine overhaul ===== */
+/* ===== end v60 canonical offline CPU strategist ===== */
 </script>
 <script id="la-070-firebase-online">
 /* LUNA ALTER 0.16.0 — canonical Firebase room architecture
