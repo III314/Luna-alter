@@ -959,7 +959,7 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.25.0",
+  version:"0.25.1",
   label:"CPU戦略思考強化"
 });
 </script>
@@ -1026,6 +1026,7 @@ window.LUNA_ALTER_APP_META = Object.freeze({
 <div class="battle-hub-choices">
 <button class="battle-hub-card" id="goCpuSetup" type="button"><span class="hub-copy"><b>CPU戦</b><small>デッキを選んでCPUと対戦</small></span><span class="hub-arrow">›</span></button>
 <button class="battle-hub-card" id="goRoom" type="button"><span class="hub-copy"><b>ルームマッチ</b><small>4桁の番号で友達と対戦</small></span><span class="hub-arrow">›</span></button>
+<button class="battle-hub-card" id="openSelfPlay" type="button"><span class="hub-copy"><b>CPU環境調査</b><small>6つのデッキをCPU同士で総当たり</small></span><span class="hub-arrow">›</span></button>
 </div>
 </div>
 <nav aria-label="メインメニュー" class="section-bottom-nav">
@@ -1238,7 +1239,7 @@ const GIOVANNI_CARD_DEFS=[
  {id:'j8',name:'食事の用意',type:'skill',cost:2,text:'カードを3枚引く。',pool:'giovanni'},
  {id:'j9',name:'再読',type:'skill',cost:0,text:'捨て札のカード2枚を選び、山札に混ぜる。',pool:'giovanni'},
  {id:'j10',name:'ナイフサービス',type:'setup',cost:3,text:'自分のターン開始時、ナイフを2枚手札に加える。',pool:'giovanni'},
- {id:'j11',name:'研ぎ澄まされた作法',type:'setup',cost:2,text:'自分が使う0コストのアタックのダメージを3増加する。',pool:'giovanni'},
+ {id:'j11',name:'研ぎ澄まされた作法',type:'setup',cost:3,text:'自分が使う0コストのアタックのダメージを3増加する。',pool:'giovanni'},
  {id:'j12',name:'ちゃぶ台返し',type:'attack',cost:0,text:'このカード以外の手札を全て捨てる。捨てた枚数だけ「1ダメージ」を繰り返す。',pool:'giovanni'},
  {id:'j13',name:'選り好み',type:'skill',cost:0,text:'カードを2枚引く。その後、手札を2枚捨てる。',pool:'giovanni'},
  {id:'j14',name:'フルコース',type:'skill',cost:3,text:'手札を全て捨てる。ナイフを3枚手札に加える。',pool:'giovanni'},
@@ -1627,7 +1628,7 @@ function setupSlot(x,mePid){
  let badge='';
  if((c.id==='guard'||c.id==='k4'||c.id==='s11')&&Number.isFinite(c.fortressHp))badge=`<span class="setup-state-badge block">🛡${Math.max(0,c.fortressHp)}</span>`;
  else if(c.id==='s18'&&Number.isFinite(c.shieldCharges))badge=`<span class="setup-state-badge shield">☾${Math.max(0,c.shieldCharges)}</span>`;
- else if(c.id==='s26')badge=`<span class="setup-state-badge progress">X${Number.isFinite(c.yakouX)?c.yakouX:1}</span>`;
+ else if(c.id==='s26')badge=`<span class="setup-state-badge progress">X${Number.isFinite(c.yakouX)?c.yakouX:0}</span>`;
  return `<button type="button" class="slot occupied setup-detail-trigger ${self?'owner-self':'owner-opponent'}" data-setup-uid="${escapeHtml(c.uid)}" aria-label="${escapeHtml(c.name)}の詳細を見る"><div class="setup-art-bg">${src?`<img src="${src}" alt="" draggable="false">`:''}</div><div class="setup-caption"><div class="name">${typeof cardNameHtml==='function'?cardNameHtml(c):escapeHtml(c.name)}</div><div class="owner">${self?'自分':'相手'}のセットアップ</div><div class="mini-effect">${escapeHtml(effect)}</div></div>${badge}</button>`
 }
 function visibleSetupByUid(uid){const v=currentView;if(!v)return null;const n=Number(uid),all=[];if(v.me.personal)all.push({owner:v.me.pid,card:v.me.personal});if(v.opp.personal)all.push({owner:v.opp.pid,card:v.opp.personal});(v.shared||[]).forEach(x=>all.push(x));return all.find(x=>Number(x.card?.uid)===n)||null}
@@ -1755,15 +1756,15 @@ $('movePersonal').onclick=()=>dispatchAction({type:'movePersonal'});$('endTurn')
 /* ===== v42 patch: SHIRANUI + battle behavior fixes ===== */
 const SHIRANUI_CARD_DEFS=[
  {id:'s1',name:'宵のはじまり',type:'skill',cost:1,text:'狐火1枚を手札に加える。',pool:'shiranui'},
- {id:'s2',name:'百鬼夜行',type:'attack',cost:0,text:'自分のターン中にカードを8枚プレイしたとき、山札か捨て札にあるこのカード1枚を手札に加える。このカードをプレイするのが9枚目の場合、49ダメージを与える。',pool:'shiranui'},
+ {id:'s2',name:'百鬼夜行',type:'attack',cost:0,text:'自分のターン中にカードを9枚使用したとき、山札か捨て札にあるこのカード1枚を手札に加える。このカードは10枚目としてのみ使用でき、4ダメージを9回与える。夜行絵巻が場にあれば、そのX回分も攻撃する。',pool:'shiranui'},
  {id:'s3',name:'誘い火',type:'setup',cost:3,text:'自分のターン開始時、狐火1枚を手札に加える。',pool:'shiranui'},
  {id:'s4',name:'火遊び',type:'attack',cost:0,text:'2ダメージを与える。',pool:'shiranui'},
  {id:'s5',name:'輪廻の理',type:'skill',cost:1,text:'捨て札から、このターン中に使った「輪廻の理」以外のカード1枚を手札に加える。',pool:'shiranui'},
  {id:'s6',name:'千本桜',type:'attack',cost:5,text:'廃棄札にあるカードの枚数×4ダメージを、単発で与える。',pool:'shiranui'},
- {id:'s7',name:'化け猫',type:'attack',cost:1,text:'4ダメージを与える。このカードのプレイが3枚目の場合、12ダメージを与える。',pool:'shiranui'},
- {id:'s8',name:'浮世火',type:'setup',cost:1,text:'ターン中にカードを3枚プレイするごとに、そのカードの処理終了後、狐火1枚を手札に加える。',pool:'shiranui'},
+ {id:'s7',name:'化け猫',type:'attack',cost:1,text:'4ダメージを与える。このカードの使用が3枚目の場合、9ダメージを与える。',pool:'shiranui'},
+ {id:'s8',name:'浮世火',type:'setup',cost:3,text:'ターン中にカードを3枚使用するごとに、そのカードの処理終了後、狐火1枚を手札に加える。',pool:'shiranui'},
  {id:'s9',name:'彼岸送り',type:'skill',cost:0,text:'手札のカードを2枚廃棄する。自分のエナジーを1回復する。',pool:'shiranui'},
- {id:'s10',name:'緋色の舞',type:'attack',cost:3,text:'20ダメージを与える。その後、残りの手札からランダムに1枚を廃棄する。',pool:'shiranui'},
+ {id:'s10',name:'緋色の舞',type:'attack',cost:3,text:'15ダメージを与える。その後、残りの手札からランダムに2枚を廃棄する。',pool:'shiranui'},
  {id:'s11',name:'狐の社',type:'setup',cost:1,text:'次のターン開始時まで、リーダーへのXダメージをブロックする。Xはこのカード自身を含む、このカードの使用までに使用したカードの枚数×2。ターン開始時、捨て札へ。',pool:'shiranui'},
  {id:'s12',name:'宵月斬',type:'attack',cost:3,text:'10ダメージを与える。このカードのプレイが5枚目なら、30ダメージを与える。',pool:'shiranui'},
  {id:'s13',name:'口寄せ',type:'skill',cost:3,text:'狐火2枚を手札に加える。',pool:'shiranui'},
@@ -1774,7 +1775,7 @@ const SHIRANUI_CARD_DEFS=[
  {id:'s18',name:'十六夜',type:'setup',cost:3,text:'手札を好きな枚数廃棄する。廃棄した枚数と同じ回数、次に受けるダメージを7軽減する。残り回数は☾で表示する。0枚なら設置されず捨て札へ。',pool:'shiranui'},
  {id:'s19',name:'数珠繋ぎ',type:'skill',cost:3,text:'カードを2枚引く。このカードがこのターン5枚目にプレイされる場合、コストは0。',pool:'shiranui'},
  {id:'s20',name:'玉藻の顕現',type:'skill',cost:10,text:'このターン中にカードを使用するたび、このカードのコストを1下げる。このターン終了後、もう一度自分のターンを行う。',pool:'shiranui'},
- {id:'s21',name:'逢魔時',type:'setup',cost:4,text:'自分がカードを廃棄するたび、2ダメージを与える。',pool:'shiranui'},
+ {id:'s21',name:'逢魔時',type:'setup',cost:5,text:'自分がカードを廃棄するたび、2ダメージを与える。',pool:'shiranui'},
  {id:'s22',name:'狐面',type:'setup',cost:0,text:'場に出たとき、手札のカード1枚を選んで廃棄する。手札がなければ廃棄しない。このカードが共有セットアップを離れたとき、自分のリーダーを3回復する。',pool:'shiranui'},
  {id:'s23',name:'鬼火',type:'attack',cost:1,text:'廃棄札にある狐火の枚数×2ダメージを与える。',pool:'shiranui'}
 ];
@@ -2000,11 +2001,11 @@ function playShiranuiCard(pid,c,dest){
    shiranuiFinish(pid,c);return
  }
  if(c.type==='attack'){
-   if(c.id==='s2'){if(playNo===9)damage(pid,modifiedDamage(pid,c,49),'《百鬼夜行》')}
+   if(c.id==='s2'){if(playNo===9)for(let i=0;i<9&&!game.over;i++)damage(pid,modifiedDamage(pid,c,4),`《百鬼夜行》 ${i+1}/9`)}
    else if(c.id==='s4')damage(pid,modifiedDamage(pid,c,2),'《火遊び》');
    else if(c.id==='s6')damage(pid,modifiedDamage(pid,c,p.exhaust.length*4),'《千本桜》');
-   else if(c.id==='s7')damage(pid,modifiedDamage(pid,c,playNo===3?12:4),'《化け猫》');
-   else if(c.id==='s10'){damage(pid,modifiedDamage(pid,c,20),'《緋色の舞》');if(!game.over&&p.hand.length){const i=Math.floor(Math.random()*p.hand.length),x=p.hand.splice(i,1)[0];sendExhaust(pid,x,'《緋色の舞》');addLog(`${p.name}：《緋色の舞》で《${x.name}》をランダム廃棄。`)}}
+   else if(c.id==='s7')damage(pid,modifiedDamage(pid,c,playNo===3?9:4),'《化け猫》');
+   else if(c.id==='s10'){damage(pid,modifiedDamage(pid,c,15),'《緋色の舞》');for(let n=0;n<2&&!game.over&&p.hand.length;n++){const i=Math.floor(Math.random()*p.hand.length),x=p.hand.splice(i,1)[0];sendExhaust(pid,x,'《緋色の舞》');addLog(`${p.name}：《緋色の舞》で《${x.name}》をランダム廃棄。`)}}
    else if(c.id==='s12')damage(pid,modifiedDamage(pid,c,playNo===5?30:10),'《宵月斬》');
    else if(c.id==='s16')damage(pid,modifiedDamage(pid,c,3),'《終わらぬ宴》');
    else if(c.id==='s23'){const n=p.exhaust.filter(x=>x.id==='sf').length;damage(pid,modifiedDamage(pid,c,n*2),'《鬼火》')}
@@ -2263,15 +2264,19 @@ function showSpecialCutin(v){
 (function(){
  const updateDef=(id,changes)=>{const c=SHIRANUI_CARD_DEFS.find(x=>x.id===id);if(c)Object.assign(c,changes)};
  updateDef('s1',{type:'setup',cost:1,text:'このカードが場を離れたとき、狐火1枚を山札に加え、その後シャッフルする。'});
- updateDef('s2',{cost:0,text:'自分のターン中にカードを9枚使用したとき、手札に《百鬼夜行》がない場合、山札か捨て札にあるこのカード1枚を手札に加える。このカードは10枚目の使用としてのみ使用でき、9ダメージを4回与える。'});
+ updateDef('s2',{cost:0,text:'自分のターン中にカードを9枚使用したとき、手札に《百鬼夜行》がない場合、山札か捨て札にあるこのカード1枚を手札に加える。このカードは10枚目の使用としてのみ使用でき、4ダメージを9回与える。夜行絵巻が場にあれば、そのX回分も攻撃する。'});
  updateDef('s3',{cost:4,text:'自分のターン開始時、狐火1枚を手札に加える。'});
  updateDef('s6',{text:'廃棄札にあるカードの枚数×3ダメージを、単発で与える。'});
- updateDef('s7',{text:'4ダメージを与える。このカードの使用が3枚目の場合、12ダメージを与える。'});
- updateDef('s8',{cost:5,text:'ターン中にカードを3枚使用するごとに、そのカードの処理終了後、狐火1枚を手札に加える。'});
+ updateDef('s7',{text:'4ダメージを与える。このカードの使用が3枚目の場合、9ダメージを与える。'});
+ updateDef('s8',{cost:3});
+ updateDef('s10',{text:'15ダメージを与える。その後、残りの手札からランダムに2枚を廃棄する。'});
+ updateDef('s15',{cost:1});
+ updateDef('s21',{cost:5});
+ updateDef('s8',{cost:3,text:'ターン中にカードを3枚使用するごとに、そのカードの処理終了後、狐火1枚を手札に加える。'});
  updateDef('s11',{text:'次のターン開始時まで、リーダーへのダメージをブロックする。耐久値は、このカード自身を含む使用枚数×2。ターン開始時、捨て札へ。'});
  updateDef('s12',{text:'10ダメージを与える。このカードの使用が5枚目なら、追加で12ダメージ（合計22ダメージ）。'});
  updateDef('s14',{text:'カードを1枚引く。このカードの使用が3枚目なら、追加で1枚引く。'});
- updateDef('s15',{cost:2,text:'山札のカード1枚を狐火に変化させ、その後シャッフルする。'});
+ updateDef('s15',{cost:1,text:'山札のカード1枚を狐火に変化させ、その後シャッフルする。'});
  updateDef('s19',{text:'カードを1枚引く。このカードがこのターン5枚目に使用される場合、コストは0。'});
  updateDef('s20',{cost:12,text:'このターン中にカードを使用するたび、このカードのコストを1下げる。このターン終了後、もう一度自分のターンを行う。'});
 
@@ -2348,11 +2353,11 @@ function showSpecialCutin(v){
      shiranuiFinish(pid,c);return
    }
    if(c.type==='attack'){
-     if(c.id==='s2'){for(let i=0;i<4&&!game.over;i++)damage(pid,modifiedDamage(pid,c,9),`《百鬼夜行》 ${i+1}/4`)}
+     if(c.id==='s2'){for(let i=0;i<9&&!game.over;i++)damage(pid,modifiedDamage(pid,c,4),`《百鬼夜行》 ${i+1}/9`)}
      else if(c.id==='s4')damage(pid,modifiedDamage(pid,c,2),'《火遊び》');
      else if(c.id==='s6')damage(pid,modifiedDamage(pid,c,p.exhaust.length*3),'《千本桜》');
-     else if(c.id==='s7')damage(pid,modifiedDamage(pid,c,useNo===3?12:4),'《化け猫》');
-     else if(c.id==='s10'){damage(pid,modifiedDamage(pid,c,20),'《緋色の舞》');if(!game.over&&p.hand.length){const i=Math.floor(Math.random()*p.hand.length),x=p.hand.splice(i,1)[0];sendExhaust(pid,x,'《緋色の舞》');addLog(`${p.name}：《緋色の舞》で《${x.name}》をランダム廃棄。`)}}
+     else if(c.id==='s7')damage(pid,modifiedDamage(pid,c,useNo===3?9:4),'《化け猫》');
+     else if(c.id==='s10'){damage(pid,modifiedDamage(pid,c,15),'《緋色の舞》');for(let n=0;n<2&&!game.over&&p.hand.length;n++){const i=Math.floor(Math.random()*p.hand.length),x=p.hand.splice(i,1)[0];sendExhaust(pid,x,'《緋色の舞》');addLog(`${p.name}：《緋色の舞》で《${x.name}》をランダム廃棄。`)}}
      else if(c.id==='s12')damage(pid,modifiedDamage(pid,c,useNo===5?22:10),'《宵月斬》');
      else if(c.id==='s16')damage(pid,modifiedDamage(pid,c,3),'《終わらぬ宴》');
      else if(c.id==='s23'){const n=p.exhaust.filter(x=>x.id==='sf').length;damage(pid,modifiedDamage(pid,c,n*2),'《鬼火》')}
@@ -2740,38 +2745,38 @@ function showSpecialCutin(v){
 
 /* ===== v49 patch: Yakou Emaki ===== */
 (function(){
- const emaki={id:'s26',name:'夜行絵巻',type:'setup',cost:3,text:'《百鬼夜行》の攻撃回数をX回増やす。Xは1から始まる。自分のターン中、自分がカードを7枚使用したとき、Xを1増やす（1ターンに1回）。',pool:'shiranui'};
+ const emaki={id:'s26',name:'夜行絵巻',type:'setup',cost:3,text:'《百鬼夜行》の攻撃回数をX回増やす。Xは0から始まる。場にある状態で自分が3枚目のカードをプレイしたとき、Xを1増やす。',pool:'shiranui'};
  if(!SHIRANUI_CARD_DEFS.some(c=>c.id==='s26')){
    SHIRANUI_CARD_DEFS.push(emaki);CARD_DEFS.push(emaki);DEF.s26=emaki;
  }
  if(DEFAULT_DECKS.shiranui)DEFAULT_DECKS.shiranui.s26=DEFAULT_DECKS.shiranui.s26||0;
 
- // X is stored on each placed copy. A newly placed 夜行絵巻 starts at X=1.
+ // X is stored on each placed copy. A newly placed 夜行絵巻 starts at X=0.
  const _playShiranuiV48=playShiranuiCard;
  playShiranuiCard=function(pid,c,dest){
-   if(c.id==='s26'&&c.type==='setup'&&!Number.isFinite(c.yakouX))c.yakouX=1;
+   if(c.id==='s26'&&c.type==='setup'&&!Number.isFinite(c.yakouX))c.yakouX=0;
    if(c.id==='s2'){
      const p=game.players[pid],useNo=(p.cardsPlayedThisTurn||0)+1,cost=cardCost(pid,c);
      removeHand(pid,c.uid);p.energy-=cost;reveal(pid,c,cost);
-     const bonus=activeSetups(pid).filter(x=>x.id==='s26').reduce((sum,x)=>sum+(Number.isFinite(x.yakouX)?x.yakouX:1),0);
-     const hits=4+bonus;
-     for(let i=0;i<hits&&!game.over;i++)damage(pid,modifiedDamage(pid,c,9),`《百鬼夜行》 ${i+1}/${hits}`);
+     const bonus=activeSetups(pid).filter(x=>x.id==='s26').reduce((sum,x)=>sum+(Number.isFinite(x.yakouX)?x.yakouX:0),0);
+     const hits=9+bonus;
+     for(let i=0;i<hits&&!game.over;i++)damage(pid,modifiedDamage(pid,c,4),`《百鬼夜行》 ${i+1}/${hits}`);
      p.discard.push(c);shiranuiFinish(pid,c);return;
    }
    return _playShiranuiV48(pid,c,dest);
  };
 
- // Reaching exactly the 7th card grows each active 夜行絵巻 once that turn.
+ // Reaching exactly the 3rd card grows each active 夜行絵巻 once that turn.
  const _afterPlayTriggersV48=afterPlayTriggers;
  afterPlayTriggers=function(pid,c){
    _afterPlayTriggersV48(pid,c);
    const p=game.players[pid],n=p.cardsPlayedThisTurn||0;
-   if(n===7&&!game.over){
+   if(n===3&&!game.over){
      const emakis=activeSetups(pid).filter(x=>x.id==='s26');
-     emakis.forEach(x=>x.yakouX=(Number.isFinite(x.yakouX)?x.yakouX:1)+1);
+     emakis.forEach(x=>x.yakouX=(Number.isFinite(x.yakouX)?x.yakouX:0)+1);
      if(emakis.length){
        const xs=emakis.map(x=>x.yakouX).join('、');
-       addLog(`${p.name}：《夜行絵巻》が7枚目の使用で成長（X=${xs}）。`);
+       addLog(`${p.name}：《夜行絵巻》が3枚目の使用で成長（X=${xs}）。`);
      }
    }
  };
@@ -2780,8 +2785,8 @@ function showSpecialCutin(v){
  const _cardTextV48=cardText;
  cardText=function(c,skillDraws=null){
    if(c.id==='s26'){
-     const x=Number.isFinite(c.yakouX)?c.yakouX:1;
-     return `《百鬼夜行》の攻撃回数をX回増やす。Xは1から始まる。自分のターン中、自分がカードを7枚使用したとき、Xを1増やす（1ターンに1回）。現在X=${x}。`;
+     const x=Number.isFinite(c.yakouX)?c.yakouX:0;
+     return `《百鬼夜行》の攻撃回数をX回増やす。Xは0から始まる。場にある状態で自分が3枚目のカードをプレイしたとき、Xを1増やす（1ターンに1回）。現在X=${x}。`;
    }
    return _cardTextV48(c,skillDraws);
  };
@@ -2858,13 +2863,13 @@ function showSpecialCutin(v){
  document.head.appendChild(style);
 
  // 《夜行絵巻》の成長値は「場にあるその個体」の蓄積値。
- // 共有枠からの押し出し・通常除去・廃棄など、場を離れた時点でX=1へ戻す。
+ // 共有枠からの押し出し・通常除去・廃棄など、場を離れた時点でX=0へ戻す。
  const prevRemoveSetup=removeSetup;
  removeSetup=function(pid,card,to='discard'){
    const p=game.players[pid];
    const wasOnField=!!(p.personal?.uid===card.uid||game.shared.some(x=>x.owner===pid&&x.card.uid===card.uid));
    prevRemoveSetup(pid,card,to);
-   if(wasOnField&&card.id==='s26')card.yakouX=1;
+   if(wasOnField&&card.id==='s26')card.yakouX=0;
  };
 
  // 選択画面でも《お取り置き》由来の一時保留を通常の「保留」として明示する。
@@ -2915,7 +2920,7 @@ function showSpecialCutin(v){
    const c=x.card,p=ownerViewForSetup(x,mePid);
    if((c.id==='guard'||c.id==='k4'||c.id==='s11')&&Number.isFinite(c.fortressHp))return `<span class="setup-state-badge block" title="残りブロック">◆${Math.max(0,c.fortressHp)}</span>`;
    if(c.id==='s18'&&Number.isFinite(c.shieldCharges))return `<span class="setup-state-badge shield" title="十六夜：残り軽減回数">☾${Math.max(0,c.shieldCharges)}</span>`;
-   if(c.id==='s26')return `<span class="setup-state-badge progress" title="現在のX">${Number.isFinite(c.yakouX)?c.yakouX:1}</span>`;
+   if(c.id==='s26')return `<span class="setup-state-badge progress" title="現在のX">${Number.isFinite(c.yakouX)?c.yakouX:0}</span>`;
    if(c.id==='s13')return `<span class="setup-state-badge progress" title="発動までの使用枚数">${Math.max(0,3-(p?.cardsPlayedThisTurn||0))}</span>`;
    if(c.id==='j2')return `<span class="setup-state-badge progress" title="追加ドロー発動まで">${Math.max(0,3-(p?.turnSkillDraws||0))}</span>`;
    if(c.id==='s24')return `<span class="setup-state-badge progress" title="狐火生成までの使用枚数">${Math.max(0,5-(p?.cardsPlayedThisTurn||0))}</span>`;
@@ -3046,7 +3051,7 @@ function showSpecialCutin(v){
    if(c.id==='sf'){
      if(next===3&&hand.some(x=>['s25','s7','s14'].includes(x.id)))b-=55;
      if(next===5&&hand.some(x=>['s12','s19'].includes(x.id)))b-=65;
-     if(next===7&&hasSetup(pid,'s26'))b+=85;
+     if(next===3&&hasSetup(pid,'s26'))b+=85;
      if(next===9&&!hand.some(x=>x.id==='s2'))b+=150;
    }
    if(c.id==='s2') b+=used>=9?500:-500;
@@ -3791,8 +3796,8 @@ const TUTORIALS={
   {k:'THREE',t:'4枚目に《葬送歌》',m:'《葬送歌》は<strong>このターン4枚目</strong>に使うと《狐火》を手札へ加えます。条件を満たす順番で使うことが重要です。',tip:'同じカードでも何枚目に使うかで価値が変わるのがシラヌイです。',e:'3 / 4',pc:4,v:'count',cards:['strike','sf','s25'],focus:2},
   {k:'FOX FIRE',t:'《狐火》で連鎖を延長',m:'《狐火》は<strong>0コスト・1ドロー・使用後廃棄</strong>。エナジーを使わず次のカードへつなげます。',tip:'狐火をいつ使うかで、その後の5枚目・7枚目への到達が変わります。',e:'2 / 3',pc:4,v:'knife',cards:['sf','s24'],focus:0},
   {k:'FIVE',t:'《灯火》を仕込んでおく',m:'《灯火》などのセットアップは使用枚数の節目で狐火を供給します。連鎖を始める前に盤面へ準備します。',tip:'シラヌイは手札だけでなく、セットアップを含めて一つの連鎖を設計します。',e:'3 / 4',pc:5,v:'shared',cards:['s24'],setup:'s24'},
-  {k:'SEVEN',t:'《夜行絵巻》を成長させる',m:'《夜行絵巻》は<strong>7枚目</strong>の使用でXが成長し、《百鬼夜行》の攻撃回数を増やします。',tip:'育った夜行絵巻は相手から見ても危険。共有枠なら押し出し合いが起こります。',e:'3 / 5',pc:7,v:'shared',cards:['s26'],setup:'s26'},
-  {k:'NINE',t:'9枚使って《百鬼夜行》へ',m:'条件を満たして9枚目まで使うと《百鬼夜行》が手札へ。そこから<strong>10枚目としてフィニッシャー</strong>を叩き込みます。',tip:'百鬼夜行は9ダメージを4回。夜行絵巻があれば攻撃回数がさらに増えます。',e:'0 / 5',pc:9,v:'finish',cards:['s2'],focus:0,hp:64}]}
+  {k:'SEVEN',t:'《夜行絵巻》を成長させる',m:'《夜行絵巻》が場にあると<strong>3枚目</strong>の使用でXが成長し、《百鬼夜行》の攻撃回数を増やします。',tip:'育った夜行絵巻は相手から見ても危険。共有枠なら押し出し合いが起こります。',e:'3 / 5',pc:3,v:'shared',cards:['s26'],setup:'s26'},
+  {k:'NINE',t:'9枚使って《百鬼夜行》へ',m:'条件を満たして9枚目まで使うと《百鬼夜行》が手札へ。そこから<strong>10枚目としてフィニッシャー</strong>を叩き込みます。',tip:'百鬼夜行は4ダメージを9回。夜行絵巻があれば攻撃回数がさらに増えます。',e:'0 / 5',pc:9,v:'finish',cards:['s2'],focus:0,hp:64}]}
 };
 let tutorialState={course:null,index:0,shared:[]};
 function tutDef(id){return (window.DEF&&DEF[id])||(window.CARD_DEFS&&CARD_DEFS.find(c=>c.id===id))||{id,name:id,type:'skill',cost:0,text:''}}
@@ -3823,7 +3828,7 @@ document.querySelectorAll('.tut2-course').forEach(b=>b.addEventListener('click',
  function setupThreat(c){
    if(!c)return 0;
    let v=THREAT[c.id]||34;
-   if(c.id==='s26')v+=(Number.isFinite(c.yakouX)?c.yakouX:1)*22;
+   if(c.id==='s26')v+=(Number.isFinite(c.yakouX)?c.yakouX:0)*22;
    if(Number.isFinite(c.fortressHp))v+=Math.min(34,Math.max(0,c.fortressHp))*1.3;
    if(c.id==='s18')v+=(c.shieldCharges||0)*6;
    return v;
@@ -3889,13 +3894,13 @@ document.querySelectorAll('.tut2-course').forEach(b=>b.addEventListener('click',
    else if(c.id==='k26')bases=[5];
    else if(c.id==='s2'){
      if(used!==9)return [];
-     const bonus=ownSetups(pid).filter(x=>x.id==='s26').reduce((n,x)=>n+(Number.isFinite(x.yakouX)?x.yakouX:1),0);
-     bases=Array(4+bonus).fill(9);
+     const bonus=ownSetups(pid).filter(x=>x.id==='s26').reduce((n,x)=>n+(Number.isFinite(x.yakouX)?x.yakouX:0),0);
+     bases=Array(9+bonus).fill(4);
    }
    else if(c.id==='s4')bases=[2];
    else if(c.id==='s6')bases=[(p.exhaust?.length||0)*3];
-   else if(c.id==='s7')bases=[useNo===3?12:4];
-   else if(c.id==='s10')bases=[20];
+   else if(c.id==='s7')bases=[useNo===3?9:4];
+   else if(c.id==='s10')bases=[15];
    else if(c.id==='s12')bases=[useNo===5?22:10];
    else if(c.id==='s16')bases=[3];
    else if(c.id==='s23')bases=[(p.exhaust||[]).filter(x=>x.id==='sf').length*2];
@@ -3967,7 +3972,7 @@ document.querySelectorAll('.tut2-course').forEach(b=>b.addEventListener('click',
    if(c.id==='k23')v+=180+(c.damageBonus||0)*16;
    if(c.id==='j4')v+=p.hand.length>=8?190:40;
    if(c.id==='s20')v+=260;
-   if(c.id==='s26')v+=150+(Number.isFinite(c.yakouX)?c.yakouX:1)*25;
+   if(c.id==='s26')v+=150+(Number.isFinite(c.yakouX)?c.yakouX:0)*25;
    if(c.id==='sf')v+=55;
    if(c.type==='setup')v+=setupThreat(c)*.45;
    return v;
@@ -3980,7 +3985,7 @@ document.querySelectorAll('.tut2-course').forEach(b=>b.addEventListener('click',
      if(payoff&&!exact.has(c.id))s-=420;
      if(exact.has(c.id))s+=280;
    }
-   if(next===7&&hasSetup(pid,'s26'))s+=125;
+   if(next===3&&hasSetup(pid,'s26'))s+=125;
    if(next===9&&!hand.some(x=>x.id==='s2'))s+=210; // 9枚目で百鬼夜行を呼ぶ
    if(next===10&&hand.some(x=>x.id==='s2')&&c.id!=='s2')s-=900;
    if(c.id==='s2')s+=used===9?3600:-5000;
@@ -3988,7 +3993,7 @@ document.querySelectorAll('.tut2-course').forEach(b=>b.addEventListener('click',
    if(c.id==='s7'||c.id==='s14')s+=next===3?245:next>3?-35:0;
    if(c.id==='s12'||c.id==='s19')s+=next===5?300:next>5?-45:0;
    if(c.id==='sf'){
-     if(next===7&&hasSetup(pid,'s26'))s+=140;
+     if(next===3&&hasSetup(pid,'s26'))s+=140;
      if(next===9)s+=260;
      if(used>=6)s+=75;
    }
@@ -4254,6 +4259,64 @@ document.querySelectorAll('.tut2-course').forEach(b=>b.addEventListener('click',
  };
  scheduleCpuTurn=function(){if(matchMode!=='cpu'||roomRole!=='host'||cpuBusy||!game||game.over||game.current!=='p2')return;cpuBusy=true;setTimeout(cpuTurn,620)};
  window.LUNA_CPU_AI={scoreCard:strategicScore,effectiveDamage,setupThreat,version:'v60'};
+ // Fast local self-play uses the same strategic chooser and game rules as the live CPU.
+ const SIM_ARCHETYPES=[
+  {id:'giovanni_knife',name:'ジョバンニ ナイフ軸',character:'giovanni',cards:['j10','j11','j19','j22','j23','j24','j14','j5','j1','j8','j12','j13','j25','j27','j28','j6','j7','j18','j20','j26']},
+  {id:'giovanni_draw',name:'ジョバンニ ドロー・捨て軸',character:'giovanni',cards:['j1','j2','j4','j5','j7','j8','j9','j12','j13','j14','j16','j17','j20','j21','j23','j24','j25','j27','j28','j6']},
+  {id:'kenshi_six',name:'マサムネ 6コスト軸',character:'kenshi',cards:['k1','k2','k5','k7','k10','k12','k13','k14','k15','k17','k18','k20','k21','k23','k24','k25','k26','k4','k6','k8']},
+  {id:'kenshi_retain',name:'マサムネ 保留軸',character:'kenshi',cards:['k3','k9','k16','k22','k23','k24','k26','k1','k2','k4','k5','k7','k10','k11','k12','k13','k14','k15','k18','k20']},
+  {id:'shiranui_hyakki',name:'シラヌイ 百鬼夜行軸',character:'shiranui',cards:['s2','s26','s1','s7','s8','s13','s14','s15','s16','s19','s20','s24','s25','s3','s4','s5','s6','s9','s12','s23']},
+  {id:'shiranui_exhaust',name:'シラヌイ 廃棄軸',character:'shiranui',cards:['s9','s10','s18','s21','s22','s23','s6','s11','s13','s16','s17','s19','s24','s25','s1','s3','s4','s5','s7','s8']}
+ ];
+ function simDeck(arch,overrides={}){
+   const allowed=allowedCards(arch.character), allowedIds=new Set(allowed.map(c=>c.id));
+   const ids=[]; for(const id of (overrides[arch.id]||arch.cards))if(allowedIds.has(id)&&!ids.includes(id))ids.push(id);
+   for(const c of allowed)if(ids.length<20&&!ids.includes(c.id))ids.push(c.id);
+   const counts=Object.fromEntries(CARD_DEFS.map(c=>[c.id,0]));ids.slice(0,20).forEach(id=>counts[id]=2);
+   return {name:arch.name,character:arch.character,counts};
+ }
+ function simOne(a,b){
+   uidSeq=1;actionSeq=1;roomRole='host';matchMode='sim';cpuBusy=false;
+   game={players:{p1:makePlayer('p1',{...a}),p2:makePlayer('p2',{...b})},shared:[],current:Math.random()<.5?'p1':'p2',over:false,winner:null,log:[],pending:null,lastAction:null,damageEvents:[],damageSeq:0,drawEvents:[],drawSeq:0};
+   const first=game.current;startTurn(first);let turns=0,stalled=0;
+   while(!game.over&&turns<100){
+     const pid=game.current;turns++;let actions=0;
+     while(!game.over&&game.current===pid&&actions++<80){
+       if(game.pending?.pid===pid){const pending=game.pending;resolveCpuPending(pid);if(game.pending===pending){game.pending=null;stalled++;}continue;}
+       const pick=bestPlayable(pid),p=game.players[pid];
+       const comboPush=p.character==='shiranui'&&(p.cardsPlayedThisTurn||0)>=6;
+       if(!pick|| (pick.score<12&&!comboPush)){
+         const before=game.current;endPlayerTurn(pid);
+         if(game.pending?.pid===pid)continue;
+         if(game.current===before&&!game.over){stalled++;game.pending=null;finalizeEndTurn(pid)}
+         break;
+       }
+       const beforeCount=p.cardsPlayedThisTurn||0,beforeHand=p.hand.length,beforeEnergy=p.energy;
+       playCard(pid,pick.card.uid,pick.card.type==='setup'?cpuSetupDest(pid,pick.card):undefined);
+       if(!game.over&&!game.pending&&(p.cardsPlayedThisTurn||0)===beforeCount&&p.hand.length===beforeHand&&p.energy===beforeEnergy){stalled++;break;}
+     }
+   }
+   return {winner:game.winner,first,turns,stalled,hp1:game.players.p1.hp,hp2:game.players.p2.hp};
+ }
+ window.LUNA_SIM={archetypes:SIM_ARCHETYPES.map(x=>({...x,cards:[...x.cards]})),catalog:Object.fromEntries(CARD_DEFS.map(c=>[c.id,c.name])),deck:id=>{const a=SIM_ARCHETYPES.find(x=>x.id===id);return a?simDeck(a):null;},run:async(games=20,onProgress=()=>{},overrides={})=>{
+   const saved={game,uidSeq,actionSeq,roomRole,matchMode,cpuBusy};
+   try{
+   const n=Math.max(1,Math.min(500,Math.floor(Number(games)||20))),results=[];let total=15*n,done=0;
+   for(let i=0;i<SIM_ARCHETYPES.length;i++)for(let j=i+1;j<SIM_ARCHETYPES.length;j++){
+     const a=SIM_ARCHETYPES[i],b=SIM_ARCHETYPES[j],row={a:a.name,b:b.name,games:n,aWins:0,bWins:0,draws:0,aFirstWins:0,bFirstWins:0,aFirstGames:0,bFirstGames:0,turns:0};
+     for(let k=0;k<n;k++){
+       // Swap seats every game to reduce first-seat and p1/p2 bias.
+       const swapped=k%2===1,one=simOne(simDeck(swapped?b:a,overrides),simDeck(swapped?a:b,overrides));
+       const awin=one.winner===(swapped?'p2':'p1'),bwin=one.winner===(swapped?'p1':'p2');
+       if(awin)row.aWins++;else if(bwin)row.bWins++;else row.draws++;
+       if(one.first===(swapped?'p2':'p1')){row.aFirstGames++;if(awin)row.aFirstWins++;}if(one.first===(swapped?'p1':'p2')){row.bFirstGames++;if(bwin)row.bFirstWins++;}
+       row.turns+=one.turns;done++;if(done%5===0){onProgress({done,total,pair:`${a.name} × ${b.name}`});await new Promise(r=>setTimeout(r,0));}
+     }
+     row.turns=+(row.turns/n).toFixed(1);row.aRate=+(100*row.aWins/n).toFixed(1);results.push(row);
+   }
+   onProgress({done:total,total,complete:true});return results;
+   }finally{game=saved.game;uidSeq=saved.uidSeq;actionSeq=saved.actionSeq;roomRole=saved.roomRole;matchMode=saved.matchMode;cpuBusy=saved.cpuBusy;}
+ }};
 })();
 /* ===== end v60 canonical offline CPU strategist ===== */
 </script>
@@ -4723,7 +4786,7 @@ function decorateSetupGrowth(v){
  const live=new Set();
  all.forEach(x=>{
   const c=x?.card;if(c?.id!=='s26')return;
-  const key=String(c.uid),now=Number.isFinite(c.yakouX)?c.yakouX:1,prev=lastYakouX.get(key);live.add(key);
+  const key=String(c.uid),now=Number.isFinite(c.yakouX)?c.yakouX:0,prev=lastYakouX.get(key);live.add(key);
   if(prev!==undefined&&now>prev){
    const el=document.querySelector(`.setup-detail-trigger[data-setup-uid="${CSS.escape(key)}"]`);
    if(el){el.classList.remove('setup-x-growth');void el.offsetWidth;el.classList.add('setup-x-growth');setTimeout(()=>el.classList.remove('setup-x-growth'),950)}
@@ -5220,5 +5283,23 @@ body.deck-view #deckScreen #deckCountSticky{top:72px!important}
  apply();
 })();
 </script>
+<style>
+#laSimOverlay{position:fixed;inset:0;z-index:99999;background:#070b13ed;color:#f5f3ed;display:none;overflow:auto;padding:18px;font:14px/1.5 system-ui,sans-serif}#laSimOverlay.open{display:block}.la-sim-wrap{max-width:1050px;margin:0 auto;background:#111a2a;border:1px solid #536078;border-radius:16px;padding:20px}.la-sim-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.la-sim-head h2{margin:0;font-size:23px}.la-sim-help{color:#b9c2d2;font-size:13px}.la-sim-controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:14px 0}.la-sim-controls select,.la-sim-controls button{padding:9px 12px;border-radius:8px}.la-sim-decks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.la-sim-decks details{background:#182439;border-radius:8px;padding:8px}.la-sim-decks summary{cursor:pointer;font-weight:700}.la-sim-decks textarea{box-sizing:border-box;width:100%;height:80px;margin-top:7px;background:#080e18;color:#fff;border:1px solid #47546b;border-radius:6px;padding:7px}.la-sim-progress{margin:14px 0;color:#d9ddeb}.la-sim-progress progress{width:100%;height:15px}.la-sim-table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}.la-sim-table th,.la-sim-table td{padding:7px;border-bottom:1px solid #35425a;text-align:left}.la-sim-table th{color:#d3ba7d}.la-sim-note{color:#aeb9cd;font-size:12px;margin-top:12px}@media(max-width:650px){#laSimOverlay{padding:8px}.la-sim-wrap{padding:12px}.la-sim-decks{grid-template-columns:1fr}.la-sim-table{font-size:11px}.la-sim-table th,.la-sim-table td{padding:5px}}
+</style>
+<div id="laSimOverlay" role="dialog" aria-modal="true" aria-label="CPU環境調査"><div class="la-sim-wrap"><div class="la-sim-head"><h2>CPU環境調査</h2><button id="laSimClose" type="button">閉じる</button></div><p class="la-sim-help">各軸の代表デッキをCPU同士で総当たりします。各組み合わせで先攻側を交互に入れ替えます。試合数は「各組み合わせあたり」です。</p><div class="la-sim-controls"><label>各組み合わせの試合数 <select id="laSimGames"><option>10</option><option selected>20</option><option>50</option><option>100</option><option>250</option></select></label><button id="laSimRun" type="button">総当たり開始</button><button id="laSimReset" type="button">デッキ案を初期化</button></div><details><summary>代表デッキを編集（20種類・各2枚。カード名をカンマ区切り）</summary><div class="la-sim-decks" id="laSimDecks"></div></details><div class="la-sim-progress" id="laSimProgress">準備完了</div><progress id="laSimBar" value="0" max="100" hidden></progress><div id="laSimResults"></div><p class="la-sim-note">これは同じCPU判断を両側に使った簡易環境調査です。結果はこのカード定義・CPU思考・試合回数に依存し、実プレイヤーの勝率を直接予測するものではありません。</p></div></div>
+<script>
+(()=>{const api=window.LUNA_SIM,overlay=document.getElementById('laSimOverlay');if(!api)return;
+ const names=Object.fromEntries(Object.entries(api.catalog).map(([id,name])=>[name,id]));const key='laSimDecks025';
+ const defaults=()=>Object.fromEntries(api.archetypes.map(a=>[a.id,a.cards.map(id=>api.catalog[id]).join(', ')]));
+ let drafts=defaults();try{drafts={...drafts,...JSON.parse(localStorage.getItem(key)||'{}')}}catch(_){}
+ const list=document.getElementById('laSimDecks');function renderDrafts(){list.innerHTML='';for(const a of api.archetypes){const d=document.createElement('details'),s=document.createElement('summary'),t=document.createElement('textarea');s.textContent=a.name;t.value=drafts[a.id]||'';t.setAttribute('aria-label',a.name+'のカード');t.addEventListener('input',()=>{drafts[a.id]=t.value;localStorage.setItem(key,JSON.stringify(drafts))});d.append(s,t);list.append(d)}}renderDrafts();
+ document.getElementById('openSelfPlay').addEventListener('click',()=>overlay.classList.add('open'));document.getElementById('laSimClose').addEventListener('click',()=>overlay.classList.remove('open'));
+ document.getElementById('laSimReset').addEventListener('click',()=>{drafts=defaults();localStorage.removeItem(key);renderDrafts()});
+ function overridesFromDraft(){const out={};for(const a of api.archetypes){const tokens=(drafts[a.id]||'').split(/[，,\n]/).map(x=>x.trim()).filter(Boolean),ids=[];for(const token of tokens){const id=api.catalog[token]?token:names[token];if(!id)throw Error(`${a.name}：カード名「${token}」が見つかりません`);if(!ids.includes(id))ids.push(id)}if(ids.length!==20)throw Error(`${a.name}：カード種類を重複なしで20種類入力してください（現在${ids.length}種類）`);const deck=api.deck(a.id),valid=new Set(Object.keys(deck.counts).filter(id=>deck.counts[id]));for(const id of ids)if(!valid.has(id))throw Error(`${a.name}：使用できないカード「${api.catalog[id]}」です`);out[a.id]=ids}return out}
+ document.getElementById('laSimRun').addEventListener('click',async e=>{const btn=e.currentTarget,progress=document.getElementById('laSimProgress'),bar=document.getElementById('laSimBar'),res=document.getElementById('laSimResults');let overrides;try{overrides=overridesFromDraft()}catch(err){progress.textContent=err.message;return}btn.disabled=true;bar.hidden=false;bar.value=0;res.innerHTML='';const n=Number(document.getElementById('laSimGames').value);progress.textContent=`0 / ${15*n} 試合`;
+ try{const rows=await api.run(n,x=>{bar.value=x.total?100*x.done/x.total:0;progress.textContent=x.complete?`${x.total}試合完了`:`${x.done} / ${x.total} 試合　${x.pair||''}`},overrides);const table=document.createElement('table');table.className='la-sim-table';table.innerHTML='<thead><tr><th>対戦</th><th>勝敗（左側）</th><th>勝率</th><th>左側が先攻した試合</th><th>平均ターン</th></tr></thead>';const body=document.createElement('tbody');for(const r of rows){const tr=document.createElement('tr');[`${r.a} vs ${r.b}`,`${r.aWins} - ${r.bWins} - ${r.draws}`,`${r.aRate}%`,`${r.aFirstWins} / ${r.aFirstGames}`,r.turns].forEach(v=>{const td=document.createElement('td');td.textContent=v;tr.append(td)});body.append(tr)}table.append(body);res.replaceChildren(table)}catch(err){progress.textContent=`シミュレーション停止：${err.message||err}`}finally{btn.disabled=false}});
+})();
+</script>
+
 </body>
 </html>
