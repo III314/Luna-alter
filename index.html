@@ -1519,7 +1519,9 @@ body.deck-view #deckScreen #deckCountSticky{top:72px!important}
  position:absolute!important;left:var(--hand-x,0px)!important;bottom:32px!important;
  width:174px!important;min-width:174px!important;max-width:174px!important;
  height:260px!important;min-height:260px!important;max-height:260px!important;
- margin:0!important;padding:4.6%!important;transform-origin:50% 100%!important;
+ /* Absolute cards resolve percentage padding against #myHand's width. Cap it
+    at the canonical 174px-face padding so every child keeps the shared grid. */
+ margin:0!important;padding:min(4.6%,8px)!important;transform-origin:50% 100%!important;
  transform:translateY(var(--hand-y,0px)) scale(var(--hand-scale,1))!important;
  pointer-events:auto!important;z-index:var(--hand-index,1)!important;
  user-select:none!important;-webkit-user-select:none!important;-webkit-touch-callout:none!important;
@@ -1528,16 +1530,11 @@ body.deck-view #deckScreen #deckCountSticky{top:72px!important}
 #battleScreen #myHand>.card.expanded{
  z-index:120!important;transform:translateY(-72px) scale(calc(var(--hand-scale,1) * 1.16))!important;
 }
-#battleScreen #myHand>.card>.card-art{height:100%!important;min-height:0!important;max-height:none!important;margin:0!important}
-#battleScreen #myHand>.card:not(.expanded)>.text{display:block!important;opacity:1!important;max-height:none!important;overflow:auto!important;pointer-events:none!important}
+#battleScreen #myHand>.card:not(.expanded)>.text{pointer-events:none!important}
 #battleScreen #myHand>.card.la-dragging{opacity:.3!important}
 #battleScreen #myHand>.card.disabled{opacity:1!important;filter:none!important}
 #battleScreen #myHand>.card:not(.disabled){outline:3px solid #55b9ff!important;outline-offset:-2px!important;box-shadow:0 0 0 2px rgba(55,160,255,.34),0 0 18px 5px rgba(55,160,255,.78),0 6px 18px rgba(0,0,0,.28)!important}
 #battleScreen #myHand>.card.disabled{outline:1px solid rgba(255,255,255,.18)!important;outline-offset:-1px!important;box-shadow:0 4px 12px rgba(0,0,0,.22)!important}
-#battleScreen #myHand>.la-card-face .cname{font-size:10.8cqi!important;line-height:1.05!important}
-#battleScreen #myHand>.la-card-face .type{font-size:5.7cqi!important}
-#battleScreen #myHand>.la-card-face .cost{font-size:9.8cqi!important}
-#battleScreen #myHand>.la-card-face .text{font-size:6.65cqi!important;line-height:1.28!important;font-weight:650!important}
 
 /* Board setups: same card, centered in the slot with owner/state overlays outside it. */
 #battleScreen .center-board .slot{position:relative!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:7px!important;overflow:visible!important;background:transparent!important}
