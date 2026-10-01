@@ -18,8 +18,8 @@
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.28.0",
-  label:"統一カードフレーム"
+  version:"0.29.0",
+  label:"シラヌイイラスト・ドロー演出・手札UI"
 });
 </script>
 
@@ -1536,6 +1536,25 @@ body.deck-view #deckScreen #deckCountSticky{top:72px!important}
 #battleScreen #myHand>.card:not(.disabled){outline:3px solid #55b9ff!important;outline-offset:-2px!important;box-shadow:0 0 0 2px rgba(55,160,255,.34),0 0 18px 5px rgba(55,160,255,.78),0 6px 18px rgba(0,0,0,.28)!important}
 #battleScreen #myHand>.card.disabled{outline:1px solid rgba(255,255,255,.18)!important;outline-offset:-1px!important;box-shadow:0 4px 12px rgba(0,0,0,.22)!important}
 
+/* v0.29 hand-only overlays.  The canonical v0.28 card grid remains intact:
+   the cost is an exterior layer, never a new row in unifiedCardInner(). */
+#battleScreen #myHand>.card.hand-card{overflow:visible!important}
+#battleScreen #myHand>.card.hand-card>.hand-cost-overlay{
+ position:absolute;z-index:40;left:-20cqi;top:-18cqi;display:grid;place-items:center;
+ width:23cqi;aspect-ratio:1;border-radius:50%;pointer-events:none;box-sizing:border-box;
+ color:#1b1104;background:radial-gradient(circle at 34% 28%,#fff7c9 0 11%,#ebc965 29%,#a87020 63%,#3b2107 100%);
+ border:max(1px,1.15cqi) solid #f6df95;box-shadow:0 0 0 max(1px,.85cqi) #42270a,0 4px 10px rgba(0,0,0,.65),inset 0 1px 1px rgba(255,255,255,.72);
+ font:1000 13cqi/1 Georgia,"Yu Mincho",serif;text-shadow:0 1px rgba(255,255,255,.5);isolation:isolate;
+}
+#battleScreen #myHand>.card.hand-card>.hand-cost-overlay::after{content:"";position:absolute;inset:12%;border-radius:50%;border:1px solid rgba(67,37,6,.5);pointer-events:none}
+/* This rule deliberately follows the blue usable-card rule above.  Gold means
+   a card-specific condition is true; blue continues to mean merely playable. */
+#battleScreen #myHand>.card.condition-ready{
+ outline:3px solid #ffe16a!important;outline-offset:-2px!important;
+ box-shadow:0 0 0 2px rgba(255,223,106,.36),0 0 20px 6px rgba(255,190,36,.72),0 6px 18px rgba(0,0,0,.28)!important;
+ filter:brightness(1.075) saturate(1.07)!important;
+}
+
 /* Draw presentation: only whole-card transforms are animated.  The flight
    face below is the same .la-card-face / unifiedCardInner component as every
    settled card, so its internal grid never receives a hand-specific override. */
@@ -1545,17 +1564,17 @@ body.deck-view #deckScreen #deckCountSticky{top:72px!important}
 #battleScreen #myHand>.card.expanded{
  transform:translate(var(--la-draw-shift-x,0px),var(--la-draw-shift-y,0px)) translateY(calc(var(--hand-y,0px) - 72px)) scale(calc(var(--hand-scale,1) * 1.16))!important;
 }
-#battleScreen #myHand>.card.la-hand-reflow{transition:transform .24s cubic-bezier(.22,.78,.22,1),filter .16s ease,opacity .16s ease!important}
+#battleScreen #myHand>.card.la-hand-reflow{transition:transform .38s cubic-bezier(.22,.78,.22,1),filter .16s ease,opacity .16s ease!important}
 #battleScreen #myHand>.card.la-draw-arriving{opacity:0!important;pointer-events:none!important}
 #laDrawOverlay{position:fixed;inset:0;z-index:90;overflow:hidden;pointer-events:none;perspective:1100px;contain:layout style paint}
-#laDrawOverlay .la-draw-flyer{position:fixed;left:0;top:0;width:174px;height:260px;transform-style:preserve-3d;transform-origin:50% 50%;will-change:transform,opacity;animation:laDrawFlight .48s cubic-bezier(.16,.78,.24,1) both}
-#laDrawOverlay .la-draw-flip{position:absolute;inset:0;transform-style:preserve-3d;animation:laDrawFlip .48s cubic-bezier(.36,.05,.22,1) both}
+#laDrawOverlay .la-draw-flyer{position:fixed;left:0;top:0;width:174px;height:260px;transform-style:preserve-3d;transform-origin:50% 50%;will-change:transform,opacity;animation:laDrawFlight .70s cubic-bezier(.16,.78,.24,1) both}
+#laDrawOverlay .la-draw-flip{position:absolute;inset:0;transform-style:preserve-3d;animation:laDrawFlip .70s cubic-bezier(.36,.05,.22,1) both}
 #laDrawOverlay .la-draw-back,#laDrawOverlay .la-draw-face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden}
 #laDrawOverlay .la-draw-back{box-sizing:border-box;border:3px solid #d9bd76;border-radius:9px;background:radial-gradient(circle at 50% 50%,rgba(226,192,109,.48) 0 5%,transparent 5.7%),linear-gradient(45deg,transparent 47%,rgba(226,192,109,.4) 48% 52%,transparent 53%),linear-gradient(-45deg,transparent 47%,rgba(226,192,109,.4) 48% 52%,transparent 53%),repeating-linear-gradient(135deg,#171521 0 7px,#322942 7px 12px);box-shadow:0 10px 22px rgba(0,0,0,.42),inset 0 0 0 5px rgba(255,236,177,.13)}
 #laDrawOverlay .la-draw-back::before{content:'L';position:absolute;inset:14px;display:grid;place-items:center;border:2px solid rgba(233,203,128,.82);border-radius:6px;color:#f0d995;font:900 48px/1 Georgia,serif;text-shadow:0 2px 5px #000}
 #laDrawOverlay .la-draw-face.card.la-card-face{width:174px!important;height:260px!important;min-width:174px!important;min-height:260px!important;max-width:174px!important;max-height:260px!important;margin:0!important;opacity:1!important;pointer-events:none!important;transform:rotateY(180deg)!important}
-@keyframes laDrawFlight{0%{opacity:0;transform:translate3d(var(--la-draw-start-x),var(--la-draw-start-y),0) rotate(var(--la-draw-start-angle,0deg)) scale(var(--la-draw-start-scale,.45))}10%{opacity:1}67%{opacity:1;transform:translate3d(var(--la-draw-end-x),var(--la-draw-end-y),0) rotate(var(--la-draw-end-angle,0deg)) scale(var(--la-draw-end-scale,1))}100%{opacity:0;transform:translate3d(var(--la-draw-end-x),var(--la-draw-end-y),0) rotate(var(--la-draw-end-angle,0deg)) scale(var(--la-draw-end-scale,1)}}
-@keyframes laDrawFlip{0%,48%{transform:rotateY(0deg)}82%,100%{transform:rotateY(180deg)}}
+@keyframes laDrawFlight{0%{opacity:0;transform:translate3d(var(--la-draw-start-x),var(--la-draw-start-y),0) rotate(var(--la-draw-start-angle,0deg)) scale(var(--la-draw-start-scale,.45))}8%{opacity:1}88%{opacity:1;transform:translate3d(var(--la-draw-end-x),var(--la-draw-end-y),0) rotate(var(--la-draw-end-angle,0deg)) scale(var(--la-draw-end-scale,1))}100%{opacity:0;transform:translate3d(var(--la-draw-end-x),var(--la-draw-end-y),0) rotate(var(--la-draw-end-angle,0deg)) scale(var(--la-draw-end-scale,1)}}
+@keyframes laDrawFlip{0%,50%{transform:rotateY(0deg)}76%,100%{transform:rotateY(180deg)}}
 @media(prefers-reduced-motion:reduce){#laDrawOverlay{display:none!important}#battleScreen #myHand>.card.la-hand-reflow{transition:none!important}}
 
 /* Board setups: same card, centered in the slot with owner/state overlays outside it. */
@@ -4788,7 +4807,7 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
   }
   // Draws are recorded by the game engine before this UI is rendered.  This
   // presentation layer only reads that record and never changes the model.
-  const handDrawPresentation = {entered: [], timers: [], overlay: null, run: 0};
+  const handDrawPresentation = {entered: [], timers: [], overlay: null, run: 0, layoutTicket: 0};
   function drawMotionReduced() {
     return !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   }
@@ -4808,6 +4827,7 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
   }
   function cancelHandDrawPresentation() {
     handDrawPresentation.run += 1;
+    handDrawPresentation.layoutTicket += 1;
     clearHandDrawTimers();
     revealHandDrawTargets();
     handDrawPresentation.overlay?.replaceChildren();
@@ -4838,13 +4858,26 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
     const r = source?.getBoundingClientRect();
     return r?.width && r?.height ? r : {left:innerWidth * .16, top:innerHeight * .72, width:64, height:92};
   }
+  function captureDrawLandingTargets(entries) {
+    // The hand DOM already exists at this point.  Reapply the normal hand
+    // layout, then measure it only after the scaled board layout is final.
+    layoutHand();
+    fit();
+    return entries.map(entry => {
+      const r = entry.el?.getBoundingClientRect();
+      if (!r?.width || !r?.height) return null;
+      return {...entry, targetRect: {left:r.left, top:r.top, width:r.width, height:r.height}};
+    }).filter(Boolean);
+  }
   function makeHandDrawFlyer(overlay, entry, source, index, count) {
-    const target = entry.el, r = target?.getBoundingClientRect();
+    const target = entry.el, r = entry.targetRect || target?.getBoundingClientRect();
     if (!target || !r?.width || !r?.height) return null;
     const flyer = document.createElement('div');
     flyer.className = 'la-draw-flyer';
     const middle = (count - 1) / 2, fanOffset = (index - middle) * 4;
-    const targetScale = Number.parseFloat(target.style.getPropertyValue('--hand-scale')) || Math.max(.6, Math.min(1, r.height / 260));
+    // getBoundingClientRect() is in the same viewport coordinate system as the
+    // fixed overlay.  Its width also includes the board's responsive scale.
+    const targetScale = Math.max(.2, Math.min(1.2, r.width / 174));
     flyer.style.setProperty('--la-draw-start-x', `${source.left + source.width / 2 - 87 + fanOffset}px`);
     flyer.style.setProperty('--la-draw-start-y', `${source.top + source.height / 2 - 130 - Math.abs(fanOffset) * .35}px`);
     flyer.style.setProperty('--la-draw-end-x', `${r.left + r.width / 2 - 87}px`);
@@ -4874,26 +4907,45 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
     const candidates = handDrawPresentation.entered.filter(entry => entry.el?.isConnected);
     const entries = candidates.slice(-Math.min(Math.max(0, drawCount), candidates.length));
     if (!entries.length) return;
+    const finalEntries = captureDrawLandingTargets(entries);
+    if (!finalEntries.length) return;
     const overlay = ensureDrawOverlay();
     overlay.replaceChildren();
     const run = ++handDrawPresentation.run, source = drawSourceRect();
-    entries.forEach(entry => entry.el.classList.add('la-draw-arriving'));
-    entries.forEach((entry, index) => makeHandDrawFlyer(overlay, entry, source, index, entries.length));
+    finalEntries.forEach(entry => entry.el.classList.add('la-draw-arriving'));
+    finalEntries.forEach((entry, index) => makeHandDrawFlyer(overlay, entry, source, index, finalEntries.length));
     handDrawPresentation.timers.push(setTimeout(() => {
-      if (run === handDrawPresentation.run) entries.forEach(entry => entry.el?.classList.remove('la-draw-arriving'));
-    }, 340));
+      if (run === handDrawPresentation.run) finalEntries.forEach(entry => entry.el?.classList.remove('la-draw-arriving'));
+    }, 675));
     handDrawPresentation.timers.push(setTimeout(() => {
       if (run !== handDrawPresentation.run) return;
       overlay.replaceChildren();
       handDrawPresentation.entered = [];
-    }, 520));
+    }, 730));
+  }
+  function queueHandDrawBatch(drawCount) {
+    const ticket = ++handDrawPresentation.layoutTicket;
+    // renderBattleView has completed its DOM, stage arrangement, and fit pass
+    // before these two frames run.  The second frame makes the terminal rect
+    // stable even after a resize or a hand reflow in the first frame.
+    requestAnimationFrame(() => {
+      if (ticket !== handDrawPresentation.layoutTicket) return;
+      layoutHand();
+      fit();
+      requestAnimationFrame(() => {
+        if (ticket !== handDrawPresentation.layoutTicket) return;
+        layoutHand();
+        fit();
+        playHandDrawBatch(drawCount);
+      });
+    });
   }
   function showDrawEvents(v) {
     const events = (v.drawEvents || []).filter(e => e.seq > lastShownDraw);
     if (!events.length) return;
     lastShownDraw = Math.max(lastShownDraw, ...events.map(e => e.seq));
     const mine = events.filter(e => e.pid === v.me.pid), theirs = events.filter(e => e.pid !== v.me.pid);
-    if (mine.length) requestAnimationFrame(() => requestAnimationFrame(() => playHandDrawBatch(mine.length)));
+    if (mine.length) queueHandDrawBatch(mine.length);
     // Hidden opponent cards retain the lightweight zone cue, but are started
     // together rather than being serialized one by one.
     theirs.forEach(() => spawnZoneFly('draw', false, false));
@@ -5113,7 +5165,6 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
     log.scrollTop = log.scrollHeight;
     showLastPlayed(v);
     showDamageEvents(v);
-    showDrawEvents(v);
     renderResultOverlay(v);
     if (v.pending) openPending(v.pending); else closePending();
     arrange();
@@ -5126,6 +5177,9 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
     maybeIntro(v);
     showDeckMoveFromLogs(v);
     fit();
+    // Draw targets are scheduled only after stage arrangement and responsive
+    // scaling have completed, so fixed-overlay coordinates use the same space.
+    showDrawEvents(v);
   }
   function renderLogLine(s) {
     const re = /《([^》]+)》/g;
@@ -5238,10 +5292,19 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
     const baseWidth = 174, edgePadding = Math.min(16, width * .025);
     const usable = Math.max(1, width - edgePadding * 2);
     const gap = n <= 5 ? 8 : -(n - 5) * 4;
-    const scale = n === 1 ? 1 : Math.min(1, Math.max(.6, (usable - Math.max(0, n - 1) * gap) / (n * baseWidth)));
-    const visibleWidth = baseWidth * scale;
-    const step = n > 1 ? (usable - visibleWidth) / (n - 1) : 0;
-    const start = n > 1 ? edgePadding : (width - visibleWidth) / 2;
+    let scale = n === 1 ? 1 : Math.min(1, Math.max(.6, (usable - Math.max(0, n - 1) * gap) / (n * baseWidth)));
+    let visibleWidth = baseWidth * scale;
+    let step = n > 1 ? (usable - visibleWidth) / (n - 1) : 0;
+    // At dense hand sizes, reserve the leading half of each face for its
+    // exterior cost and title.  The card itself only scales uniformly; no
+    // internal dimensions or hand arc rules are changed.
+    if (n >= 6 && step < visibleWidth * .52) {
+      scale = Math.max(.48, Math.min(scale, usable / (baseWidth * (1 + .52 * (n - 1)))));
+      visibleWidth = baseWidth * scale;
+      step = Math.max(visibleWidth * .52, (usable - visibleWidth) / (n - 1));
+    }
+    const span = visibleWidth + Math.max(0, n - 1) * step;
+    const start = n > 1 ? Math.max(edgePadding, (width - span) / 2) : (width - visibleWidth) / 2;
     const baseOffset = (baseWidth - visibleWidth) / 2;
     cards.forEach((card, i) => {
       // No rotation is used while the hand is readable. A tiny vertical arc
@@ -5493,10 +5556,18 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
     return LunaRules.conditionActive(v, c);
   }
   window.LA_CONDITION_ACTIVE = conditionActive;
+  function isConditionHighlighted(c, v) {
+    // This is intentionally independent from the ordinary playable-card
+    // outline.  It only answers whether this card's own bonus/requirement is
+    // true in the current turn state; it does not alter playability or rules.
+    if (!v?.me || v.over || v.current !== v.me.pid) return false;
+    return typeof cardConditionReady === 'function' && !!cardConditionReady(v, c);
+  }
+  window.LA_IS_CONDITION_HIGHLIGHTED = isConditionHighlighted;
   function decorateConditions(v) {
     document.querySelectorAll('#myHand>.card').forEach(el => {
       const c = v?.me?.hand?.find(x => String(x.uid) === el.dataset.uid);
-      el.classList.toggle('condition-ready', !!(c && conditionActive(v, c)));
+      el.classList.toggle('condition-ready', !!(c && isConditionHighlighted(c, v)));
     });
   }
   const lastYakouX = new Map();
@@ -6014,10 +6085,10 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
     const v = view();
     return {
       version: meta.version,
-      runtime: '0.28.0',
+      runtime: '0.29.0',
       pointerDrag: true,
       touchDragShim: false,
-      conditionSource: 'LunaRules.conditionActive',
+      conditionSource: 'isConditionHighlighted',
       current: v?.current,
       me: v?.me?.pid,
       pending: !!v?.pending,
@@ -6103,7 +6174,7 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
     const rendered = [];
     for (const c of v.me.hand) {
       const playable = myTurn && canPlayView(v, c), d = document.createElement('div');
-      d.className = `card ${c.type} la-card-face ${playable ? '' : 'disabled'} ${v.me.keepUid === c.uid ? 'keep' : ''} ${c.retain || activeViewHasSetup(v, v.me.pid, 'k9') ? 'retain' : ''}`;
+      d.className = `card ${c.type} la-card-face hand-card ${playable ? '' : 'disabled'} ${v.me.keepUid === c.uid ? 'keep' : ''} ${c.retain || activeViewHasSetup(v, v.me.pid, 'k9') ? 'retain' : ''}`;
       d.dataset.uid = String(c.uid);
       d.dataset.cardId = c.id;
       const options = {cost: viewCost(v, c), skillDraws: v.me.turnSkillDraws};
@@ -6112,6 +6183,11 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
         options.text = `X＝（現在の使用枚数${used}＋このカード1枚）×2＝${x}。耐久値Xの防壁になり、次のターン開始時までリーダーへのダメージをブロックする。超過分はリーダーが受ける。次のターン開始時、捨て札へ。`;
       }
       d.innerHTML = unifiedCardInner(c, options);
+      const handCost = document.createElement('span');
+      handCost.className = 'hand-cost-overlay';
+      handCost.setAttribute('aria-hidden', 'true');
+      handCost.textContent = String(options.cost);
+      d.appendChild(handCost);
       if (c.retain || c.retainedOnce || activeViewHasSetup(v, v.me.pid, 'k9') || v.me.keepUid === c.uid) {
         const b = document.createElement('span');
         b.className = 'retain-badge';
@@ -6156,8 +6232,8 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
             el.classList.remove('la-hand-reflow');
             el.style.removeProperty('--la-draw-shift-x');
             el.style.removeProperty('--la-draw-shift-y');
-          }), 300));
-        }, 230));
+          }), 420));
+        }, 260));
       });
     }
     handDrawPresentation.entered = rendered.filter(entry => !beforeUids.has(entry.uid));
