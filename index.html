@@ -18,8 +18,8 @@
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.29.0",
-  label:"シラヌイイラスト・ドロー演出・手札UI"
+  version:"0.31.0",
+  label:"観戦モード・相手手札UI"
 });
 </script>
 
@@ -1549,9 +1549,10 @@ body.deck-view #deckScreen #deckCountSticky{top:72px!important}
 #battleScreen #myHand>.card.hand-card>.hand-cost-overlay::after{content:"";position:absolute;inset:12%;border-radius:50%;border:1px solid rgba(67,37,6,.5);pointer-events:none}
 /* This rule deliberately follows the blue usable-card rule above.  Gold means
    a card-specific condition is true; blue continues to mean merely playable. */
-#battleScreen #myHand>.card.condition-ready{
+#battleScreen #myHand>.card.condition-ready,
+#battleScreen #myHand>.card:not(.disabled).condition-ready{
  outline:3px solid #ffe16a!important;outline-offset:-2px!important;
- box-shadow:0 0 0 2px rgba(255,223,106,.36),0 0 20px 6px rgba(255,190,36,.72),0 6px 18px rgba(0,0,0,.28)!important;
+ box-shadow:0 0 0 2px rgba(255,223,106,.42),0 0 22px 7px rgba(255,190,36,.84),0 6px 18px rgba(0,0,0,.28)!important;
  filter:brightness(1.075) saturate(1.07)!important;
 }
 
@@ -1634,6 +1635,26 @@ body.deck-view #deckScreen #deckCountSticky{top:72px!important}
  .pile-grid{grid-template-columns:repeat(2,minmax(138px,174px))!important}
 }
 
+</style>
+<style id="luna-spectator-ui">
+/* v0.31.0: the upper hand occupies the unused top rail of the 1280x720 board. */
+#roomScreen .room-fields>.inline{align-items:end;flex-wrap:wrap}
+#roomScreen #spectateRoom{white-space:nowrap}
+#battleScreen .spectator-badge{position:absolute;z-index:100;top:8px;right:10px;padding:5px 12px;border:1px solid #d3b76b;border-radius:999px;background:rgba(7,12,21,.88);color:#f5df9d;font-size:12px;font-weight:900;pointer-events:none}
+#battleScreen #laOppHandZone{position:absolute!important;left:240px!important;right:240px!important;top:7px!important;height:108px!important;z-index:62!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:flex-start!important;pointer-events:none!important}
+#battleScreen .opponent-hand-summary{height:18px;color:#fff4d1;font-size:12px;font-weight:900;line-height:18px;text-align:center;text-shadow:0 1px 4px #000,0 0 3px #000;white-space:nowrap}
+#battleScreen #laOppHandZone .opponent-hand{width:100%!important;max-width:100%!important;height:84px!important;min-height:0!important;margin:1px 0 0!important;padding:0!important;display:flex!important;align-items:flex-start!important;justify-content:center!important;gap:4px!important;overflow:visible!important;pointer-events:none!important}
+#battleScreen #laOppHandZone .luna-back{position:relative!important;display:block!important;flex:0 0 38px!important;width:38px!important;height:57px!important;margin:0!important;border-radius:6px!important;transform:none!important}
+#battleScreen #laOppHandZone .luna-back:before{inset:5px!important;font-size:16px!important}
+#battleScreen #laOppHandZone.is-spectator{height:112px!important}
+#battleScreen #laOppHandZone.is-spectator .opponent-hand{gap:4px!important;pointer-events:auto!important}
+#battleScreen .spectator-top-card{position:relative;display:block;flex:0 0 63px;width:63px;height:94px;padding:0;border:0;background:transparent;overflow:visible;cursor:pointer;pointer-events:auto;touch-action:manipulation}
+#battleScreen .spectator-top-card>.spectator-card-face{position:absolute!important;left:0!important;top:0!important;width:174px!important;height:260px!important;min-width:174px!important;min-height:260px!important;transform:scale(.36)!important;transform-origin:top left!important;margin:0!important;pointer-events:none!important}
+#battleScreen .spectator-top-card:focus-visible{outline:3px solid #f4d46f;outline-offset:2px;border-radius:7px}
+body.spectator-mode #battleScreen .hand-card{cursor:zoom-in}
+body.spectator-mode #battleScreen .condition-ready{box-shadow:var(--la-card-shadow)!important}
+body.spectator-mode #battleScreen #laDropGuide,body.spectator-mode #battleScreen #laSwipeHint{display:none!important}
+@media(max-height:500px){#battleScreen #laOppHandZone{top:4px!important;height:105px!important}.spectator-badge{top:4px!important}}
 </style>
 </head>
 <body>
@@ -1760,7 +1781,7 @@ body.deck-view #deckScreen #deckCountSticky{top:72px!important}
 <div class="room-fields">
 <div class="field"><label>プレイヤー名</label><input id="guestName" maxlength="16"/></div>
 <div class="field"><label>使用デッキ</label><select id="guestDeck"></select></div>
-<div class="inline"><div class="field"><label>ルーム番号</label><input id="joinCode" inputmode="numeric" maxlength="4" pattern="[0-9]*" placeholder="1234"/></div><button class="btn primary" id="joinRoom">参加</button></div>
+<div class="inline"><div class="field"><label>ルーム番号</label><input id="joinCode" inputmode="numeric" maxlength="4" pattern="[0-9]*" placeholder="1234"/></div><button class="btn primary" id="joinRoom">対戦参加</button><button class="btn gold" id="spectateRoom">観戦する</button></div>
 </div>
 </div>
 </div>
@@ -1816,15 +1837,17 @@ body.deck-view #deckScreen #deckCountSticky{top:72px!important}
 </div>
 </div>
 <div class="notice" id="battleNotice">対戦を開始します。</div>
+<div class="spectator-badge hidden" id="spectatorBadge">観戦者 0</div>
 <div class="battle-area" style="margin-top:7px">
 <div class="battle-main">
 <div class="combat-stage">
 <div class="draw-fx-layer" id="drawFxLayer"></div>
+<div class="opponent-hand-zone" id="laOppHandZone"><div class="opponent-hand-summary" id="oppHandSummary">相手の手札</div><div class="opponent-hand" id="oppHandBacks"></div></div>
 <div class="leader-unit opponent" id="oppLeaderUnit">
 <div class="leader-nameplate" id="oppName">相手</div>
 <div class="leader-portrait"><div class="damage-layer" id="oppDamageLayer"></div><img alt="相手リーダー" class="leader-img hidden" id="oppLeaderImg"/><div class="leader-fallback hidden" id="oppLeaderFallback">マサムネ</div></div>
 <div class="hpbar"><div class="hpbar-fill" id="oppHpFill"></div><div class="hpbar-text" id="oppHpText">HP 100 / 100</div></div>
-<div class="leader-meta">⚡ <span id="oppEnergy">0</span>/<span id="oppMaxEnergy">0</span> ・ 山札 <span id="oppDeckN">0</span> ・ 手札 <span id="oppHandN">0</span> ・ 捨て札 <span id="oppDiscardN">0</span><div class="opponent-hand" id="oppHandBacks"></div></div>
+<div class="leader-meta">⚡ <span id="oppEnergy">0</span>/<span id="oppMaxEnergy">0</span> ・ 山札 <span id="oppDeckN">0</span> ・ 手札 <span id="oppHandN">0</span> ・ 捨て札 <span id="oppDiscardN">0</span></div>
 </div>
 <div class="played-stage hidden" id="playedStage"></div>
 <div class="center-board"><div class="zones"><div><div class="zone-title">相手 独自枠</div><div id="oppPersonal"></div></div><div><div class="zone-title">共有セットアップ（左が最古）</div><div class="setup-row" id="sharedZone"></div></div><div><div class="zone-title">自分 独自枠</div><div id="myPersonal"></div></div></div></div>
@@ -1870,7 +1893,7 @@ body.deck-view #deckScreen #deckCountSticky{top:72px!important}
 const COMMON_CARD_DEFS=[
  {id:'strike',name:'ストライク',type:'attack',cost:1,text:'6ダメージを与える。',pool:'common'},
  {id:'guard',name:'防御',type:'setup',cost:1,text:'場にある限り、5ブロックを得る。ブロックが0になったら捨て札へ。',pool:'common'},
- {id:'seat',name:'席替え',type:'skill',cost:3,text:'共有枠のセットアップ1枚を選び、任意の位置へ移動する。',pool:'common'}
+ {id:'seat',name:'席替え',type:'skill',cost:2,text:'共有枠のセットアップ1枚を選び、任意の位置へ移動する。',pool:'common'}
 ];
 const GIOVANNI_CARD_DEFS=[
  {id:'j1',name:'果実の選別',type:'skill',cost:1,text:'カードを2枚引く。その後、手札を1枚捨てる。',pool:'giovanni'},
@@ -2148,7 +2171,7 @@ function noteHeavyPlay(pid,c){if(c.cost>=4)game.players[pid].usedHeavyThisTurn=t
 function generateGuard(pid){const p=game.players[pid],g=makeCard('guard');g.generatedExhaust=true;game.shared.push({owner:pid,card:g});addLog(`${p.name}：《赤備え》で《防御》を共有枠に生成。`);if(game.shared.length>3)pushOldest('共有枠超過')}
 function afterPlayTriggers(pid,c){const p=game.players[pid];noteHeavyPlay(pid,c);if(c.cost>=4&&hasSetup(pid,'k12')&&!game.over)generateGuard(pid)}
 function playCard(pid,uid,dest){const p=game.players[pid],c=p.hand.find(x=>x.uid===uid);if(!c||!canPlay(pid,c))return;const cost=cardCost(pid,c);removeHand(pid,uid);p.energy-=cost;reveal(pid,c,cost);
- if(c.type==='setup'){if(c.id==='k4')c.fortressHp=20;if(c.id==='guard')c.fortressHp=5;if(dest==='personal'){if(p.personal){p.hand.push(c);p.energy+=cost;return}p.personal=c;addLog(`${p.name}：《${c.name}》を独自枠へ。`)}else{game.shared.push({owner:pid,card:c});addLog(`${p.name}：《${c.name}》を共有枠へ。`);if(game.shared.length>3)pushOldest('共有枠超過')}syncEnergyCap(pid);if(c.id==='j18'){discardAllHandByEffect(pid,'《本気の一張羅》');addLog(`${p.name}：《本気の一張羅》で残り手札を全て捨てる。`)}if(c.id==='j26'){const n=drawCards(pid,1,true);addLog(`${p.name}：《仕立ての良いコート》設置時に${n}枚ドロー。`)}afterPlayTriggers(pid,c);return}
+ if(c.type==='setup'){if(c.id==='k4')c.fortressHp=20;if(c.id==='guard')c.fortressHp=5;game.shared.push({owner:pid,card:c});addLog(`${p.name}：《${c.name}》を共有枠へ。`);if(game.shared.length>3)pushOldest('共有枠超過');syncEnergyCap(pid);if(c.id==='j18'){discardAllHandByEffect(pid,'《本気の一張羅》');addLog(`${p.name}：《本気の一張羅》で残り手札を全て捨てる。`)}if(c.id==='j26'){const n=drawCards(pid,1,true);addLog(`${p.name}：《仕立ての良いコート》設置時に${n}枚ドロー。`)}afterPlayTriggers(pid,c);return}
  if(c.type==='attack'){if(c.id==='strike')damage(pid,modifiedDamage(pid,c,6),'《ストライク》');else if(c.id==='j4')damage(pid,modifiedDamage(pid,c,20),'《ロイヤルストレートフラッシュ》');else if(c.id==='j5')damage(pid,modifiedDamage(pid,c,p.hand.length),'《アクロバティックダガー》');else if(c.id==='j12'){const n=p.hand.length;discardAllHandByEffect(pid,'《ちゃぶ台返し》');for(let i=0;i<n&&!game.over;i++)damage(pid,modifiedDamage(pid,c,1),`《ちゃぶ台返し》 ${i+1}/${n}`)}else if(c.id==='j21')damage(pid,modifiedDamage(pid,c,4),`《${c.name}》`);else if(c.id==='j27'){damage(pid,modifiedDamage(pid,c,3),`《${c.name}》`);if(!game.over){addToHand(pid,makeCard('knife'));addLog(`${p.name}：《袖の短剣》でナイフ1枚を手札に加える。`)}}else if(c.id==='j23'){damage(pid,modifiedDamage(pid,c,3),'《大盤振る舞い》');if(!game.over){addToHand(pid,makeCard('knife'));addToHand(pid,makeCard('knife'));addLog(`${p.name}：《大盤振る舞い》でナイフ2枚。`)}}else if(c.id==='j25')damage(pid,modifiedDamage(pid,c,p.turnSkillDraws),'《剣の舞》');else if(c.id==='knife')damage(pid,modifiedDamage(pid,c,3+(c.knifeBonus||0)),'《ナイフ》');else if(c.id==='k1')damage(pid,modifiedDamage(pid,c,33),'《紅蓮一文字》');else if(c.id==='k6')damage(pid,modifiedDamage(pid,c,14),'《袈裟斬り》');else if(c.id==='kt2')damage(pid,modifiedDamage(pid,c,50),'《魂の一閃》');else if(c.id==='k10'){damage(pid,modifiedDamage(pid,c,20),'《活人剣》');if(!game.over)heal(pid,10,'《活人剣》')}else if(c.id==='k20'){const bonus=p.hand.filter(x=>cardCost(pid,x)>=5).length>=2?5:0;damage(pid,modifiedDamage(pid,c,15+bonus),'《二刀流》')}else if(c.id==='k21'){const n=p.hand.filter(x=>cardCost(pid,x)>=4).length;damage(pid,modifiedDamage(pid,c,n*3),'《剣気》')}else if(c.id==='k22')damage(pid,modifiedDamage(pid,c,6),'《一閃》');else if(c.id==='k23')damage(pid,modifiedDamage(pid,c,5),'《一念の太刀》');else if(c.id==='k25'){for(let i=0;i<2&&!game.over;i++)damage(pid,modifiedDamage(pid,c,3),`《燕返し》 ${i+1}/2`)}else if(c.id==='k26'){damage(pid,modifiedDamage(pid,c,3),'《宵待ち》');if(!game.over){const attacks=p.hand.filter(x=>x.type==='attack');if(attacks.length)game.pending={pid,type:'buffAttack',count:1,title:'《宵待ち》：強化するアタックを1枚選択',cardsOverride:attacks.map(x=>x.uid),amount:3,source:'《宵待ち》'}}}afterPlayTriggers(pid,c);(c.id==='knife'?p.exhaust:p.discard).push(c);return}
  if(c.id==='j1'){p.discard.push(c);const n=drawCards(pid,2,true);addLog(`${p.name}：《果実の選別》で${n}枚ドロー。`);if(p.hand.length)game.pending={pid,type:'discardAfterDraw',count:1,title:'《果実の選別》：捨てるカードを1枚選択'}}
  else if(c.id==='j9'){p.discard.push(c);game.pending={pid,type:'returnDiscard',count:2,title:'《再読》：山札に戻す捨て札を2枚選択',excludeUid:c.uid}}
@@ -2189,7 +2212,7 @@ function scoreCard(pid,c){const p=game.players[pid],handN=p.hand.length;let s=0;
  else if(c.id==='j18')s=55;else if(c.id==='j11')s=50;else if(c.id==='j10')s=42;else if(c.id==='j17')s=p.hp<55?50:26;else if(c.id==='j16')s=p.hp<55?45:22;else if(c.id==='guard')s=p.hp<45?35:16;else if(c.id==='j6')s=30;else if(c.id==='j15')s=28;else if(c.id==='j7')s=27;else if(c.id==='j3')s=hasSetup(other(pid),'j18')||hasSetup(other(pid),'j11')?44:22;
  else if(c.id==='j8')s=38;else if(c.id==='j1')s=36;else if(c.id==='j13')s=35;else if(c.id==='j2')s=28;else if(c.id==='j19')s=p.hand.filter(x=>x.id==='knife').length*8;else if(c.id==='j20')s=26+p.hand.filter(x=>x.id==='j21').length*10;else if(c.id==='j21')s=16;else if(c.id==='j22')s=34;else if(c.id==='j23')s=32;else if(c.id==='j24')s=30;else if(c.id==='j25')s=p.turnSkillDraws*5+8;else if(c.id==='j26')s=32;else if(c.id==='j27')s=24;else if(c.id==='j28')s=20;else if(c.id==='k1')s=42;else if(c.id==='k2')s=45;else if(c.id==='k3')s=25;else if(c.id==='k4')s=p.hp<65?55:35;else if(c.id==='k5')s=p.maxEnergy<6?48:1;else if(c.id==='k6')s=30;else if(c.id==='k7')s=28;else if(c.id==='k8')s=p.hp<55?58:35;else if(c.id==='k9')s=38;else if(c.id==='k10')s=p.hp<75?55:38;else if(c.id==='k11')s=30;else if(c.id==='k12')s=36;else if(c.id==='k13')s=36;else if(c.id==='k14')s=42;else if(c.id==='k15')s=48;else if(c.id==='k16')s=30;else if(c.id==='k17')s=p.hp<80?30:12;else if(c.id==='k18')s=34;else if(c.id==='k19')s=27;else if(c.id==='k20')s=34;else if(c.id==='k21')s=p.hand.filter(x=>cardCost(pid,x)>=4).length*8;else if(c.id==='k22')s=22;else if(c.id==='k23')s=18+(c.damageBonus||0)*2;else if(c.id==='k24')s=38;else if(c.id==='k25')s=20;else if(c.id==='k26')s=24;else if(c.id==='seat')s=game.shared.length>=2?18:1;else if(c.id==='j9')s=10;return s-cardCost(pid,c)*2
 }
-function cpuSetupDest(pid,c){const p=game.players[pid],safe=['j11','j10','j6','j15','j18','j20','j26','k2','k4','k5','k9','k12','k13','k14','k15','k18','k24'].includes(c.id);return !p.personal&&safe?'personal':'shared'}
+function cpuSetupDest(pid,c){return'shared'}
 function scheduleCpuTurn(){if(matchMode!=='cpu'||roomRole!=='host'||cpuBusy||!game||game.over||game.current!=='p2')return;cpuBusy=true;setTimeout(cpuTurn,800)}
 async function cpuTurn(){
  const pid='p2',battle=game;if(!battle||battle.over||battle.current!==pid){cpuBusy=false;return}
@@ -2451,8 +2474,7 @@ function playShiranuiCard(pid,c,dest){
  removeHand(pid,c.uid);p.energy-=cost;reveal(pid,c,cost);
  if(c.type==='setup'){
    if(c.id==='s11')c.fortressHp=playNo*2;
-   if(dest==='personal'){if(p.personal){p.hand.push(c);p.energy+=cost;return}p.personal=c;addLog(`${p.name}：《${c.name}》を独自枠へ。`)}
-   else{game.shared.push({owner:pid,card:c});addLog(`${p.name}：《${c.name}》を共有枠へ。`);if(game.shared.length>3)pushOldest('共有枠超過')}
+   game.shared.push({owner:pid,card:c});addLog(`${p.name}：《${c.name}》を共有枠へ。`);if(game.shared.length>3)pushOldest('共有枠超過');
    syncEnergyCap(pid);
    if(c.id==='s22'&&p.hand.length){shiranuiPending(pid,c,{type:'foxMaskExhaust',count:1,title:'《狐面》：廃棄するカードを1枚選択'});return}
    if(c.id==='s18'){shiranuiPending(pid,c,{type:'exhaustAny',count:0,minCount:0,maxCount:p.hand.length,title:'《十六夜》：廃棄するカードを任意の枚数選択',setupUid:c.uid});return}
@@ -2578,7 +2600,7 @@ resolvePending=function(pid,uids,targetIndex=null){
 const _handleActionV41=handleAction;
 handleAction=function(pid,a){
  if(a?.type==='movePersonal'&&roomRole==='host'&&game&&game.current===pid&&!game.over&&!game.pending){
-   const p=game.players[pid];if(p.personal){const c=p.personal;p.personal=null;game.shared.push({owner:pid,card:c});addLog(`${p.name}：独自枠《${c.name}》を共有枠へ移動。`);if(game.shared.length>3)pushOldest('独自枠移動');syncEnergyCap(pid)}broadcastState();return
+   const p=game.players[pid];if(p.personal){const c=p.personal;p.personal=null;game.shared.push({owner:pid,card:c});addLog(`${p.name}：独自枠《${c.name}》を共有枠へ移動。`);if(game.shared.length>3)pushOldest('独自枠移動');syncEnergyCap(pid);window.refreshSharedDominationState?.()}broadcastState();return
  }
  _handleActionV41(pid,a)
 };
@@ -2610,6 +2632,30 @@ makeView=function(pid){
  damageEvents:(game.damageEvents||[]).map(x=>({...x})),drawEvents:(game.drawEvents||[]).map(x=>({...x})),specialCutin:game.specialCutin?{...game.specialCutin}:null,opponentPending:game.pending?.pid===oid?{type:game.pending.type,title:game.pending.title||''}:null}
 };
 
+// Spectators receive a dedicated, read-only projection.  It deliberately does
+// not reuse either player's state payload: both hands are present, while deck
+// order and actionable pending-choice data remain private to the host.
+function makeSpectatorView(){
+ const spectatorPlayer=pid=>{
+   const out=playerPublic(game.players[pid],true);
+   out.hand=out.hand.map(c=>({...c,choiceCost:cardCost(pid,c)}));
+   out.drawPile=[];
+   out.keepUid=null;
+   return out;
+ };
+ return{
+   spectator:true,
+   topPid:'p1',bottomPid:'p2',
+   me:spectatorPlayer('p2'),opp:spectatorPlayer('p1'),
+   shared:game.shared.map(x=>({owner:x.owner,card:{...x.card}})),
+   current:game.current,over:game.over,winner:game.winner,log:[...game.log],pending:null,
+   spectatorPending:game.pending?{pid:game.pending.pid,type:game.pending.type,title:game.pending.title||''}:null,
+   lastAction:game.lastAction?{...game.lastAction}:null,
+   damageEvents:(game.damageEvents||[]).map(x=>({...x})),drawEvents:(game.drawEvents||[]).map(x=>({...x})),
+   specialCutin:game.specialCutin?{...game.specialCutin}:null,spectatorCount:Number(game.spectatorCount||0)
+ };
+}
+
 const _scoreCardV41=scoreCard;
 scoreCard=function(pid,c){
  const p=game.players[pid],n=(p.cardsPlayedThisTurn||0)+1;
@@ -2627,8 +2673,7 @@ scoreCard=function(pid,c){
  return _scoreCardV41(pid,c)
 };
 cpuSetupDest=function(pid,c){
- const p=game.players[pid],safe=['j11','j10','j6','j15','j18','j20','j26','k2','k4','k5','k9','k12','k13','k14','k15','k18','k24','s3','s8','s11','s17','s18','s21'].includes(c.id);
- return !p.personal&&safe?'personal':'shared'
+ return'shared'
 };
 cpuTurn=async function(){
  const pid='p2',battle=game;if(!battle||battle.over||battle.current!==pid){cpuBusy=false;return}
@@ -2770,8 +2815,7 @@ let lastShownSpecialCutin=0;
    removeHand(pid,c.uid);p.energy-=cost;reveal(pid,c,cost);
    if(c.type==='setup'){
      if(c.id==='s11')c.fortressHp=useNo*2;
-     if(dest==='personal'){if(p.personal){p.hand.push(c);p.energy+=cost;return}p.personal=c;addLog(`${p.name}：《${c.name}》を独自枠へ。`)}
-     else{game.shared.push({owner:pid,card:c});addLog(`${p.name}：《${c.name}》を共有枠へ。`);if(game.shared.length>3)pushOldest('共有枠超過')}
+     game.shared.push({owner:pid,card:c});addLog(`${p.name}：《${c.name}》を共有枠へ。`);if(game.shared.length>3)pushOldest('共有枠超過');
      syncEnergyCap(pid);
      if(c.id==='s22'&&p.hand.length){shiranuiPending(pid,c,{type:'foxMaskExhaust',count:1,title:'《狐面》：廃棄するカードを1枚選択'});return}
      if(c.id==='s18'){shiranuiPending(pid,c,{type:'exhaustAny',count:0,minCount:0,maxCount:p.hand.length,title:'《十六夜》：廃棄するカードを任意の枚数選択',setupUid:c.uid});return}
@@ -2827,8 +2871,7 @@ let lastShownSpecialCutin=0;
  };
  const _cpuSetupDestV42=cpuSetupDest;
  cpuSetupDest=function(pid,c){
-   if(['s1','s24'].includes(c.id)&&!game.players[pid].personal)return'personal';
-   return _cpuSetupDestV42(pid,c)
+   return'shared'
  };
 
  viewCost=function(v,c){
@@ -3392,12 +3435,7 @@ let lastShownSpecialCutin=0;
  scoreCard=function(pid,c){return cpuStrategicScore(pid,c)};
 
  cpuSetupDest=function(pid,c){
-   const p=game.players[pid];
-   // If playing to shared immediately ejects a dangerous opposing engine, do it.
-   if(game.shared?.length>=3&&sharedOldestThreat(pid)>=65)return 'shared';
-   // Growing/interactive Shiranui engines intentionally live in shared space.
-   if(p.character==='shiranui'&&['s26','s13','s8','s3','s21','s24'].includes(c.id))return 'shared';
-   return _cpuSetupDestV54(pid,c)
+   return'shared'
  };
 
  function pendingCpuOrder(pid,x,pool){
@@ -3714,6 +3752,162 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
 
 <!-- LUNA ALTER 0.13.4: definitive landscape battle rebuild -->
 
+<!-- LUNA ALTER 0.30.0: shared-board domination and personal-slot promotion -->
+<style id="la-0300-domination-styles">
+#battleScreen .personal-locked{
+  display:flex;align-items:center;justify-content:center;text-align:center;
+  color:#d9c184;font-weight:800;font-size:12px;line-height:1.35;
+  border-color:rgba(202,164,78,.48);background:rgba(8,10,14,.72);
+  text-shadow:0 1px 3px #000;padding:8px;
+}
+#modal.domination-choice .modal-card{box-shadow:0 0 0 1px rgba(218,179,78,.72),0 0 34px rgba(218,179,78,.24),0 24px 70px #000}
+#modal.domination-choice .choice-card{box-shadow:0 0 0 1px rgba(218,179,78,.34),0 8px 22px rgba(0,0,0,.72)}
+#modal.domination-choice .choice-card.selected{box-shadow:0 0 0 3px #e9c65f,0 0 24px rgba(255,211,84,.72)}
+</style>
+<script id="la-0300-domination-rules">
+(function(){
+ const DOMINATION_PENDING='dominationMove';
+ let dominationMutationDepth=0;
+
+ // Saved matches may still contain a pre-0.30 copy of this static card.
+ if(DEF.seat)DEF.seat.cost=2;
+ const seatDef=COMMON_CARD_DEFS.find(c=>c.id==='seat');if(seatDef)seatDef.cost=2;
+ const coreCardCost0300=cardCost;
+ cardCost=function(pid,c){if(c?.id==='seat')c.cost=2;return coreCardCost0300(pid,c)};
+ const coreViewCost0300=viewCost;
+ viewCost=function(v,c){if(c?.id==='seat')c.cost=2;return coreViewCost0300(v,c)};
+
+ function dominatingPlayer(){
+   if(!game||!Array.isArray(game.shared)||game.shared.length!==3)return null;
+   const pid=game.shared[0]?.owner;
+   return pid&&game.shared.every(slot=>slot&&slot.owner===pid)?pid:null
+ }
+ function isSharedDominatedBy(pid){return dominatingPlayer()===pid}
+ function wouldSetupCompleteDomination(pid){
+   if(!game||!pid)return false;
+   const next=(game.shared||[]).slice();
+   next.push({owner:pid,card:null});
+   if(next.length>3)next.shift();
+   return next.length===3&&next.every(slot=>slot.owner===pid)
+ }
+ function personalSetupValue(pid,c){
+   if(!c)return -Infinity;
+   const priority={
+     k2:150,k5:145,k15:138,k9:132,k13:126,k24:124,k14:116,k4:112,
+     s26:148,s8:132,s21:128,s3:114,s13:118,s24:112,s18:108,s11:100,
+     j3:142,j11:136,j10:128,j18:120,j20:112,j2:108,j15:104,j28:96
+   };
+   let value=(priority[c.id]||52)+(Number(c.cost)||0)*12;
+   if(Number.isFinite(c.yakouX))value+=Math.max(0,c.yakouX)*30;
+   if(Number.isFinite(c.fortressHp))value+=Math.max(0,c.fortressHp)*2;
+   if(Number.isFinite(c.shieldCharges))value+=Math.max(0,c.shieldCharges)*12;
+   if(c.damageBonus)value+=Math.max(0,c.damageBonus)*3;
+   return value
+ }
+ function processQueuedDomination(){
+   if(!game||game.over||dominationMutationDepth>0||game.pending)return false;
+   const pid=game.queuedDominationPid;
+   if(!pid)return false;
+   if(!isSharedDominatedBy(pid)||game.players[pid]?.personal){game.queuedDominationPid=null;return false}
+   const options=game.shared.filter(slot=>slot.owner===pid).map(slot=>slot.card.uid);
+   if(options.length!==3){game.queuedDominationPid=null;return false}
+   game.queuedDominationPid=null;
+   game.pending={pid,type:DOMINATION_PENDING,count:1,minCount:1,maxCount:1,cardsOverride:options,title:'完全制圧：独自枠へ移動するセットアップを1枚選択'};
+   return true
+ }
+ function refreshSharedDominationState(){
+   if(!game)return null;
+   const next=dominatingPlayer(),previous=game.sharedDominionOwner||null;
+   if(!next){
+     game.sharedDominionOwner=null;
+     if(game.queuedDominationPid&&!isSharedDominatedBy(game.queuedDominationPid))game.queuedDominationPid=null;
+     return null
+   }
+   game.sharedDominionOwner=next;
+   if(next!==previous){
+     addLog(`${game.players[next].name}が共有盤面を完全制圧した。`);
+     if(!game.players[next].personal)game.queuedDominationPid=next
+   }
+   processQueuedDomination();
+   return next
+ }
+ function moveSharedSetupToPersonal(pid,uid){
+   const p=game?.players?.[pid];
+   if(!p||p.personal||!isSharedDominatedBy(pid))return false;
+   const index=game.shared.findIndex(slot=>slot.owner===pid&&slot.card?.uid===Number(uid));
+   if(index<0)return false;
+   const [slot]=game.shared.splice(index,1);
+   p.personal=slot.card; // Keep the same object and every setup-specific state value.
+   game.pending=null;
+   game.queuedDominationPid=null;
+   game.sharedDominionOwner=null;
+   syncEnergyCap(pid);
+   addLog(`${p.name}：完全制圧報酬で《${slot.card.name}》を共有枠から独自枠へ移動。`);
+   refreshSharedDominationState();
+   return true
+ }
+
+ const corePendingPoolCards=pendingPoolCards;
+ pendingPoolCards=function(pid,x){
+   if(x?.type===DOMINATION_PENDING)return (game.shared||[]).filter(slot=>slot.owner===pid).map(slot=>({...slot.card,sharedOwner:slot.owner,choiceCost:cardCost(pid,slot.card)}));
+   return corePendingPoolCards(pid,x)
+ };
+
+ const coreResolvePending=resolvePending;
+ resolvePending=function(pid,uids,targetIndex=null){
+   const x=game?.pending;
+   if(x?.type===DOMINATION_PENDING){
+     if(x.pid!==pid||!Array.isArray(uids)||uids.length!==1||new Set(uids).size!==1)return;
+     const uid=Number(uids[0]);
+     if(x.cardsOverride&&!x.cardsOverride.includes(uid))return;
+     moveSharedSetupToPersonal(pid,uid);
+     return
+   }
+   dominationMutationDepth++;
+   try{return coreResolvePending(pid,uids,targetIndex)}
+   finally{dominationMutationDepth--;refreshSharedDominationState();processQueuedDomination()}
+ };
+
+ const corePlayCard=playCard;
+ playCard=function(pid,uid,dest){
+   const c=game?.players?.[pid]?.hand?.find(card=>card.uid===Number(uid));
+   dominationMutationDepth++;
+   try{return corePlayCard(pid,uid,c?.type==='setup'?'shared':dest)}
+   finally{dominationMutationDepth--;refreshSharedDominationState();processQueuedDomination()}
+ };
+
+ const corePushOldest=pushOldest;
+ pushOldest=function(reason='押し出し'){
+   dominationMutationDepth++;
+   try{return corePushOldest(reason)}
+   finally{dominationMutationDepth--;refreshSharedDominationState();processQueuedDomination()}
+ };
+
+ const coreRemoveSetup=removeSetup;
+ removeSetup=function(pid,card,to='discard'){
+   dominationMutationDepth++;
+   try{return coreRemoveSetup(pid,card,to)}
+   finally{dominationMutationDepth--;refreshSharedDominationState();processQueuedDomination()}
+ };
+
+ const coreGenerateGuard=generateGuard;
+ generateGuard=function(pid){
+   dominationMutationDepth++;
+   try{return coreGenerateGuard(pid)}
+   finally{dominationMutationDepth--;refreshSharedDominationState();processQueuedDomination()}
+ };
+
+ const coreStartGame=startGame;
+ startGame=function(p1,p2){
+   const result=coreStartGame(p1,p2);
+   if(game){game.sharedDominionOwner=null;game.queuedDominationPid=null}
+   return result
+ };
+
+ Object.assign(window,{isSharedDominatedBy,wouldSetupCompleteDomination,personalSetupValue,moveSharedSetupToPersonal,refreshSharedDominationState,processQueuedDomination});
+})();
+</script>
+
 <!-- v57: normal played-card reveal shortened from 1.5s to 0.7s -->
 <script>
 /* ===== v60: canonical offline CPU strategist ===== */
@@ -3991,10 +4185,15 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
      if(game.shared.length>=3&&enemy)s+=Math.max(0,enemy-25)*2.4;
      if(game.shared.length>=3&&own>70&&!enemy)s-=own*1.9;
      s+=setupThreat(c)*.22;
+     if(window.wouldSetupCompleteDomination?.(pid))s+=game.players[pid].personal?145:360;
    }
    if(c.id==='seat'){
      const enemyMax=Math.max(0,...game.shared.filter(z=>z.owner!==pid).map(z=>setupThreat(z.card)));
      const ownOld=oldestOwnThreat(pid);s+=enemyMax>=75?110:0;s+=ownOld>=75?140:0;
+     const ownCount=game.shared.filter(z=>z.owner===pid).length,enemyCount=game.shared.length-ownCount;
+     const energyAfter=p.energy-cardCost(pid,c);
+     const followSetup=p.hand.some(z=>z.uid!==c.uid&&z.type==='setup'&&cardCost(pid,z)<=energyAfter&&!hasSetup(pid,z.id));
+     if(game.shared.length===3&&ownCount===2&&enemyCount===1&&followSetup)s+=310;
    }
    s-=cost*5;
    return s;
@@ -4037,11 +4236,7 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
  scoreCard=function(pid,c){return strategicScore(pid,c)};
 
  cpuSetupDest=function(pid,c){
-   const p=game.players[pid],enemy=oldestEnemyThreat(pid),own=oldestOwnThreat(pid);
-   if(game.shared.length>=3&&enemy>=58)return 'shared';
-   if(SHARED_ENGINES.has(c.id))return 'shared';
-   if(!p.personal&&PERSONAL_PRIORITY.has(c.id))return 'personal';
-   if(!p.personal&&game.shared.length>=3&&own>=70)return 'personal';
+   // v0.30: setup cards must always enter the shared board first.
    return 'shared';
  };
 
@@ -4065,6 +4260,7 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
    return v;
  }
  function choosePendingOrder(pid,x,pool){
+   if(x.type==='dominationMove')return [...pool].sort((a,b)=>(window.personalSetupValue?.(pid,b)||0)-(window.personalSetupValue?.(pid,a)||0));
    if(x.type==='transformDraw')return [...pool].sort((a,b)=>{
      if(a.id==='s2')return 1;if(b.id==='s2')return -1;
      return keepValue(pid,a)-keepValue(pid,b);
@@ -4093,11 +4289,14 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
  function chooseReorder(pid){
    const shared=game.shared||[];if(shared.length<2)return null;
    const oldest=shared[0];
+   const p=game.players[pid];
+   const futureSetup=p.hand.some(c=>c.type==='setup'&&cardCost(pid,c)<=p.energy&&!hasSetup(pid,c.id));
+   const ownCount=shared.filter(z=>z.owner===pid).length,enemies=shared.map((z,i)=>({z,i,v:z.owner===pid?0:setupThreat(z.card)})).sort((a,b)=>b.v-a.v);
+   // With two owned slots, expose the lone opponent card to the very next push.
+   if(shared.length===3&&ownCount===2&&futureSetup&&enemies[0]?.z?.owner!==pid)return{card:enemies[0].z.card,index:0};
    // First protect a valuable own engine sitting on the FIFO cliff.
    if(oldest.owner===pid&&setupThreat(oldest.card)>=68)return{card:oldest.card,index:shared.length-1};
    // If a dangerous enemy engine is not oldest and we can plausibly follow with a setup, expose it to the next push.
-   const p=game.players[pid],futureSetup=p.hand.some(c=>c.type==='setup'&&canPlay(pid,c));
-   const enemies=shared.map((z,i)=>({z,i,v:z.owner===pid?0:setupThreat(z.card)})).sort((a,b)=>b.v-a.v);
    if(futureSetup&&enemies[0]?.v>=65&&enemies[0].i>0)return{card:enemies[0].z.card,index:0};
    // Otherwise keep our most valuable shared engine as new as possible.
    const own=shared.map((z,i)=>({z,i,v:z.owner===pid?setupThreat(z.card):0})).sort((a,b)=>b.v-a.v)[0];
@@ -4231,7 +4430,7 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
    Presence is display-only and never blocks gameplay. */
 (function(){
  const CFG={apiKey:"AIzaSyD_mWP_9L8skXxnSdcu0rzHCCruocw5_qQ",authDomain:"luna-alter.firebaseapp.com",databaseURL:"https://luna-alter-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"luna-alter",storageBucket:"luna-alter.firebasestorage.app",messagingSenderId:"228339866594",appId:"1:228339866594:web:8c0f7591def7356d71f7bb"};
- let fbApp=null,fbAuth=null,fbDb=null,fbUid=null,fbReadyPromise=null,fbRoomRef=null,fbPresenceRef=null;
+ let fbApp=null,fbAuth=null,fbDb=null,fbUid=null,fbReadyPromise=null,fbRoomRef=null,fbPresenceRef=null,spectatorPresenceRef=null;
  let listeners=[],localActionSeq=0,stateRev=0;const seenActions=new Set();
  const STATIC=new Set(['name','type','cost','text','pool','token']);
  const clean=v=>JSON.parse(JSON.stringify(v));
@@ -4243,7 +4442,7 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
  function unpackView(v){if(!v)return v;const pending=v.pending?{...v.pending,cards:(v.pending.cards||[]).map(unpackCard)}:null;return{...v,me:unpackPlayer(v.me),opp:unpackPlayer(v.opp),shared:(v.shared||[]).map(z=>({owner:z.owner,card:unpackCard(z.card)})),pending}}
  function diag(a,b='',k='info'){try{netDiag(a,b,k)}catch(_){}}
  function on(ref,event,fn){ref.on(event,fn);listeners.push([ref,event,fn])}
- function offAll(){for(const [r,e,f] of listeners){try{r.off(e,f)}catch(_){}}listeners=[];try{fbPresenceRef?.onDisconnect().cancel()}catch(_){}fbPresenceRef=null;fbRoomRef=null}
+ function offAll(){for(const [r,e,f] of listeners){try{r.off(e,f)}catch(_){}}listeners=[];try{fbPresenceRef?.onDisconnect().cancel()}catch(_){}try{spectatorPresenceRef?.onDisconnect().cancel()}catch(_){}fbPresenceRef=null;spectatorPresenceRef=null;fbRoomRef=null}
  async function ready(){if(fbReadyPromise)return fbReadyPromise;fbReadyPromise=(async()=>{if(typeof firebase==='undefined')throw new Error('Firebase SDKを読み込めませんでした');fbApp=firebase.apps.length?firebase.app():firebase.initializeApp(CFG);fbAuth=firebase.auth();fbDb=firebase.database();if(!fbAuth.currentUser)await fbAuth.signInAnonymously();fbUid=fbAuth.currentUser.uid;diag('Firebase認証成功',`uid: ${fbUid.slice(0,8)}…`,'ok');return true})().catch(e=>{diag('Firebase接続エラー',e?.message||String(e),'bad');throw e});return fbReadyPromise}
  async function presence(role){fbPresenceRef=fbRoomRef.child(`presence/${role}`);await fbPresenceRef.set({online:true,uid:fbUid,at:firebase.database.ServerValue.TIMESTAMP});fbPresenceRef.onDisconnect().set({online:false,uid:fbUid,at:firebase.database.ServerValue.TIMESTAMP})}
  function watchPresence(role){const r=fbRoomRef.child(`presence/${role}`);on(r,'value',s=>{const online=!!s.val()?.online;document.getElementById(role==='guest'?'guestDot':'hostDot')?.classList.toggle('on',online)})}
@@ -4252,20 +4451,24 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
  function connection(){return{open:true,peer:'firebase',close(){this.open=false},send(m){if(!this.open||!fbRoomRef||!m)return Promise.resolve();if(m.type==='action'&&roomRole==='guest')return sendAction(m.action);if((m.type==='state'||m.type==='state-compact')&&roomRole==='host')return publishState();return fbRoomRef.child(controlTarget()).push({payload:clean(m),sender:fbUid,ts:firebase.database.ServerValue.TIMESTAMP}).catch(e=>diag('送信エラー',e.message,'bad'))}}}
  function listenControl(which){const r=fbRoomRef.child(which);on(r,'child_added',snap=>{const x=snap.val();if(!x||x.sender===fbUid){snap.ref.remove().catch(()=>{});return}try{handleNetworkMessage(x.payload)}catch(e){diag('制御受信エラー',e.message,'bad')}finally{snap.ref.remove().catch(()=>{})}})}
  function listenActions(){const r=fbRoomRef.child('actions');on(r,'child_added',snap=>{const x=snap.val();if(!x||x.sender===fbUid){snap.ref.remove().catch(()=>{});return}const key=x.id||snap.key;if(seenActions.has(key)){snap.ref.remove().catch(()=>{});return}seenActions.add(key);if(seenActions.size>512)seenActions.delete(seenActions.values().next().value);try{if(roomRole==='host'&&game&&!game.over){networkPaused=false;handleAction('p2',x.action)}}catch(e){diag('操作受信エラー',e.message,'bad')}finally{snap.ref.remove().catch(()=>{})}})}
- function listenState(){const r=fbRoomRef.child('state');on(r,'value',snap=>{const x=snap.val();if(!x?.view||roomRole!=='guest')return;try{const rev=Number(x.rev||0);if(rev&&rev<Number(currentView?.syncRev||0))return;const v=unpackView(x.view);v.syncRev=rev;networkPaused=false;currentView=v;if(!document.getElementById('battleScreen').classList.contains('active'))showScreen('battle');renderBattleView()}catch(e){diag('状態同期エラー',e.message,'bad')}})}
- function publishState(){if(matchMode!=='online'||roomRole!=='host'||!fbRoomRef||!game)return Promise.resolve();const view=packView(makeView('p2'));return fbRoomRef.child('state').set(clean({view,rev:++stateRev,turn:game.current,over:!!game.over,updatedAt:Date.now()})).catch(e=>{diag('状態同期エラー',e.message,'bad');throw e})}
+ function listenState(){const r=fbRoomRef.child('state');on(r,'value',snap=>{const x=snap.val();if(!x?.view||roomRole!=='guest')return;try{const stamp=Number(x.updatedAt||0);if(stamp&&stamp<Number(currentView?.syncUpdatedAt||0))return;const v=unpackView(x.view);v.syncRev=Number(x.rev||0);v.syncUpdatedAt=stamp;networkPaused=false;currentView=v;if(!document.getElementById('battleScreen').classList.contains('active'))showScreen('battle');renderBattleView()}catch(e){diag('状態同期エラー',e.message,'bad')}})}
+ function listenSpectatorState(){const r=fbRoomRef.child('spectatorState');on(r,'value',snap=>{const x=snap.val();if(!x?.view||roomRole!=='spectator')return;try{const stamp=Number(x.updatedAt||0);if(stamp&&stamp<Number(currentView?.syncUpdatedAt||0))return;const v=unpackView(x.view);v.spectator=true;v.syncRev=Number(x.rev||0);v.syncUpdatedAt=stamp;networkPaused=false;currentView=v;if(!document.getElementById('battleScreen').classList.contains('active'))showScreen('battle');renderBattleView()}catch(e){diag('観戦同期エラー',e.message,'bad')}})}
+ function watchSpectators(){const r=fbRoomRef.child('spectators');on(r,'value',s=>{const count=Object.values(s.val()||{}).filter(x=>x?.online).length;if(game){game.spectatorCount=count;if(roomRole==='host'){currentView=makeView('p1');renderBattleView();publishState()}}})}
+ function publishState(){if(matchMode!=='online'||roomRole!=='host'||!fbRoomRef||!game)return Promise.resolve();const rev=++stateRev,stamp=Date.now();const playerView=packView(makeView('p2'));playerView.spectatorCount=Number(game.spectatorCount||0);const spectatorView=packView(makeSpectatorView());return fbRoomRef.update(clean({state:{view:playerView,rev,turn:game.current,over:!!game.over,updatedAt:stamp},spectatorState:{view:spectatorView,rev,turn:game.current,over:!!game.over,updatedAt:stamp}})).catch(e=>{diag('状態同期エラー',e.message,'bad');throw e})}
  function sendAction(action){if(!fbRoomRef||roomRole!=='guest'||!action)return Promise.resolve();const id=`${fbUid}-${Date.now()}-${++localActionSeq}`;return fbRoomRef.child('actions').push(clean({id,sender:fbUid,action,ts:Date.now()})).catch(e=>{diag('操作送信エラー',e.message,'bad');throw e})}
- async function hostCreate(){await ready();let code='';for(let i=0;i<12&&!code;i++){const c=randomCode(),r=fbDb.ref(`rooms/${c}/meta`);const tx=await r.transaction(cur=>{if(cur&&Date.now()-Number(cur.createdAt||0)<12*60*60*1000)return;return{hostUid:fbUid,createdAt:Date.now(),version:window.LUNA_ALTER_APP_META.version}});if(tx.committed)code=c}if(!code)throw new Error('空いているルーム番号を取得できませんでした');roomCode=code;setupLobby(code);fbRoomRef=fbDb.ref(`rooms/${code}`);await fbRoomRef.child('actions').remove();await fbRoomRef.child('state').remove();await presence('host');listenControl('hostInbox');listenActions();watchPresence('guest');watchConnection();conn=connection();peer={open:true,disconnected:false,destroyed:false,reconnect(){},destroy(){}};const name=cleanName('hostName'),deck=getDeck(document.getElementById('hostDeck').value);document.getElementById('hostLabel').textContent=name;document.getElementById('hostReady').textContent=deck.name;document.getElementById('roomStatus').textContent='友達の参加を待っています…';diag('ルーム作成成功',`番号 ${code}`,'ok')}
+ async function hostCreate(){await ready();let code='';for(let i=0;i<12&&!code;i++){const c=randomCode(),r=fbDb.ref(`rooms/${c}/meta`);const tx=await r.transaction(cur=>{if(cur&&Date.now()-Number(cur.createdAt||0)<12*60*60*1000)return;return{hostUid:fbUid,createdAt:Date.now(),version:window.LUNA_ALTER_APP_META.version}});if(tx.committed)code=c}if(!code)throw new Error('空いているルーム番号を取得できませんでした');roomCode=code;setupLobby(code);fbRoomRef=fbDb.ref(`rooms/${code}`);await fbRoomRef.child('actions').remove();await fbRoomRef.child('state').remove();await fbRoomRef.child('spectatorState').remove();await fbRoomRef.child('spectators').remove();await presence('host');listenControl('hostInbox');listenActions();watchPresence('guest');watchSpectators();watchConnection();conn=connection();peer={open:true,disconnected:false,destroyed:false,reconnect(){},destroy(){}};const name=cleanName('hostName'),deck=getDeck(document.getElementById('hostDeck').value);document.getElementById('hostLabel').textContent=name;document.getElementById('hostReady').textContent=deck.name;document.getElementById('roomStatus').textContent='友達の参加を待っています…';diag('ルーム作成成功',`番号 ${code}`,'ok')}
  async function guestJoin(code){await ready();const rr=fbDb.ref(`rooms/${code}`),meta=(await rr.child('meta').once('value')).val();if(!meta?.hostUid)throw new Error('ルームが見つかりません。番号を確認してください。');fbRoomRef=rr;roomCode=code;setupLobby(code);await presence('guest');listenControl('guestInbox');listenState();watchPresence('host');watchConnection();conn=connection();peer={open:true,disconnected:false,destroyed:false,reconnect(){},destroy(){}};const name=cleanName('guestName'),deck=getDeck(document.getElementById('guestDeck').value);guestReconnectInfo={name,deck:{name:deck.name,character:deck.character,counts:deck.counts}};document.getElementById('guestLabel').textContent=name;document.getElementById('guestReady').textContent=deck.name;document.getElementById('hostReady').textContent='接続中';document.getElementById('roomStatus').textContent='ホストに接続しています…';diag('ルーム参加成功',`番号 ${code}`,'ok');networkPaused=false;sendGuestHello()}
+ async function spectatorJoin(code){await ready();const rr=fbDb.ref(`rooms/${code}`),meta=(await rr.child('meta').once('value')).val();if(!meta?.hostUid)throw new Error('ルームが見つかりません。番号を確認してください。');fbRoomRef=rr;roomCode=code;setupLobby(code);spectatorPresenceRef=rr.child(`spectators/${fbUid}`);await spectatorPresenceRef.set({online:true,uid:fbUid,joinedAt:firebase.database.ServerValue.TIMESTAMP});spectatorPresenceRef.onDisconnect().remove();listenSpectatorState();watchConnection();conn={open:true,peer:'firebase',close(){this.open=false},send(){return Promise.resolve()}};peer={open:true,disconnected:false,destroyed:false,reconnect(){},destroy(){}};document.getElementById('hostLabel').textContent='対戦ルーム';document.getElementById('hostReady').textContent='観戦接続中';document.getElementById('guestLabel').textContent='観戦者';document.getElementById('guestReady').textContent='読み取り専用';document.getElementById('roomStatus').textContent='対戦開始を待っています…';document.getElementById('roomStatus').className='notice ok';diag('観戦参加成功',`番号 ${code}`,'ok')}
  peerAvailable=function(){return typeof firebase!=='undefined'};startHostPeer=function(){};initGuestPeer=function(){if(roomRole==='guest'&&fbRoomRef){conn=connection();sendGuestHello()}};openGuestConnection=initGuestPeer;scheduleGuestReconnect=function(){};scheduleHostPeerRetry=function(){};bindConnection=function(){};peerError=function(e){diag('Firebase通信エラー',e?.message||String(e||''),'bad')};
  document.getElementById('createRoom').onclick=async()=>{try{leaveRoom(false);offAll();roomRole='host';localPid='p1';matchMode='online';await hostCreate()}catch(e){diag('ルーム作成失敗',e.message,'bad');alert(e.message)}};
  document.getElementById('joinRoom').onclick=async()=>{const code=document.getElementById('joinCode').value.replace(/\D/g,'').slice(0,4);if(code.length!==4)return alert('数字4桁のルーム番号を入力してください。');try{leaveRoom(false);offAll();roomRole='guest';localPid='p2';matchMode='online';await guestJoin(code)}catch(e){diag('ルーム参加失敗',e.message,'bad');document.getElementById('roomStatus').textContent=e.message;document.getElementById('roomStatus').className='notice bad'}};
- const coreLeave=leaveRoom;leaveRoom=function(reset=true){const r=fbRoomRef,role=roomRole,wasOnline=matchMode==='online';if(wasOnline&&r&&role&&fbUid)r.child(`presence/${role}`).set({online:false,uid:fbUid,at:Date.now()}).catch(()=>{});offAll();coreLeave(reset)};
- broadcastState=function(){if(roomRole!=='host'||!game)return;resolveForcedChoices();currentView=makeView('p1');showScreen('battle');renderBattleView();if(matchMode==='online'){if(game.over)clearHostRecovery();else saveHostRecovery();publishState()}scheduleCpuTurn()};
- dispatchAction=function(action){if(!action)return;if(roomRole==='host'){handleAction('p1',action);return}if(matchMode==='online'&&roomRole==='guest'&&fbRoomRef){sendAction(action);return}const n=document.getElementById('battleNotice');if(n){n.textContent='通信を再接続しています…';n.className='notice bad'}};
+ document.getElementById('spectateRoom').onclick=async()=>{const code=document.getElementById('joinCode').value.replace(/\D/g,'').slice(0,4);if(code.length!==4)return alert('数字4桁のルーム番号を入力してください。');try{leaveRoom(false);offAll();roomRole='spectator';localPid=null;matchMode='online';await spectatorJoin(code)}catch(e){diag('観戦参加失敗',e.message,'bad');document.getElementById('roomStatus').textContent=e.message;document.getElementById('roomStatus').className='notice bad'}};
+ const coreLeave=leaveRoom;leaveRoom=function(reset=true){const r=fbRoomRef,role=roomRole,wasOnline=matchMode==='online';if(wasOnline&&r&&role&&fbUid){if(role==='spectator')r.child(`spectators/${fbUid}`).remove().catch(()=>{});else r.child(`presence/${role}`).set({online:false,uid:fbUid,at:Date.now()}).catch(()=>{})}offAll();coreLeave(reset)};
+ broadcastState=function(){if(roomRole!=='host'||!game)return;window.refreshSharedDominationState?.();window.processQueuedDomination?.();resolveForcedChoices();currentView=makeView('p1');showScreen('battle');renderBattleView();if(matchMode==='online'){if(game.over)clearHostRecovery();else saveHostRecovery();publishState()}scheduleCpuTurn()};
+ dispatchAction=function(action){if(!action||roomRole==='spectator'||currentView?.spectator)return;if(roomRole==='host'){handleAction('p1',action);return}if(matchMode==='online'&&roomRole==='guest'&&fbRoomRef){sendAction(action);return}const n=document.getElementById('battleNotice');if(n){n.textContent='通信を再接続しています…';n.className='notice bad'}};
  const corePause=setNetworkPaused;setNetworkPaused=function(flag){if(matchMode==='online'){networkPaused=false;return}return corePause(flag)};
- const coreRestore=restoreHostRecovery;restoreHostRecovery=function(){const x=readHostRecovery();if(!x)return false;roomRole='host';localPid='p1';matchMode='online';roomCode=String(x.roomCode);game=x.game;guestInfo=x.guestInfo||{name:game.players.p2.name,deck:{name:'復帰中',character:game.players.p2.character,counts:{}}};uidSeq=Number(x.uidSeq)||1;actionSeq=Number(x.actionSeq)||1;networkPaused=false;lastShownAction=game.lastAction?.seq||0;lastShownDamage=game.damageSeq||0;lastShownDraw=game.drawSeq||0;setupLobby(roomCode);currentView=makeView('p1');showScreen('battle');renderBattleView();ready().then(async()=>{fbRoomRef=fbDb.ref(`rooms/${roomCode}`);await fbRoomRef.child('meta').update({hostUid:fbUid,createdAt:Date.now(),version:window.LUNA_ALTER_APP_META.version});await presence('host');listenControl('hostInbox');listenActions();watchPresence('guest');watchConnection();conn=connection();publishState();saveHostRecovery()}).catch(()=>{});return true};
- window.__laOnline={publishState,sendAction,packView,unpackView,getRoom:()=>fbRoomRef};
+ const coreRestore=restoreHostRecovery;restoreHostRecovery=function(){const x=readHostRecovery();if(!x)return false;roomRole='host';localPid='p1';matchMode='online';roomCode=String(x.roomCode);game=x.game;guestInfo=x.guestInfo||{name:game.players.p2.name,deck:{name:'復帰中',character:game.players.p2.character,counts:{}}};uidSeq=Number(x.uidSeq)||1;actionSeq=Number(x.actionSeq)||1;networkPaused=false;lastShownAction=game.lastAction?.seq||0;lastShownDamage=game.damageSeq||0;lastShownDraw=game.drawSeq||0;setupLobby(roomCode);currentView=makeView('p1');showScreen('battle');renderBattleView();ready().then(async()=>{fbRoomRef=fbDb.ref(`rooms/${roomCode}`);await fbRoomRef.child('meta').update({hostUid:fbUid,createdAt:Date.now(),version:window.LUNA_ALTER_APP_META.version});await presence('host');listenControl('hostInbox');listenActions();watchPresence('guest');watchSpectators();watchConnection();conn=connection();publishState();saveHostRecovery()}).catch(()=>{});return true};
+ window.__laOnline={publishState,sendAction,packView,unpackView,getRoom:()=>fbRoomRef,makeSpectatorView};
  const pw=document.getElementById('peerWarning');if(pw)pw.classList.add('hidden');ready().catch(()=>{});
 })();
 </script>
@@ -4682,6 +4885,7 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
   const returnBtn = ensurePeekReturn();
   function openPending(p) {
     const min = p.minCount ?? p.count, max = p.maxCount ?? p.count;
+    const dominationChoice = p.type === 'dominationMove';
     const key = `${p.type}:${p.cards.map(c => c.uid).join(',')}:${min}:${max}`;
     if (modalPendingKey === key) {
       if (!$('modal').classList.contains('hidden')) return;
@@ -4695,6 +4899,8 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
       peeking: false
     };
     $('modalTitle').textContent = p.title;
+    $('modal').classList.toggle('domination-choice', dominationChoice);
+    $('modalCancel').classList.toggle('hidden', dominationChoice);
     $('modalBody').innerHTML = '';
     p.cards.forEach(c => {
       const b = document.createElement('button');
@@ -4765,15 +4971,37 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
     pendingSelection = null;
     returnBtn.classList.add('hidden');
     modalPendingKey = '';
+    $('modal').classList.remove('domination-choice');
+    $('modalCancel').classList.remove('hidden');
     $('modal').classList.add('hidden');
   }
   ;
 
   // ===== Battle effects =====
-  function renderOpponentHand(count) {
+  function renderOpponentHand(count, v = currentView) {
     const el = $('oppHandBacks');
     if (!el) return;
     el.innerHTML = '';
+    const watching = !!v?.spectator;
+    const zone = $('laOppHandZone'), summary = $('oppHandSummary');
+    zone?.classList.toggle('is-spectator', watching);
+    if (summary) summary.textContent = watching
+      ? `P1 ${v.opp.name}｜${v.opp.handCount}枚　山札 ${v.opp.drawCount}・捨て札 ${v.opp.discardCount}・廃棄 ${v.opp.exhaustCount}`
+      : `相手の手札 ${count}枚`;
+    if (watching) {
+      (v.opp.hand || []).forEach(c => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'spectator-top-card';
+        b.setAttribute('aria-label', `${c.name}の詳細を見る`);
+        const cost = Number.isFinite(c.choiceCost) ? c.choiceCost : c.cost;
+        b.innerHTML = `<div class="card ${c.type} la-card-face spectator-card-face" data-card-id="${escapeHtml(c.id)}">${unifiedCardInner(c, {cost, extraHtml:choiceModifierHtml(c)})}</div>`;
+        b.onclick = () => window.LA_SHOW_CARD_DETAIL?.({...c, cost}, `P1 ${v.opp.name}の手札`);
+        el.appendChild(b);
+      });
+      decorateCards(el);
+      return;
+    }
     for (let i = 0; i < count; i++) {
       const b = document.createElement('i');
       b.className = 'card-back luna-back';
@@ -4957,7 +5185,8 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
     if (!a || a.seq === lastShownAction) return;
     lastShownAction = a.seq;
     const mine = a.pid === v.me.pid, c = a.card, stage = $('playedStage');
-    stage.innerHTML = `<div class="played-label">${mine ? 'あなた' : escapeHtml(v.opp.name)}が使用</div><div class="card ${c.type} la-card-face played" data-card-id="${escapeHtml(c.id)}">${unifiedCardInner(c, {cost: a.cost, textHtml: linkedRulesHtml(c)})}</div>`;
+    const actorName = v.spectator ? (mine ? `P2 ${v.me.name}` : `P1 ${v.opp.name}`) : (mine ? 'あなた' : v.opp.name);
+    stage.innerHTML = `<div class="played-label">${escapeHtml(actorName)}が使用</div><div class="card ${c.type} la-card-face played" data-card-id="${escapeHtml(c.id)}">${unifiedCardInner(c, {cost: a.cost, textHtml: linkedRulesHtml(c)})}</div>`;
     decorateCards(stage);
     stage.classList.remove('hidden');
     if (playedHideTimer) clearTimeout(playedHideTimer);
@@ -5132,32 +5361,41 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
       drag = null;
       clearDrag();
     }
-    const me = v.me, op = v.opp, myTurn = v.current === me.pid && !v.over && !v.pending && !networkPaused;
-    [['myName', `${me.name}［${CHARACTER_LABELS[me.character] || 'ジョバンニ'}］`], ['oppName', `${op.name}［${CHARACTER_LABELS[op.character] || 'ジョバンニ'}］`], ['myHpText', `HP ${Math.max(0, me.hp)} / ${me.maxHp || 100}`], ['oppHpText', `HP ${Math.max(0, op.hp)} / ${op.maxHp || 100}`], ['myEnergy', me.energy], ['myMaxEnergy', me.maxEnergy], ['oppEnergy', op.energy], ['oppMaxEnergy', op.maxEnergy], ['myDeckN', me.drawCount], ['oppDeckN', op.drawCount], ['myDiscardN', me.discardCount], ['oppDiscardN', op.discardCount], ['myExhaustN', me.exhaustCount], ['oppHandN', `${op.handCount}/10`], ['myHandN', `${me.handCount}/10`]].forEach(([id, val]) => $(id).textContent = val);
+    const me = v.me, op = v.opp, watching = !!v.spectator, myTurn = !watching && v.current === me.pid && !v.over && !v.pending && !networkPaused;
+    document.body.classList.toggle('spectator-mode', watching);
+    [['myName', `${watching ? 'P2 ' : ''}${me.name}［${CHARACTER_LABELS[me.character] || 'ジョバンニ'}］`], ['oppName', `${watching ? 'P1 ' : ''}${op.name}［${CHARACTER_LABELS[op.character] || 'ジョバンニ'}］`], ['myHpText', `HP ${Math.max(0, me.hp)} / ${me.maxHp || 100}`], ['oppHpText', `HP ${Math.max(0, op.hp)} / ${op.maxHp || 100}`], ['myEnergy', me.energy], ['myMaxEnergy', me.maxEnergy], ['oppEnergy', op.energy], ['oppMaxEnergy', op.maxEnergy], ['myDeckN', me.drawCount], ['oppDeckN', op.drawCount], ['myDiscardN', me.discardCount], ['oppDiscardN', op.discardCount], ['myExhaustN', me.exhaustCount], ['oppHandN', `${op.handCount}/10`], ['myHandN', `${me.handCount}/10`]].forEach(([id, val]) => $(id).textContent = val);
     renderLeaderSkin('my', me.character);
     renderLeaderSkin('opp', op.character);
     renderHpBar('my', me.hp, me.maxHp || 100);
     renderHpBar('opp', op.hp, op.maxHp || 100);
-    renderOpponentHand(op.handCount);
-    $('myPersonal').innerHTML = setupSlot(me.personal ? {
+    renderOpponentHand(op.handCount, v);
+    $('myPersonal').innerHTML = me.personal ? setupSlot({
       owner: me.pid,
       card: me.personal
-    } : null, me.pid);
-    $('oppPersonal').innerHTML = setupSlot(op.personal ? {
+    }, me.pid, watching) : '<div class="slot personal-locked">完全制圧で<br>使用可能</div>';
+    $('oppPersonal').innerHTML = op.personal ? setupSlot({
       owner: op.pid,
       card: op.personal
-    } : null, me.pid);
-    $('sharedZone').innerHTML = [0, 1, 2].map(i => setupSlot(v.shared[i], me.pid)).join('');
+    }, me.pid, watching) : '<div class="slot personal-locked">完全制圧で<br>使用可能</div>';
+    $('sharedZone').innerHTML = [0, 1, 2].map(i => setupSlot(v.shared[i], me.pid, watching)).join('');
+    const zoneTitles = document.querySelectorAll('#battleScreen .center-board .zone-title');
+    if (zoneTitles.length >= 3) { zoneTitles[0].textContent = watching ? `P1 ${op.name} 独自枠` : '相手 独自枠'; zoneTitles[2].textContent = watching ? `P2 ${me.name} 独自枠` : '自分 独自枠'; }
     decorateCards($('myPersonal'));
     decorateCards($('oppPersonal'));
     decorateCards($('sharedZone'));
-    $('turnLabel').textContent = v.over ? '対戦終了' : `${v.current === me.pid ? 'あなた' : op.name}のターン / 最大コスト ${v.current === me.pid ? me.maxEnergy : op.maxEnergy}`;
-    $('winner').textContent = v.over ? v.winner === me.pid ? 'あなたの勝利！' : `${op.name}の勝利` : '';
+    $('turnLabel').textContent = v.over ? '対戦終了' : `${v.current === me.pid ? (watching ? me.name : 'あなた') : op.name}のターン / 最大コスト ${v.current === me.pid ? me.maxEnergy : op.maxEnergy}`;
+    $('winner').textContent = v.over ? `${v.winner === me.pid ? me.name : op.name}の勝利` : '';
     $('battleNotice').className = networkPaused && !v.over ? 'notice bad' : 'notice';
-    $('battleNotice').textContent = v.over ? '対戦終了。ホームから次の対戦を選べます。' : networkPaused ? '通信が切れました。再接続中…（対戦は一時停止しています）' : v.pending ? 'カードを選択してください。' : myTurn ? 'あなたのターンです。' : `${op.name}が考えています…`;
+    $('battleNotice').textContent = watching ? (v.over ? '観戦していた対戦が終了しました。' : `${v.current === me.pid ? me.name : op.name}のターンを観戦中（読み取り専用）`) : v.over ? '対戦終了。ホームから次の対戦を選べます。' : networkPaused ? '通信が切れました。再接続中…（対戦は一時停止しています）' : v.pending ? 'カードを選択してください。' : myTurn ? 'あなたのターンです。' : `${op.name}が考えています…`;
     $('movePersonal').disabled = !myTurn || !me.personal;
     $('endTurn').disabled = !myTurn;
-    $('keepHint').textContent = activeViewHasSetup(v, me.pid, 'j15') ? '《お取り置き》有効：保持カードを選択可' : '';
+    $('movePersonal').classList.toggle('hidden', watching);
+    $('endTurn').classList.toggle('hidden', watching);
+    $('keepHint').textContent = !watching && activeViewHasSetup(v, me.pid, 'j15') ? '《お取り置き》有効：保持カードを選択可' : '';
+    const handSummary = document.querySelector('#battleScreen .la-hand-summary');
+    if (handSummary?.firstChild) handSummary.firstChild.textContent = watching ? `P2 ${me.name} 手札 ` : '手札 ';
+    const spectatorBadge = $('spectatorBadge'), spectatorCount = Number(v.spectatorCount ?? game?.spectatorCount ?? 0);
+    if (spectatorBadge) { spectatorBadge.textContent = watching ? '観戦モード' : `観戦者 ${spectatorCount}`; spectatorBadge.classList.toggle('hidden', !watching && spectatorCount < 1); }
     renderHand(v, myTurn);
     requestAnimationFrame(layoutHand);
     const log = $('log');
@@ -5166,7 +5404,7 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
     showLastPlayed(v);
     showDamageEvents(v);
     renderResultOverlay(v);
-    if (v.pending) openPending(v.pending); else closePending();
+    if (!watching && v.pending) openPending(v.pending); else closePending();
     arrange();
     syncHud(v);
     syncLeaderReadout(v);
@@ -5268,12 +5506,13 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
     $('createRoom').disabled = !options;
     $('joinRoom').disabled = !options;
   }
-  function setupSlot(x, mePid) {
+  function setupSlot(x, mePid, spectator = false) {
     if (!x) return '<div class="slot"></div>';
     const c = x.card, src = window.LUNA_CARD_ART?.[c.id] || '', self = x.owner === mePid, effect = cardText(c);
     let badge = '';
     if ((c.id === 'guard' || c.id === 'k4' || c.id === 's11') && Number.isFinite(c.fortressHp)) badge = `<span class="setup-state-badge block">🛡${Math.max(0, c.fortressHp)}</span>`; else if (c.id === 's18' && Number.isFinite(c.shieldCharges)) badge = `<span class="setup-state-badge shield">☾${Math.max(0, c.shieldCharges)}</span>`; else if (c.id === 's26') badge = `<span class="setup-state-badge progress">X${Number.isFinite(c.yakouX) ? c.yakouX : 0}</span>`;
-    return `<button type="button" class="slot occupied setup-detail-trigger ${self ? 'owner-self' : 'owner-opponent'}" data-setup-uid="${escapeHtml(c.uid)}" aria-label="${escapeHtml(c.name)}の詳細を見る"><span class="setup-owner-mark">${self ? '自分' : '相手'}</span><span class="card ${c.type} la-card-face setup-card-surface" data-card-id="${escapeHtml(c.id)}">${unifiedCardInner(c, {text: effect})}</span>${badge}</button>`;
+    const ownerLabel = spectator ? (x.owner === 'p1' ? 'P1' : 'P2') : (self ? '自分' : '相手');
+    return `<button type="button" class="slot occupied setup-detail-trigger ${self ? 'owner-self' : 'owner-opponent'}" data-setup-uid="${escapeHtml(c.uid)}" aria-label="${escapeHtml(c.name)}の詳細を見る"><span class="setup-owner-mark">${ownerLabel}</span><span class="card ${c.type} la-card-face setup-card-surface" data-card-id="${escapeHtml(c.id)}">${unifiedCardInner(c, {text: effect})}</span>${badge}</button>`;
   }
   function collapseHandSelection() {
     const hand = $('myHand');
@@ -5334,6 +5573,22 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
     if (!overlay) return;
     if (!v.over) {
       if (!overlay.classList.contains('hidden')) resetResultOverlay();
+      return;
+    }
+    if (v.spectator) {
+      const winner = v.winner === v.me.pid ? v.me : v.opp, key = `spectator:${v.winner}`;
+      if (lastResultKey === key) return;
+      lastResultKey = key;
+      if (resultTimer) clearTimeout(resultTimer);
+      resultTimer = setTimeout(() => {
+        if (!currentView?.over || !currentView?.spectator) return;
+        overlay.className = 'result-overlay win';
+        $('resultWord').textContent = 'MATCH END';
+        $('resultSub').textContent = `${winner.name} WIN`;
+        void overlay.offsetWidth;
+        overlay.classList.add('show');
+        resultTimer = setTimeout(() => { overlay.className = 'result-overlay hidden'; resultTimer = null; }, 5000);
+      }, 720);
       return;
     }
     const won = v.winner === v.me.pid, key = `${v.me.pid}:${v.winner}:${won ? 'win' : 'lose'}`;
@@ -5513,7 +5768,8 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
     const tl = $('turnLabel');
     if (tl) {
       const no = Number(v.me.turnNo || 0);
-      tl.innerHTML = v.over ? '<b>対戦終了</b>' : `<b>${no > 0 ? `第${no}ターン` : 'BATTLE START'}</b><small>${v.current === v.me.pid ? 'あなたのターン' : '相手のターン'}</small>`;
+      const turnName = v.current === v.me.pid ? (v.spectator ? `P2 ${v.me.name}` : 'あなた') : (v.spectator ? `P1 ${op.name}` : '相手');
+      tl.innerHTML = v.over ? '<b>対戦終了</b>' : `<b>${no > 0 ? `第${no}ターン` : 'BATTLE START'}</b><small>${turnName}のターン</small>`;
     }
     const uc = $('shiranuiUseCount');
     if (uc) {
@@ -5523,7 +5779,7 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
       } else uc.classList.add('hidden');
     }
     ;
-    $('keepHint').textContent = activeViewHasSetup(v, v.me.pid, 'j15') ? '《お取り置き》：ターン終了時に選択' : '';
+    $('keepHint').textContent = !v.spectator && activeViewHasSetup(v, v.me.pid, 'j15') ? '《お取り置き》：ターン終了時に選択' : '';
     if (typeof showSpecialCutin === 'function') showSpecialCutin(v);
   }
   const LunaRules = window.LunaRules = Object.freeze({
@@ -5557,11 +5813,10 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
   }
   window.LA_CONDITION_ACTIVE = conditionActive;
   function isConditionHighlighted(c, v) {
-    // This is intentionally independent from the ordinary playable-card
-    // outline.  It only answers whether this card's own bonus/requirement is
-    // true in the current turn state; it does not alter playability or rules.
-    if (!v?.me || v.over || v.current !== v.me.pid) return false;
-    return typeof cardConditionReady === 'function' && !!cardConditionReady(v, c);
+    // Keep the hand decoration on the single authoritative condition path.
+    // This is a visual read only; it never changes playability or card rules.
+    return !!(c && v?.me && typeof LunaRules?.conditionActive === 'function' &&
+      LunaRules.conditionActive(v, c));
   }
   window.LA_IS_CONDITION_HIGHLIGHTED = isConditionHighlighted;
   function decorateConditions(v) {
@@ -5632,7 +5887,7 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
     document.body.appendChild(intro);
   }
   function maybeIntro(v) {
-    if (!v?.me || v.over) {
+    if (!v?.me || v.over || v.spectator) {
       if (v?.over) introArmed = true;
       return;
     }
@@ -5657,9 +5912,9 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
   function syncEndMenu(v) {
     const b = $('battleSurrender');
     if (!b) return;
-    b.textContent = v?.over ? 'ホーム' : '降参';
-    b.classList.toggle('danger', !v?.over);
-    b.classList.toggle('primary', !!v?.over);
+    b.textContent = v?.spectator ? '観戦終了' : v?.over ? 'ホーム' : '降参';
+    b.classList.toggle('danger', !v?.over && !v?.spectator);
+    b.classList.toggle('primary', !!v?.over || !!v?.spectator);
   }
   function openPile(kind) {
     const v = view();
@@ -5702,7 +5957,7 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
   });
   function act(a) {
     const v = view();
-    if (!v || v.over || v.pending || paused() || v.current !== v.me.pid) return false;
+    if (!v || v.spectator || roomRole === 'spectator' || v.over || v.pending || paused() || v.current !== v.me.pid) return false;
     dispatchAction(a);
     return true;
   }
@@ -5819,13 +6074,13 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
   }
   function usable(c) {
     const v = view();
-    return !!(c && v && !v.over && !v.pending && !paused() && v.current === v.me.pid && canPlayView(v, c));
+    return !!(c && v && !v.spectator && roomRole !== 'spectator' && !v.over && !v.pending && !paused() && v.current === v.me.pid && canPlayView(v, c));
   }
   function showGuide(c) {
     const {g, h} = dragUi();
     g.className = 'show';
-    g.innerHTML = c.type === 'setup' ? `<div class="la-drop-zone personal ${view()?.me?.personal ? 'invalid' : ''}" data-dest="personal">← 独自枠<small>${view()?.me?.personal ? '使用中' : 'ここで離して設置'}</small></div><div class="la-drop-zone shared" data-dest="shared">共有枠 →<small>ここで離して設置</small></div><div class="la-drop-cancel" data-dest="cancel">↓ ここで離してキャンセル</div>` : '<div class="la-drop-zone normal-use" data-dest="use">↑ 離して使用</div>';
-    h.textContent = c.type === 'setup' ? '左＝独自枠 ／ 右＝共有枠 ／ 下＝キャンセル' : '↑ 上へスワイプして使用';
+    g.innerHTML = c.type === 'setup' ? `<div class="la-drop-zone shared" data-dest="shared">共有枠へ設置<small>独自枠は完全制圧で解放</small></div><div class="la-drop-cancel" data-dest="cancel">↓ ここで離してキャンセル</div>` : '<div class="la-drop-zone normal-use" data-dest="use">↑ 離して使用</div>';
+    h.textContent = c.type === 'setup' ? 'セットアップは、まず共有枠へ設置します' : '↑ 上へスワイプして使用';
     h.classList.add('show');
   }
   function hit(x, y) {
@@ -5871,7 +6126,8 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
       const c = cardFor(el);
       if (!c) return;
       if (el.classList.contains('expanded')) {
-        window.LA_SHOW_CARD_DETAIL(c, '手札');
+        const vv = view(), detailCard = vv?.spectator ? {...c, cost:viewCost(vv, c)} : c;
+        window.LA_SHOW_CARD_DETAIL(detailCard, vv?.spectator ? `P2 ${vv.me.name}の手札` : '手札');
         collapseHandSelection();
       } else {
         collapseHandSelection();
@@ -5933,10 +6189,10 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
       clearDrag();
       if (!usable(d.c)) return;
       if (d.c.type === 'setup') {
-        if (dest === 'personal' || dest === 'shared') act({
+        if (dest === 'shared') act({
           type: 'play',
           uid: d.c.uid,
-          dest
+          dest: 'shared'
         });
       } else if (dest === 'use' || up >= 24) act({
         type: 'play',
@@ -6085,7 +6341,7 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
     const v = view();
     return {
       version: meta.version,
-      runtime: '0.29.0',
+      runtime: meta.version,
       pointerDrag: true,
       touchDragShim: false,
       conditionSource: 'isConditionHighlighted',
@@ -6174,10 +6430,11 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
     const rendered = [];
     for (const c of v.me.hand) {
       const playable = myTurn && canPlayView(v, c), d = document.createElement('div');
-      d.className = `card ${c.type} la-card-face hand-card ${playable ? '' : 'disabled'} ${v.me.keepUid === c.uid ? 'keep' : ''} ${c.retain || activeViewHasSetup(v, v.me.pid, 'k9') ? 'retain' : ''}`;
+      d.className = `card ${c.type} la-card-face hand-card ${playable || v.spectator ? '' : 'disabled'} ${v.me.keepUid === c.uid ? 'keep' : ''} ${c.retain || activeViewHasSetup(v, v.me.pid, 'k9') ? 'retain' : ''}`;
       d.dataset.uid = String(c.uid);
       d.dataset.cardId = c.id;
       const options = {cost: viewCost(v, c), skillDraws: v.me.turnSkillDraws};
+      if (v.spectator) options.extraHtml = choiceModifierHtml(c);
       if (c.id === 's11') {
         const used = Number(v.me.cardsPlayedThisTurn || 0), x = (used + 1) * 2;
         options.text = `X＝（現在の使用枚数${used}＋このカード1枚）×2＝${x}。耐久値Xの防壁になり、次のターン開始時までリーダーへのダメージをブロックする。超過分はリーダーが受ける。次のターン開始時、捨て札へ。`;
@@ -6203,6 +6460,9 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
     // overlay precise landing rectangles; renderBattleView still schedules its
     // normal layout pass for resize-safe rendering.
     layoutHand();
+    // Re-evaluate every hand card immediately after rebuilding the hand DOM.
+    // renderBattleView also calls this after each authoritative state update.
+    decorateConditions(v);
     const reflow = [];
     if (!drawMotionReduced()) {
       rendered.forEach(entry => {
@@ -6387,8 +6647,8 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
       }, {
         k: 'SETUP',
         t: 'セットアップは盤面に残る',
-        m: 'セットアップは使い切りではなく<strong>場に残るカード</strong>。共有枠は3つで、4枚目が置かれると一番古いセットアップが押し出されます。',
-        tip: '共有枠は相手と取り合う場所。強いセットアップを置くほど、相手にも押し出す理由が生まれます。',
+        m: 'セットアップは使い切りではなく<strong>場に残るカード</strong>。まず共有3枠へ置き、4枚目が置かれると一番古いセットアップが押し出されます。',
+        tip: '共有3枠をすべて自分のカードにすると完全制圧。1枚を独自枠へ移動できます。',
         e: '3 / 3',
         pc: 1,
         v: 'shared',
@@ -6396,9 +6656,9 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
         setup: 'j2'
       }, {
         k: 'PERSONAL',
-        t: '独自枠は右側へ',
-        m: '各プレイヤーには<strong>独自セットアップ枠が1つ</strong>あります。セットアップを右側の設置エリアへスワイプすると独自枠へ置けます。',
-        tip: '共有枠に置くか、独自枠で守るか。セットアップの置き場所も判断のひとつです。',
+        t: '独自枠は完全制圧で',
+        m: '各プレイヤーには<strong>独自セットアップ枠が1つ</strong>あります。共有3枠を完全制圧したとき、共有にある自分の1枚を選んで移動します。',
+        tip: '手札から独自枠へ直接置くことはできません。守りたいカードも、最初は共有枠へ置きます。',
         e: '3 / 3',
         pc: 1,
         v: 'personal',
@@ -6626,7 +6886,7 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
       draw: '<div class="tut2-visual"><div class="tut2-visual-row"><div class="tut2-box">山札</div><span class="tut2-arrow">→ 5枚 →</span><div class="tut2-box hot">手札</div></div></div>',
       play: '<div class="tut2-visual"><div class="tut2-visual-row"><div class="tut2-box">手札</div><span class="tut2-arrow">↑ スワイプ</span><div class="tut2-box hot">使用</div></div></div>',
       shared: '<div class="tut2-visual"><div class="tut2-visual-row"><div class="tut2-box hot">共有①</div><div class="tut2-box hot">共有②</div><div class="tut2-box hot">共有③</div></div><small>4枚目 → 一番古いセットアップを押し出す</small></div>',
-      personal: '<div class="tut2-visual"><div class="tut2-visual-row"><div class="tut2-box">共有枠</div><span class="tut2-arrow">←</span><div class="tut2-box">SETUP</div><span class="tut2-arrow">→</span><div class="tut2-box hot">独自枠</div></div></div>',
+      personal: '<div class="tut2-visual"><div class="tut2-visual-row"><div class="tut2-box">共有3枠</div><span class="tut2-arrow">→</span><div class="tut2-box hot">完全制圧</div><span class="tut2-arrow">→</span><div class="tut2-box">独自枠</div></div></div>',
       block: '<div class="tut2-visual"><div class="tut2-visual-row"><div class="tut2-box hot">🛡 20</div><span class="tut2-arrow">→</span><div class="tut2-box">被ダメージを先に吸収</div></div></div>',
       piles: '<div class="tut2-visual"><div class="tut2-visual-row"><div class="tut2-box">山札</div><div class="tut2-box">捨て札 ↺</div><div class="tut2-box hot">廃棄札 ✕</div></div></div>',
       count: '<div class="tut2-visual"><div class="tut2-visual-row"><div class="tut2-box">1枚目</div><div class="tut2-box">2枚目</div><div class="tut2-box hot">3枚目</div></div></div>',
