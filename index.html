@@ -18,8 +18,8 @@
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.31.0",
-  label:"観戦モード・相手手札UI"
+  version:"0.32.0",
+  label:"ジョバンニ・ナイフダメージ演出"
 });
 </script>
 
@@ -803,8 +803,11 @@ html,body{width:100%;height:100%;overflow:hidden!important;background:#050914}
 
 #laBattleFx{position:fixed;inset:0;z-index:9997;pointer-events:none;overflow:hidden}
 .la-bfx{position:fixed;left:0;top:0;pointer-events:none;will-change:transform,opacity;filter:drop-shadow(0 0 7px currentColor)}
-.la-bfx.giovanni{width:62px;height:7px;border-radius:999px;background:linear-gradient(90deg,transparent,#fff7cf 28%,#d8ad48 70%,transparent);color:#d8ad48;box-shadow:0 0 12px #d8ad48}
-.la-bfx.giovanni:after{content:'◆';position:absolute;right:-5px;top:-10px;color:#fff7cf;font-size:20px;transform:rotate(45deg)}
+.la-knife-fx{position:fixed;left:0;top:0;width:58px;height:16px;z-index:9999;pointer-events:none;transform-origin:50% 50%;will-change:transform,opacity;filter:drop-shadow(0 2px 2px #000b) drop-shadow(0 0 5px #e8c66c99)}
+.la-knife-fx .knife-blade{position:absolute;left:20px;top:3px;width:35px;height:10px;clip-path:polygon(0 12%,77% 12%,100% 50%,77% 88%,0 88%);background:linear-gradient(180deg,#fffdf0 0,#cfd5d8 38%,#6f777d 52%,#e9ece9 72%,#8d969b 100%);border-left:1px solid #fff;box-shadow:inset 0 1px rgba(255,255,255,.85)}
+.la-knife-fx .knife-guard{position:absolute;left:17px;top:1px;width:4px;height:14px;border-radius:2px;background:linear-gradient(90deg,#5a3510,#e0b65b,#604018);box-shadow:0 0 2px #000}
+.la-knife-fx .knife-handle{position:absolute;left:1px;top:5px;width:17px;height:7px;border-radius:4px 1px 1px 4px;background:repeating-linear-gradient(90deg,#22150f 0 3px,#8a5425 3px 5px);box-shadow:inset 0 1px #b67d3d,0 1px 2px #000}
+.la-knife-fx .knife-glint{position:absolute;right:7px;top:1px;width:12px;height:2px;border-radius:50%;background:#fff;box-shadow:0 0 5px #fff;opacity:.9}
 .la-bfx.kenshi{width:92px;height:10px;border-radius:70% 10%;background:linear-gradient(90deg,transparent,#ffddd2 30%,#e52e27 58%,transparent);color:#e52e27;box-shadow:0 0 16px #c51618;transform:rotate(-18deg)}
 .la-bfx.shiranui{width:34px;height:34px;border-radius:50%;color:#9b4cff;background:radial-gradient(circle at 45% 42%,#fff 0 7%,#d8a8ff 14%,#8e3cff 38%,rgba(89,20,145,.45) 62%,transparent 72%);box-shadow:0 0 16px #9b4cff,0 0 30px rgba(168,74,255,.65)}
 .la-bfx.shiranui:after,.la-bfx.shiranui:before{content:'';position:absolute;border-radius:50%;background:#c981ff;box-shadow:0 0 9px #8e3cff}.la-bfx.shiranui:before{width:9px;height:9px;left:-9px;top:18px}.la-bfx.shiranui:after{width:6px;height:6px;right:-8px;top:5px}
@@ -5231,6 +5234,74 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
       setTimeout(() => target.classList.remove('la-hit'), 470);
     }
   }
+  const GIOVANNI_KNIFE_LANES = Object.freeze([-1, 0, 1]);
+  function giovanniKnifeGeometry(rect, random = Math.random) {
+    const laneIndex = Math.min(2, Math.floor(random() * 3));
+    const lane = GIOVANNI_KNIFE_LANES[laneIndex];
+    const targetOnRight = rect.left + rect.width / 2 >= innerWidth / 2;
+    const targetX = rect.left + rect.width * (.5 + (random() - .5) * .16);
+    const targetY = rect.top + rect.height * (.43 + (random() - .5) * .18);
+    const distance = Math.max(52, Math.min(118, rect.width * .72));
+    const laneLift = Math.max(20, Math.min(54, rect.height * .24));
+    const startX = targetX + (targetOnRight ? -distance : distance);
+    const startY = targetY + lane * laneLift;
+    return {laneIndex, startX, startY, targetX, targetY, dx:targetX-startX, dy:targetY-startY};
+  }
+  function playGiovanniKnifeEffect(v, e, delay = 0) {
+    if (!e || Number(e.amount) <= 0) return;
+    setTimeout(() => {
+      const target = leaderForPid(v, e.target), rect = target?.getBoundingClientRect();
+      if (!target || !rect?.width || !rect?.height) return;
+      const g = giovanniKnifeGeometry(rect), angle = Math.atan2(g.dy, g.dx) * 180 / Math.PI;
+      if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+        impactAt(g.targetX, g.targetY, 'giovanni', target);
+        return;
+      }
+      const knife = document.createElement('div');
+      knife.className = `la-knife-fx lane-${g.laneIndex}`;
+      knife.setAttribute('aria-hidden', 'true');
+      knife.innerHTML = '<i class="knife-handle"></i><i class="knife-guard"></i><i class="knife-blade"></i><i class="knife-glint"></i>';
+      knife.style.left = `${g.startX - 29}px`;
+      knife.style.top = `${g.startY - 8}px`;
+      knife.style.rotate = `${angle}deg`;
+      fx.appendChild(knife);
+      let impacted = false;
+      const strike = () => {
+        if (impacted) return;
+        impacted = true;
+        impactAt(g.targetX, g.targetY, 'giovanni', target);
+      };
+      const impactTimer = setTimeout(strike, 255);
+      const cleanup = () => {
+        clearTimeout(impactTimer);
+        strike();
+        knife.remove();
+      };
+      if (typeof knife.animate !== 'function') {
+        knife.style.transform = `translate3d(${g.dx}px,${g.dy}px,0)`;
+        setTimeout(cleanup, 430);
+        return;
+      }
+      const animation = knife.animate([
+        {transform:'translate3d(0,0,0) scale(.78)',opacity:0,offset:0},
+        {transform:'translate3d(0,0,0) scale(.9)',opacity:1,offset:.08},
+        {transform:`translate3d(${g.dx}px,${g.dy}px,0) scale(1)`,opacity:1,offset:.64},
+        {transform:`translate3d(${g.dx}px,${g.dy}px,0) scale(1)`,opacity:1,offset:.80},
+        {transform:`translate3d(${g.dx}px,${g.dy}px,0) scale(.96)`,opacity:0,offset:1}
+      ], {duration:420,easing:'cubic-bezier(.16,.82,.22,1)',fill:'forwards'});
+      animation.onfinish = cleanup;
+      animation.oncancel = () => { clearTimeout(impactTimer); knife.remove(); };
+    }, delay);
+  }
+  function playLeaderDamageEffect(v, e, delay = 0) {
+    const attacker = e.target === v.me.pid ? v.opp.pid : v.me.pid;
+    const character = charForPid(v, attacker) || 'giovanni';
+    if (character === 'giovanni') {
+      playGiovanniKnifeEffect(v, e, delay);
+      return;
+    }
+    projectile(v, e, delay);
+  }
   function projectile(v, e, delay = 0) {
     setTimeout(() => {
       const attacker = e.target === v.me.pid ? v.opp.pid : v.me.pid, ch = charForPid(v, attacker) || 'giovanni', target = leaderForPid(v, e.target), a = sourceFor(v, attacker), b = center(target);
@@ -5270,8 +5341,8 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
     const events = (v.damageEvents || []).filter(e => e.seq > lastShownDamage);
     if (!events.length) return;
     events.forEach((e, i) => {
-      const cadence = 520, delay = i * cadence, travel = charForPid(v, e.target === v.me.pid ? v.opp.pid : v.me.pid) === 'shiranui' ? 620 : 430;
-      projectile(v, e, delay);
+      const cadence = 520, delay = i * cadence, character = charForPid(v, e.target === v.me.pid ? v.opp.pid : v.me.pid), travel = character === 'giovanni' ? 300 : character === 'shiranui' ? 620 : 430;
+      playLeaderDamageEffect(v, e, delay);
       showDamageCutin(v, e, delay);
       setTimeout(() => {
         triggerBattleImpact(e.amount, 0);
@@ -7094,6 +7165,9 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
     renderHpBar,
     resetDamageCutin,
     triggerBattleImpact,
+    playLeaderDamageEffect,
+    playGiovanniKnifeEffect,
+    giovanniKnifeGeometry,
     showDamageCutin,
     showSpecialCutin,
     showDamageEvents,
