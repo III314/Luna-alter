@@ -18,8 +18,8 @@
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.32.0",
-  label:"ジョバンニ・ナイフダメージ演出"
+  version:"0.32.1",
+  label:"ジョバンニ演出・ドロー残像修正"
 });
 </script>
 
@@ -1572,12 +1572,13 @@ body.deck-view #deckScreen #deckCountSticky{top:72px!important}
 #battleScreen #myHand>.card.la-draw-arriving{opacity:0!important;pointer-events:none!important}
 #laDrawOverlay{position:fixed;inset:0;z-index:90;overflow:hidden;pointer-events:none;perspective:1100px;contain:layout style paint}
 #laDrawOverlay .la-draw-flyer{position:fixed;left:0;top:0;width:174px;height:260px;transform-style:preserve-3d;transform-origin:50% 50%;will-change:transform,opacity;animation:laDrawFlight .70s cubic-bezier(.16,.78,.24,1) both}
+#laDrawOverlay .la-draw-flyer.la-draw-dispose{opacity:0!important;visibility:hidden!important;pointer-events:none!important}
 #laDrawOverlay .la-draw-flip{position:absolute;inset:0;transform-style:preserve-3d;animation:laDrawFlip .70s cubic-bezier(.36,.05,.22,1) both}
 #laDrawOverlay .la-draw-back,#laDrawOverlay .la-draw-face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden}
 #laDrawOverlay .la-draw-back{box-sizing:border-box;border:3px solid #d9bd76;border-radius:9px;background:radial-gradient(circle at 50% 50%,rgba(226,192,109,.48) 0 5%,transparent 5.7%),linear-gradient(45deg,transparent 47%,rgba(226,192,109,.4) 48% 52%,transparent 53%),linear-gradient(-45deg,transparent 47%,rgba(226,192,109,.4) 48% 52%,transparent 53%),repeating-linear-gradient(135deg,#171521 0 7px,#322942 7px 12px);box-shadow:0 10px 22px rgba(0,0,0,.42),inset 0 0 0 5px rgba(255,236,177,.13)}
 #laDrawOverlay .la-draw-back::before{content:'L';position:absolute;inset:14px;display:grid;place-items:center;border:2px solid rgba(233,203,128,.82);border-radius:6px;color:#f0d995;font:900 48px/1 Georgia,serif;text-shadow:0 2px 5px #000}
 #laDrawOverlay .la-draw-face.card.la-card-face{width:174px!important;height:260px!important;min-width:174px!important;min-height:260px!important;max-width:174px!important;max-height:260px!important;margin:0!important;opacity:1!important;pointer-events:none!important;transform:rotateY(180deg)!important}
-@keyframes laDrawFlight{0%{opacity:0;transform:translate3d(var(--la-draw-start-x),var(--la-draw-start-y),0) rotate(var(--la-draw-start-angle,0deg)) scale(var(--la-draw-start-scale,.45))}8%{opacity:1}88%{opacity:1;transform:translate3d(var(--la-draw-end-x),var(--la-draw-end-y),0) rotate(var(--la-draw-end-angle,0deg)) scale(var(--la-draw-end-scale,1))}100%{opacity:0;transform:translate3d(var(--la-draw-end-x),var(--la-draw-end-y),0) rotate(var(--la-draw-end-angle,0deg)) scale(var(--la-draw-end-scale,1)}}
+@keyframes laDrawFlight{0%{opacity:0;transform:translate3d(var(--la-draw-start-x),var(--la-draw-start-y),0) rotate(var(--la-draw-start-angle,0deg)) scale(var(--la-draw-start-scale,.45))}8%{opacity:1}88%{opacity:1;transform:translate3d(var(--la-draw-end-x),var(--la-draw-end-y),0) rotate(var(--la-draw-end-angle,0deg)) scale(var(--la-draw-end-scale,1))}100%{opacity:0;visibility:hidden;transform:translate3d(var(--la-draw-end-x),var(--la-draw-end-y),0) rotate(var(--la-draw-end-angle,0deg)) scale(var(--la-draw-end-scale,1))}}
 @keyframes laDrawFlip{0%,50%{transform:rotateY(0deg)}76%,100%{transform:rotateY(180deg)}}
 @media(prefers-reduced-motion:reduce){#laDrawOverlay{display:none!important}#battleScreen #myHand>.card.la-hand-reflow{transition:none!important}}
 
@@ -5056,12 +5057,25 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
   function revealHandDrawTargets() {
     document.querySelectorAll('#battleScreen #myHand > .card.la-draw-arriving').forEach(el => el.classList.remove('la-draw-arriving'));
   }
+  function disposeHandDrawFlyers(source = handDrawPresentation.overlay) {
+    const flyers = (Array.isArray(source) ? source.filter(Boolean) : [...(source?.querySelectorAll?.('.la-draw-flyer') || [])]).filter(flyer => !flyer.classList.contains('la-draw-dispose'));
+    if (!flyers.length) return;
+    // Keep every terminal transform and coordinate variable intact.  The
+    // flyer becomes unpaintable first; removal happens on the following frame.
+    flyers.forEach(flyer => {
+      flyer.classList.add('la-draw-dispose');
+      flyer.setAttribute('aria-hidden', 'true');
+    });
+    const parent = flyers[0]?.parentElement;
+    if (parent) void parent.offsetWidth;
+    requestAnimationFrame(() => flyers.forEach(flyer => flyer.remove()));
+  }
   function cancelHandDrawPresentation() {
     handDrawPresentation.run += 1;
     handDrawPresentation.layoutTicket += 1;
     clearHandDrawTimers();
     revealHandDrawTargets();
-    handDrawPresentation.overlay?.replaceChildren();
+    disposeHandDrawFlyers();
     document.querySelectorAll('#battleScreen #myHand > .card.la-hand-reflow').forEach(el => {
       el.classList.remove('la-hand-reflow');
       el.style.removeProperty('--la-draw-shift-x');
@@ -5131,6 +5145,14 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
     flip.append(back, face);
     flyer.appendChild(flip);
     overlay.appendChild(flyer);
+    const settle = event => {
+      if (event.target !== flyer || event.animationName !== 'laDrawFlight') return;
+      flyer.removeEventListener('animationend', settle);
+      flyer.removeEventListener('animationcancel', settle);
+      disposeHandDrawFlyers([flyer]);
+    };
+    flyer.addEventListener('animationend', settle);
+    flyer.addEventListener('animationcancel', settle);
     return flyer;
   }
   function playHandDrawBatch(drawCount) {
@@ -5141,16 +5163,16 @@ function resolveForcedChoices(){let guard=0;while(guard++<8&&autoResolveForcedCh
     const finalEntries = captureDrawLandingTargets(entries);
     if (!finalEntries.length) return;
     const overlay = ensureDrawOverlay();
-    overlay.replaceChildren();
+    disposeHandDrawFlyers(overlay);
     const run = ++handDrawPresentation.run, source = drawSourceRect();
     finalEntries.forEach(entry => entry.el.classList.add('la-draw-arriving'));
-    finalEntries.forEach((entry, index) => makeHandDrawFlyer(overlay, entry, source, index, finalEntries.length));
+    const flyers = finalEntries.map((entry, index) => makeHandDrawFlyer(overlay, entry, source, index, finalEntries.length)).filter(Boolean);
     handDrawPresentation.timers.push(setTimeout(() => {
       if (run === handDrawPresentation.run) finalEntries.forEach(entry => entry.el?.classList.remove('la-draw-arriving'));
     }, 675));
     handDrawPresentation.timers.push(setTimeout(() => {
       if (run !== handDrawPresentation.run) return;
-      overlay.replaceChildren();
+      disposeHandDrawFlyers(flyers);
       handDrawPresentation.entered = [];
     }, 730));
   }
