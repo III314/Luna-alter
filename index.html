@@ -18,8 +18,8 @@
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.35.0",
-  label:"ダメージ処理・対戦UI・カード調整と新カード・再読所属修正・共有枠4枠化"
+  version:"0.35.1",
+  label:"ダメージ処理・対戦UI・カード調整と新カード・再読所属修正・共有枠4枠化・新規登録デッキ移行修正"
 });
 // 制圧関連コードは残したまま、現行ビルドでは機能だけを停止する。
 window.LUNA_ALTER_ENABLE_CONTROL_SYSTEM = false;
@@ -4722,28 +4722,77 @@ makeView=function(pid){const v=laViewBeforeFoxfire(pid);v.foxfireDeckEvents=(gam
 })();
 </script>
 <script id="la-033-account">
-/* Account-only deck namespace. Local guest decks are never migrated or overwritten. */
+/* Account-only deck namespace. Local guest decks stay local; new registrations may copy them once. */
 (() => {
  const DOMAIN='id.luna-alter.firebaseapp.com';
  const status=document.getElementById('accountStatus');
  const idInput=document.getElementById('accountId'),passInput=document.getElementById('accountPassword');
  const fields=document.getElementById('accountFields'),logoutButton=document.getElementById('accountLogout');
- let accountUser=null,auth=null,db=null,revision=0,writeQueue=Promise.resolve(),busy=false;
+ let accountUser=null,auth=null,db=null,revision=0,writeQueue=Promise.resolve(),busy=false,pendingRegistrationDecks=null;
  const idOf=user=>user&&!user.isAnonymous&&user.email?.endsWith('@'+DOMAIN)?user.email.slice(0,-DOMAIN.length-1):null;
  const setStatus=(message,error=false)=>{status.textContent=message;status.classList.toggle('error',error)};
  const normalizeId=value=>String(value||'').trim().toLowerCase();
  const emailFor=id=>`${id}@${DOMAIN}`;
- function refresh(){const id=idOf(accountUser);fields.classList.toggle('hidden',!!id);logoutButton.classList.toggle('hidden',!id);if(id)setStatus(`ログイン中：${id}`)}
- function refreshDecks(){selectedDeckId=decks[0]?.id||null;window.refreshDeckSelects?.();window.renderDeckManager?.()}
+ const cloneDecks=list=>{try{return JSON.parse(JSON.stringify(Array.isArray(list)?list:[]))}catch(_){return[]}};
+ const cloudDecks=raw=>{const items=Array.isArray(raw)?raw:Object.values(raw||{});return items.filter(d=>d&&typeof d==='object'&&d.id&&d.counts).map(normalizeDeck)};
+ const deckPayload=list=>list.map(d=>({id:d.id,name:d.name,character:d.character,counts:normalizeCounts(d.counts)}));
+ function refresh(showStatus=true){const id=idOf(accountUser);fields.classList.toggle('hidden',!!id);logoutButton.classList.toggle('hidden',!id);if(id&&showStatus)setStatus(`ログイン中：${id}`)}
+ function refreshDecks(preferredId=''){const keep=preferredId||selectedDeckId;selectedDeckId=decks.some(d=>d.id===keep)?keep:(decks[0]?.id||null);window.refreshDeckSelects?.();window.renderDeckManager?.()}
+ async function migrateRegistrationDecks(user){
+   const pending=pendingRegistrationDecks;
+   if(!pending||(pending.uid&&pending.uid!==user.uid))return false;
+   pending.uid=user.uid;
+   if(pending.promise)return pending.promise;
+   const current=++revision;
+   pending.inFlight=true;
+   accountUser=user;refresh(false);
+   setStatus('アカウントを作成しました。ローカルデッキを引き継いでいます…');
+   pending.promise=(async()=>{
+     try{
+       const ref=db.ref(`users/${user.uid}/decks`),snap=await ref.once('value');
+       if(current!==revision){pending.inFlight=false;return false;}
+       const raw=snap.val();
+       if(raw!==null&&raw!==undefined){
+         decks=cloudDecks(raw);
+       }else{
+         const copied=deckPayload(pending.decks);
+         await ref.set(copied.length?copied:null);
+         if(current!==revision){pending.inFlight=false;return false;}
+         decks=cloneDecks(pending.decks).map(normalizeDeck);
+       }
+       refreshDecks(pending.selectedDeckId);refresh(false);
+       setStatus(`ログイン中：${idOf(user)}（ローカルデッキを引き継ぎました）`);
+       pending.completed=true;pending.inFlight=false;
+       if(pendingRegistrationDecks===pending)pendingRegistrationDecks=null;
+       return true;
+     }catch(e){
+       if(current!==revision){pending.inFlight=false;return false;}
+       // The browser copy is intentionally kept intact so a failed cloud write never loses decks.
+       decks=cloneDecks(pending.decks).map(normalizeDeck);
+       refreshDecks(pending.selectedDeckId);accountUser=user;refresh(false);
+       pending.inFlight=false;pending.promise=null;pending.error=e;
+       setStatus(`アカウントは作成されましたが、ローカルデッキの移行に失敗しました：${e.message}。ローカルデッキは保持されています。デッキ編集画面で保存すると再試行できます。`,true);
+       return false;
+     }
+   })();
+   return pending.promise;
+ }
  async function onAuth(user){
-   const current=++revision,accountId=idOf(user);
-   if(!accountId){accountUser=null;decks=loadDecks();refreshDecks();fields.classList.remove('hidden');logoutButton.classList.add('hidden');setStatus('未ログイン：ローカルデッキを使用中');return}
+   const accountId=idOf(user);
+   if(!accountId){
+     if(pendingRegistrationDecks?.inFlight&&pendingRegistrationDecks.uid&&accountUser?.uid===pendingRegistrationDecks.uid)return;
+     ++revision;accountUser=null;decks=loadDecks();refreshDecks();fields.classList.remove('hidden');logoutButton.classList.add('hidden');setStatus('未ログイン：ローカルデッキを使用中');return;
+   }
+   if(pendingRegistrationDecks&&(!pendingRegistrationDecks.uid||pendingRegistrationDecks.uid===user.uid)){
+     await migrateRegistrationDecks(user);
+     return;
+   }
+   const current=++revision;
    setStatus('アカウントのデッキを読み込み中…');
    try{
      const snap=await db.ref(`users/${user.uid}/decks`).once('value');
      if(current!==revision)return;
-     const raw=snap.val(),items=Array.isArray(raw)?raw:Object.values(raw||{});
-     decks=items.filter(d=>d&&typeof d==='object'&&d.id&&d.counts).map(normalizeDeck);
+     decks=cloudDecks(snap.val());
      accountUser=user;refreshDecks();refresh();
    }catch(e){if(current!==revision)return;accountUser=null;setStatus(`デッキの読み込みに失敗：${e.message}`,true)}
  }
@@ -4760,10 +4809,14 @@ makeView=function(pid){const v=laViewBeforeFoxfire(pid);v.foxfireDeckEvents=(gam
    if(password.length<6)return setStatus('パスワードは6文字以上で入力してください',true);
    busy=true;setStatus(register?'登録中…':'ログイン中…');
    try{
-     if(register)await auth.createUserWithEmailAndPassword(emailFor(id),password);
-     else await auth.signInWithEmailAndPassword(emailFor(id),password);
+     if(register){
+       // Capture the local state before Firebase can emit onAuthStateChanged for the new user.
+       pendingRegistrationDecks={decks:cloneDecks(decks),selectedDeckId,uid:null,promise:null,inFlight:false,completed:false,error:null};
+       const credential=await auth.createUserWithEmailAndPassword(emailFor(id),password);
+       await migrateRegistrationDecks(credential.user);
+     }else await auth.signInWithEmailAndPassword(emailFor(id),password);
      passInput.value='';
-   }catch(e){setStatus(`認証に失敗：${e.message}`,true)}finally{busy=false}
+   }catch(e){if(register)pendingRegistrationDecks=null;setStatus(`認証に失敗：${e.message}`,true)}finally{busy=false}
  }
  document.getElementById('accountRegister').addEventListener('click',()=>act(true));
  document.getElementById('accountLogin').addEventListener('click',()=>act(false));
