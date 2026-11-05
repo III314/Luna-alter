@@ -18,7 +18,7 @@
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.34.0",
+  version:"0.34.1",
   label:"仮想盤面と座標管理"
 });
 </script>
@@ -758,7 +758,7 @@ body.la-battle-subview #roomScreen{height:100vh!important;min-height:100vh!impor
   -webkit-overflow-scrolling:touch;
 }
 #modalBody .choice-card{min-height:104px!important;max-height:132px!important;padding:6px!important;border-radius:9px!important;overflow:hidden!important}
-#modalBody .choice-card .cname{font-size:9.5px!important}#modalBody .choice-card .cost{font-size:14px!important}
+#modalBody .choice-card .cname{font-size:9.5px!important}
 #modalBody .choice-card .text{font-size:8px!important;line-height:1.18!important;overflow:auto!important}
 #modal .modal-actions{display:flex!important;flex:0 0 auto!important;gap:6px!important;margin:0!important;padding-top:2px!important;min-height:34px!important}
 #modal .modal-actions .btn{min-height:32px!important;padding:5px 12px!important}
@@ -1138,7 +1138,7 @@ body.deck-view #deckScreen #deckCountSticky{top:72px!important}
 #battleScreen #playedStage .card.played .head{min-height:42px;align-items:flex-start}
 #battleScreen #playedStage .card.played .cname{font-size:20px!important;line-height:1.12!important}
 #battleScreen #playedStage .card.played .type{font-size:11px!important;margin-top:3px}
-#battleScreen #playedStage .card.played .cost{font-size:28px!important;line-height:1!important}
+
 #battleScreen #playedStage .card.played .card-art{
   height:205px!important;
   min-height:205px!important;
@@ -1255,12 +1255,19 @@ body.deck-view #deckScreen #deckCountSticky{top:72px!important}
  color:var(--la-type)!important;font-size:5.5cqi!important;line-height:1!important;text-shadow:0 -1px var(--la-metal-hi),0 1px #000,0 0 5px color-mix(in srgb,var(--la-type) 55%,transparent)!important;
 }
 .card.la-card-face.attack{--la-type:#b94a40}.card.la-card-face.skill{--la-type:#3e91ad}.card.la-card-face.setup{--la-type:#c09a46}.card.la-card-face.spell{--la-type:#8d62ad}
-.la-card-face>.head{position:relative!important;z-index:3!important;min-width:0!important;display:grid!important;grid-template-columns:minmax(0,1fr) 18%!important;gap:3%!important;align-items:center!important;padding:0 2%!important}
+.la-card-face>.head{position:relative!important;z-index:3!important;min-width:0!important;display:grid!important;grid-template-columns:23cqi minmax(0,1fr)!important;gap:3%!important;align-items:center!important;padding:0 2%!important}
 .la-card-face .card-title-wrap{min-width:0!important;display:flex!important;align-items:center!important;height:100%!important}
 .la-card-face .cname{min-width:0!important;color:#fff6de!important;font-family:Georgia,"Yu Mincho","Hiragino Mincho ProN",serif!important;font-size:10.8cqi!important;font-weight:900!important;line-height:1.05!important;letter-spacing:.01em!important;text-shadow:0 1px 2px #000!important;white-space:normal!important;overflow-wrap:anywhere!important}
 .card.la-card-face .cname::before,.card.la-card-face .cname::after{content:none!important}
 .la-card-face .cname ruby{ruby-position:over}.la-card-face .cname rt{font-size:.36em!important;color:#e1c980!important;line-height:1!important}
-.la-card-face .cost{align-self:center!important;justify-self:end!important;display:grid!important;place-items:center!important;width:13cqi!important;height:13cqi!important;border-radius:50%!important;padding:0!important;color:#171006!important;background:radial-gradient(circle at 34% 28%,#fff3ba 0,#d8ad50 34%,#85601f 70%,#3d280c 100%)!important;border:max(1px,1cqi) solid #ebcf81!important;box-shadow:0 0 0 max(1px,.8cqi) #3b270d,0 2px 5px #000!important;font-size:9.8cqi!important;font-weight:1000!important;line-height:1!important;text-shadow:0 1px rgba(255,255,255,.45)!important}
+.la-card-face > .head > .cost{
+ position:relative;display:grid;place-items:center;
+ width:23cqi;height:23cqi;border-radius:50%;pointer-events:none;box-sizing:border-box;
+ color:#1b1104;background:radial-gradient(circle at 34% 28%,#fff7c9 0 11%,#ebc965 29%,#a87020 63%,#3b2107 100%);
+ border:max(1px,1.15cqi) solid #f6df95;box-shadow:0 0 0 max(1px,.85cqi) #42270a,0 4px 10px rgba(0,0,0,.65),inset 0 1px 1px rgba(255,255,255,.72);
+ font:1000 13cqi/1 Georgia,"Yu Mincho",serif;text-shadow:0 1px rgba(255,255,255,.5);isolation:isolate;
+}
+.la-card-face > .head > .cost::after{content:"";position:absolute;inset:12%;border-radius:50%;border:1px solid rgba(67,37,6,.5);pointer-events:none}
 .la-card-face>.card-art{position:relative!important;z-index:2!important;width:100%!important;height:100%!important;min-height:0!important;max-height:none!important;margin:0!important;border-radius:2.8%!important;overflow:hidden!important;border:max(1px,.8cqi) solid #8b682d!important;background:#090a09!important;box-shadow:inset 0 0 0 1px rgba(245,218,147,.22),0 2px 7px #000!important}
 .la-card-face>.card-art::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(255,235,175,.06),transparent 24%,transparent 76%,rgba(0,0,0,.25))}
 .la-card-face>.card-art img{display:block!important;width:100%!important;height:100%!important;object-fit:cover!important;object-position:center!important;image-rendering:auto!important}
@@ -1303,17 +1310,6 @@ body.deck-view #deckScreen #deckCountSticky{top:72px!important}
 #battleScreen #myHand>.card:not(.disabled){outline:3px solid #55b9ff!important;outline-offset:-2px!important;box-shadow:0 0 0 2px rgba(55,160,255,.34),0 0 18px 5px rgba(55,160,255,.78),0 6px 18px rgba(0,0,0,.28)!important}
 #battleScreen #myHand>.card.disabled{outline:1px solid rgba(255,255,255,.18)!important;outline-offset:-1px!important;box-shadow:0 4px 12px rgba(0,0,0,.22)!important}
 
-/* v0.29 hand-only overlays.  The canonical v0.28 card grid remains intact:
-   the cost is an exterior layer, never a new row in unifiedCardInner(). */
-#battleScreen #myHand>.card.hand-card{overflow:visible!important}
-#battleScreen #myHand>.card.hand-card>.hand-cost-overlay{
- position:absolute;z-index:40;left:-20cqi;top:-18cqi;display:grid;place-items:center;
- width:23cqi;aspect-ratio:1;border-radius:50%;pointer-events:none;box-sizing:border-box;
- color:#1b1104;background:radial-gradient(circle at 34% 28%,#fff7c9 0 11%,#ebc965 29%,#a87020 63%,#3b2107 100%);
- border:max(1px,1.15cqi) solid #f6df95;box-shadow:0 0 0 max(1px,.85cqi) #42270a,0 4px 10px rgba(0,0,0,.65),inset 0 1px 1px rgba(255,255,255,.72);
- font:1000 13cqi/1 Georgia,"Yu Mincho",serif;text-shadow:0 1px rgba(255,255,255,.5);isolation:isolate;
-}
-#battleScreen #myHand>.card.hand-card>.hand-cost-overlay::after{content:"";position:absolute;inset:12%;border-radius:50%;border:1px solid rgba(67,37,6,.5);pointer-events:none}
 /* This rule deliberately follows the blue usable-card rule above.  Gold means
    a card-specific condition is true; blue continues to mean merely playable. */
 #battleScreen #myHand>.card.condition-ready,
@@ -1358,7 +1354,7 @@ body.deck-view #deckScreen #deckCountSticky{top:72px!important}
 #battleScreen #playedStage .card.played>.card-art{height:100%!important;min-height:0!important;margin:0!important;border-radius:2.8%!important}
 #battleScreen #playedStage .card.played .cname{font-size:10.8cqi!important;line-height:1.05!important}
 #battleScreen #playedStage .card.played .type{font-size:5.7cqi!important;margin:0!important}
-#battleScreen #playedStage .card.played .cost{font-size:9.8cqi!important}
+
 #battleScreen #playedStage .card.played .text{font-size:6.65cqi!important;line-height:1.28!important;overflow:auto!important}
 .setup-detail-preview,.linked-detail-preview{width:min(270px,70vw,calc((100dvh - 92px) * .66923))!important;min-height:0!important;max-height:none!important;margin:0 auto!important}
 .linked-detail-preview .text{font-size:6.65cqi!important;line-height:1.28!important;overflow:auto!important}
@@ -1366,7 +1362,7 @@ body.deck-view #deckScreen #deckCountSticky{top:72px!important}
 /* Selection cards remain usable at short landscape heights. */
 #modalBody.choice-list{grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:8px!important;justify-items:center!important}
 #modalBody .choice-card{width:100%!important;max-width:174px!important;min-height:0!important;max-height:none!important;padding:4.6%!important;border-radius:5.2%!important;overflow:hidden!important}
-#modalBody .choice-card .cname{font-size:10.8cqi!important}#modalBody .choice-card .cost{font-size:9.8cqi!important}
+#modalBody .choice-card .cname{font-size:10.8cqi!important}
 #modalBody .choice-card .text{font-size:6.65cqi!important;line-height:1.28!important;overflow:auto!important}
 #modalBody .choice-detail-link{right:5%!important;bottom:3%!important;padding:2% 5%!important;font-size:5.2cqi!important}
 #modalBody .modifier-list{display:flex!important;flex-wrap:wrap!important;gap:1.5cqi!important;margin-top:2cqi!important}
@@ -4549,7 +4545,7 @@ body.battle-view .app { display: none; }
       const view = getView(), card = cardForElement(view, element);
       if (!card) return;
       if (element.classList.contains("expanded")) {
-        const detail = view.spectator ? { ...card, cost: viewCost(view, card) } : card;
+        const detail = { ...card, cost: viewCost(view, card) };
         showDetail(detail, view.spectator ? `P2 ${view.me.name}の手札` : "手札");
         clearHandSelection(hand);
       } else {
@@ -6151,7 +6147,7 @@ body.battle-view .app { display: none; }
       const effect = options.textHtml ?? escapeHtml(rawText);
       const art = window.LUNA_CARD_ART?.[c.id] || "";
       const extra = options.extraHtml || "";
-      return `<div class="head"><div class="card-title-wrap"><div class="cname">${cardNameHtml(c)}</div></div><div class="cost">${cost}</div></div><div class="card-art">${art ? `<img src="${art}" alt="" draggable="false">` : '<span class="card-art-empty" aria-hidden="true">LUNA ALTER</span>'}</div><div class="type">${typeLabel(c.type)}</div><div class="text">${effect}${extra}</div>`;
+      return `<div class="head"><div class="cost">${cost}</div><div class="card-title-wrap"><div class="cname">${cardNameHtml(c)}</div></div></div><div class="card-art">${art ? `<img src="${art}" alt="" draggable="false">` : '<span class="card-art-empty" aria-hidden="true">LUNA ALTER</span>'}</div><div class="type">${typeLabel(c.type)}</div><div class="text">${effect}${extra}</div>`;
     }
     window.LUNA_CARD_FACE_HTML = unifiedCardInner;
     const detailHistory = [];
@@ -6258,12 +6254,13 @@ body.battle-view .app { display: none; }
         b.className = `choice-card card ${c.type} la-card-face${selected.has(c.uid) ? " selected" : ""}`;
         b.dataset.cardId = c.id;
         b.dataset.uid = c.uid;
-        b.innerHTML = `${unifiedCardInner(c, { cost: Number.isFinite(c.choiceCost) ? c.choiceCost : c.cost, extraHtml: choiceModifierHtml(c) })}<span class="choice-detail-link" role="button" aria-label="カード詳細を見る">詳細</span>`;
+        const cost = Number.isFinite(c.choiceCost) ? c.choiceCost : c.cost;
+        b.innerHTML = `${unifiedCardInner(c, { cost, extraHtml: choiceModifierHtml(c) })}<span class="choice-detail-link" role="button" aria-label="カード詳細を見る">詳細</span>`;
         b.onclick = (e) => {
           if (e.target.closest(".choice-detail-link")) {
             e.preventDefault();
             e.stopPropagation();
-            window.LA_SHOW_CARD_DETAIL?.(c, "選択候補");
+            window.LA_SHOW_CARD_DETAIL?.({ ...c, cost }, "選択候補");
             return;
           }
           if (selected.has(c.uid)) {
@@ -7686,11 +7683,6 @@ body.battle-view .app { display: none; }
           options.text = `X＝（現在の使用枚数${used}＋このカード1枚）×2＝${x}。耐久値Xの防壁になり、次のターン開始時までリーダーへのダメージをブロックする。超過分はリーダーが受ける。次のターン開始時、捨て札へ。`;
         }
         d.innerHTML = unifiedCardInner(c, options);
-        const handCost = document.createElement("span");
-        handCost.className = "hand-cost-overlay";
-        handCost.setAttribute("aria-hidden", "true");
-        handCost.textContent = String(options.cost);
-        d.appendChild(handCost);
         if (c.retain || c.retainedOnce || activeViewHasSetup(v, v.me.pid, "k9") || v.me.keepUid === c.uid) {
           const b = document.createElement("span");
           b.className = "retain-badge";
