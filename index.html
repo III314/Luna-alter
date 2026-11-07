@@ -18,7 +18,7 @@
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.34.1",
+  version:"0.35.0",
   label:"仮想盤面と座標管理"
 });
 </script>
@@ -1428,6 +1428,22 @@ body.spectator-mode #battleScreen #laDropGuide,body.spectator-mode #battleScreen
 @keyframes laFoxfireToDeck{0%{opacity:0;transform:translate(var(--start-x),var(--start-y)) scale(.8)}13%,35%{opacity:1;transform:translate(var(--start-x),var(--start-y)) scale(1)}85%{opacity:1;transform:translate(var(--end-x),var(--end-y)) scale(.18)}100%{opacity:0;transform:translate(var(--end-x),var(--end-y)) scale(.08)}}
 @media(prefers-reduced-motion:reduce){.la-foxfire-deck-fx{animation-duration:.12s}}
 </style>
+<style>
+#modalBody .choice-source {
+  position: absolute;
+  top: 25%;
+  right: 6%;
+  z-index: 10;
+  padding: 3px 6px;
+  border: 1px solid #ebcf81;
+  border-radius: 5px;
+  background: #211a0e;
+  color: #fff0ba;
+  font-size: 12px;
+  line-height: 1.2;
+  pointer-events: none;
+}
+</style>
 <style id="battle-layout">
 /* Coordinates are in 1280 × 720 board pixels. A design image can be placed
    at (0, 0) and used as the layout reference for these anchors. */
@@ -1723,10 +1739,10 @@ body.battle-view .app { display: none; }
 <div id="deckEditor">
 <div class="panel deck-editor-head">
 <div class="deck-fields"><div class="field"><label>キャラクター</label><select id="deckCharacter"><option value="giovanni">ジョバンニ</option><option value="kenshi">マサムネ</option><option value="shiranui">シラヌイ</option></select></div><div class="field"><label>デッキ名</label><input id="deckName" maxlength="24"/></div></div>
-<div class="deck-meta-actions"><div style="padding:6px"><span class="count" id="deckCount">0</span> / 40枚</div><button class="btn" id="resetDeck">標準構成</button><button class="btn" id="duplicateDeck">複製</button><button class="btn primary" id="saveDeck">保存</button></div>
+<div class="deck-meta-actions"><div style="padding:6px"><span class="count" id="deckCount">0</span> / <span id="deckSizeLimit"></span>枚</div><button class="btn" id="resetDeck">標準構成</button><button class="btn" id="duplicateDeck">複製</button><button class="btn primary" id="saveDeck">保存</button></div>
 </div>
 <div class="notice hidden" id="deckWarning"></div>
-<div class="deck-count-sticky" id="deckCountSticky"><div class="deck-count-pill" id="deckCountStickyPill">現在 0 / 40枚</div></div>
+<div class="deck-count-sticky" id="deckCountSticky"><div class="deck-count-pill" id="deckCountStickyPill"></div></div>
 <div class="card-grid" id="deckGrid"></div>
 </div>
 </div>
@@ -1910,9 +1926,10 @@ body.battle-view .app { display: none; }
 
   // src/engine/card-data.js
   var COMMON_CARD_DEFS = [
+    { "id": "search", "name": "検索窓", "type": "skill", "cost": 1, "text": "自分の山札か捨て札から、セットアップ1枚を選んで手札に加える。", "pool": "common" },
     { "id": "strike", "name": "ストライク", "type": "attack", "cost": 1, "text": "4ダメージを与える。", "pool": "common" },
     { "id": "guard", "name": "防御", "type": "setup", "cost": 1, "text": "場にある限り、4ブロックを得る。ブロックが0になったら捨て札へ。", "pool": "common" },
-    { "id": "pitfall", "name": "落とし穴", "type": "setup", "cost": 2, "text": "次に相手が使用するカードの効果を無効にする。", "pool": "common" },
+    { "id": "pitfall", "name": "落とし穴", "type": "setup", "cost": 1, "text": "次に相手が使用するカードの効果を無効にする。", "pool": "common" },
     { "id": "seat", "name": "席替え", "type": "skill", "cost": 2, "text": "共有枠のセットアップ1枚を選び、任意の位置へ移動する。", "pool": "common" }
   ];
   var GIOVANNI_CARD_DEFS = [
@@ -1978,8 +1995,8 @@ body.battle-view .app { display: none; }
     { "id": "kt2", "name": "魂の一閃", "type": "attack", "cost": 6, "text": "50ダメージを与える。", "pool": "kenshi", "token": true }
   ];
   var SHIRANUI_CARD_DEFS = [
-    { "id": "s1", "name": "宵のはじまり", "type": "setup", "cost": 1, "text": "場を離れたとき、狐火1枚を自分の捨て札に加える。", "pool": "shiranui" },
-    { "id": "s2", "name": "百鬼夜行", "type": "attack", "cost": 0, "text": "自分のターン中にカードを9枚使用したとき、手札に《百鬼夜行》がない場合、山札か捨て札にあるこのカード1枚を手札に加える。このカードは10枚目の使用としてのみ使用でき、4ダメージを9回与える。夜行絵巻が場にあれば、そのX回分も攻撃する。", "pool": "shiranui" },
+    { "id": "s1", "name": "宵のはじまり", "type": "setup", "cost": 1, "text": "場を離れたとき、狐火1枚を自分の山札に加える。このカードは場を離れたとき、廃棄される。", "pool": "shiranui" },
+    { "id": "s2", "name": "百鬼夜行", "type": "attack", "cost": 0, "text": "自分のターン中にカードを9枚使用したとき、手札に《百鬼夜行》がない場合、山札か捨て札にあるこのカード1枚を手札に加える。このカードは10枚目の使用としてのみ使用でき、4ダメージを9回与える。夜行絵巻が場にあれば、そのX回分も攻撃する。使用後、廃棄。", "exhaustAfterUse": true, "pool": "shiranui" },
     { "id": "s3", "name": "誘い火", "type": "setup", "cost": 4, "text": "自分のターン開始時、狐火1枚を手札に加える。", "pool": "shiranui" },
     { "id": "s4", "name": "火遊び", "type": "attack", "cost": 0, "text": "2ダメージを与える。", "pool": "shiranui" },
     { "id": "s5", "name": "輪廻の理", "type": "skill", "cost": 1, "text": "捨て札から、このターン中に使った「輪廻の理」以外のカード1枚を手札に加える。", "pool": "shiranui" },
@@ -1992,12 +2009,12 @@ body.battle-view .app { display: none; }
     { "id": "s12", "name": "宵月斬", "type": "attack", "cost": 3, "text": "10ダメージを与える。このカードの使用が5枚目なら、追加で12ダメージ（合計22ダメージ）。", "pool": "shiranui" },
     { "id": "s13", "name": "口寄せ", "type": "setup", "cost": 2, "text": "ターン終了時、このターン中にカードを3枚以上使用していた場合、狐火1枚を山札に加え、その後シャッフルする。設置したターンも発動する。", "pool": "shiranui" },
     { "id": "s14", "name": "夜行", "type": "skill", "cost": 1, "text": "カードを1枚引く。このカードの使用が3枚目なら、追加で1枚引く。", "pool": "shiranui" },
-    { "id": "s15", "name": "化粧直し", "type": "skill", "cost": 1, "text": "山札のカード1枚を狐火に変化させ、その後シャッフルする。", "pool": "shiranui" },
+    { "id": "s15", "name": "化粧直し", "type": "skill", "cost": 1, "text": "山札のカード1枚を狐火に変化させ、その後シャッフルする。使用後、廃棄。", "exhaustAfterUse": true, "pool": "shiranui" },
     { "id": "s16", "name": "終わらぬ宴", "type": "attack", "cost": 1, "text": "3ダメージを与える。このカードは使用後、直接自分の手札に戻る。", "pool": "shiranui" },
     { "id": "s17", "name": "花魁道中", "type": "setup", "cost": 2, "text": "自分のターン開始時、カードを1枚引く。その後、手札から1枚を廃棄する。", "pool": "shiranui" },
     { "id": "s18", "name": "十六夜", "type": "setup", "cost": 3, "text": "手札を好きな枚数廃棄する。廃棄した枚数と同じ回数、次に受けるダメージを5軽減する。残り回数は☾で表示する。0枚なら設置されず捨て札へ。", "pool": "shiranui" },
     { "id": "s19", "name": "数珠繋ぎ", "type": "skill", "cost": 3, "text": "カードを1枚引く。このカードがこのターン5枚目に使用される場合、コストは0。", "pool": "shiranui" },
-    { "id": "s20", "name": "玉藻の顕現", "type": "skill", "cost": 10, "text": "手札にある状態で自分が別のカードを使用するたび、このカードのコストを1下げる（最低0）。このターン終了後、もう一度自分のターンを行う。", "pool": "shiranui" },
+    { "id": "s20", "name": "玉藻の顕現", "type": "skill", "cost": 10, "text": "手札にある状態で自分が別のカードを使用するたび、このカードのコストを1下げる（最低0）。このターン終了後、もう一度自分のターンを行う。使用後、廃棄。", "exhaustAfterUse": true, "pool": "shiranui" },
     { "id": "s21", "name": "逢魔時", "type": "setup", "cost": 5, "text": "自分がカードを廃棄するたび、2ダメージを与える。", "pool": "shiranui" },
     { "id": "s22", "name": "狐面", "type": "setup", "cost": 1, "text": "場に出たとき、手札のカード1枚を選んで廃棄する。手札がなければ廃棄しない。このカードが共有セットアップを離れたとき、自分のリーダーを5回復する。", "pool": "shiranui" },
     { "id": "s23", "name": "鬼火", "type": "attack", "cost": 1, "text": "廃棄札にある狐火の枚数×2ダメージを与える。", "pool": "shiranui" },
@@ -2015,81 +2032,14 @@ body.battle-view .app { display: none; }
     return Object.fromEntries(catalog.map(({ id }) => [id, preset[id] ?? 0]));
   }
   var DEFAULT_DECKS = {
-    giovanni: starterDeck(LEGACY_DECK_CATALOG, {
-      strike: 2,
-      guard: 2,
-      j1: 2,
-      j2: 2,
-      j3: 2,
-      j4: 2,
-      j5: 2,
-      j6: 2,
-      j7: 2,
-      j8: 2,
-      j9: 2,
-      j10: 2,
-      j11: 2,
-      j12: 2,
-      j13: 2,
-      j14: 2,
-      j15: 2,
-      j16: 2,
-      j17: 2,
-      j18: 2
-    }),
-    kenshi: starterDeck(LEGACY_DECK_CATALOG, {
-      strike: 2,
-      guard: 2,
-      k1: 2,
-      k2: 2,
-      k3: 2,
-      k4: 2,
-      k5: 2,
-      k6: 2,
-      k7: 2,
-      k8: 2,
-      k9: 2,
-      k10: 2,
-      k11: 1,
-      k12: 2,
-      k13: 1,
-      k14: 2,
-      k15: 1,
-      k16: 2,
-      k17: 2,
-      k18: 1,
-      k19: 1,
-      k20: 2,
-      k21: 1
-    }),
-    shiranui: starterDeck(CARD_DEFS, {
-      s1: 2,
-      s2: 2,
-      s3: 2,
-      s4: 2,
-      s5: 2,
-      s6: 2,
-      s7: 2,
-      s8: 2,
-      s9: 2,
-      s10: 2,
-      s11: 2,
-      s12: 2,
-      s13: 2,
-      s14: 2,
-      s15: 2,
-      s16: 2,
-      s17: 2,
-      s18: 1,
-      s19: 1,
-      s20: 1,
-      s21: 1,
-      s22: 1,
-      s23: 1
-    })
+    giovanni: starterDeck(CARD_DEFS, { "strike": 1, "guard": 2, "search": 2, "j1": 2, "j2": 2, "j3": 1, "j4": 1, "j5": 2, "j6": 2, "j8": 2, "j9": 2, "j10": 2, "j15": 2, "j18": 2 }),
+    kenshi: starterDeck(CARD_DEFS, { "strike": 1, "guard": 2, "search": 2, "k1": 2, "k2": 2, "k3": 2, "k4": 2, "k5": 2, "k6": 1, "k7": 2, "k9": 2, "k10": 2, "k16": 2, "k17": 1 }),
+    shiranui: starterDeck(CARD_DEFS, { "search": 2, "s1": 2, "s2": 1, "s3": 2, "s5": 2, "s7": 2, "s8": 1, "s9": 2, "s11": 2, "s14": 2, "s15": 1, "s16": 2, "s19": 1, "s20": 1, "s21": 1, "s26": 1 })
   };
 
   // src/engine/deck-rules.js
+  var DECK_SIZE = 25;
+  var MAX_COPIES = 2;
   function normalizeCounts(counts, catalog = CARD_DEFS) {
     const normalized = {};
     if (counts && typeof counts === "object") {
@@ -2114,12 +2064,10 @@ body.battle-view .app { display: none; }
     return catalog.reduce((sum, card) => sum + (counts?.[card.id] || 0), 0);
   }
   function validCounts(counts, character = "giovanni", catalog = CARD_DEFS) {
-    const normalized = normalizeCounts(counts, catalog);
+    if (!counts || typeof counts !== "object" || Array.isArray(counts)) return false;
     const allowed = new Set(allowedCards(character).map((card) => card.id));
-    return catalog.every(({ id }) => {
-      const count = normalized[id];
-      return count >= 0 && count <= 3 && (!count || allowed.has(id));
-    }) && deckTotal(normalized, catalog) === 40;
+    const known = new Set(catalog.map((card) => card.id));
+    return ["giovanni", "kenshi", "shiranui"].includes(character) && Object.entries(counts).every(([id, count]) => Number.isInteger(count) && count >= 0 && count <= MAX_COPIES && (!count || known.has(id) && allowed.has(id))) && deckTotal(counts, catalog) === DECK_SIZE;
   }
 
   // src/engine/board-state.js
@@ -2488,6 +2436,8 @@ body.battle-view .app { display: none; }
     const index = wasPersonal ? -1 : board.findIndex((slot) => slot.owner === pid && slot.card.uid === card.uid);
     if (wasPersonal) player.personal = null;
     else if (index >= 0) board.splice(index, 1);
+    if (!wasPersonal && index < 0) return;
+    if (card.id === "s1") to = "exhaust";
     if (to === "exhaust") sendExhaust(ctx, pid, card);
     else {
       resetHandCost(card);
@@ -2497,8 +2447,8 @@ body.battle-view .app { display: none; }
     if (index >= 0 && !ctx.state.over) SHARED_LEAVE_EFFECTS[card.id]?.(ctx, pid, player);
     if (wasPersonal || index >= 0) {
       if (card.id === "s1" && !ctx.state.over) {
-        player.discard.push(makeCard(ctx, "sf"));
-        addLog(ctx, `${player.name}：《宵のはじまり》が場を離れ、狐火1枚を捨て札に加えた。`);
+        player.drawPile.push(makeCard(ctx, "sf"));
+        addLog(ctx, `${player.name}：《宵のはじまり》が場を離れ、狐火1枚を山札に加えた。`);
       }
       if (card.id === "s26") card.yakouX = 0;
     }
@@ -2507,7 +2457,7 @@ body.battle-view .app { display: none; }
     const oldest = sharedDuringResolution(ctx)[0];
     if (!oldest) return;
     removeSetup(ctx, oldest.owner, oldest.card, "discard");
-    addLog(ctx, `${reason}：最古の《${oldest.card.name}》が${ctx.state.players[oldest.owner].name}の捨て札へ。`);
+    addLog(ctx, `${reason}：最古の《${oldest.card.name}》が${ctx.state.players[oldest.owner].name}${oldest.card.id === "s1" ? "の廃棄札" : "の捨て札"}へ。`);
   }
   function generateGuard(ctx, pid) {
     const card = makeCard(ctx, "guard");
@@ -2744,6 +2694,12 @@ body.battle-view .app { display: none; }
     addLog(ctx, `${player.name}：《${card.name}》で${drawn}枚ドロー。`);
   }
   var SKILL_EFFECTS = {
+    search(ctx, pid, card, player) {
+      player.discard.push(card);
+      const candidates = [...player.drawPile, ...player.discard].filter((c) => c.type === "setup");
+      if (candidates.length) return deferCard(ctx, pid, card, "searchSetup", 1, "《検索窓》：山札・捨て札からセットアップを1枚選択");
+      addLog(ctx, `${player.name}：《検索窓》の対象がない。`);
+    },
     j1(ctx, pid, card, player) {
       player.discard.push(card);
       drawAndLog(ctx, pid, card, player, 2);
@@ -2862,8 +2818,8 @@ body.battle-view .app { display: none; }
       drawAndLog(ctx, pid, card, player, useNo === 3 ? 2 : 1);
     },
     s15(ctx, pid, card, player) {
-      player.discard.push(card);
-      if (player.drawPile.length) return deferCard(ctx, pid, card, "transformDraw", 1, "《化粧直し》：狐火に変化させる山札のカードを1枚選択");
+      if (player.drawPile.length) return deferCard(ctx, pid, card, "transformDraw", 1, "《化粧直し》：狐火に変化させる山札のカードを1枚選択", { exhaustAfterCard: card });
+      sendExhaust(ctx, pid, card);
       addLog(ctx, `${player.name}：《化粧直し》：山札にカードがない。`);
     },
     s19(ctx, pid, card, player) {
@@ -2871,10 +2827,10 @@ body.battle-view .app { display: none; }
       drawAndLog(ctx, pid, card, player, 1);
     },
     s20(ctx, pid, card, player) {
-      player.discard.push(card);
       player.extraTurns = (player.extraTurns || 0) + 1;
       ctx.state.specialCutin = { seq: (ctx.state.specialCutin?.seq || 0) + 1, pid, cardName: "玉藻の顕現" };
       addLog(ctx, `${player.name}：《玉藻の顕現》で追加ターンを獲得。`);
+      sendExhaust(ctx, pid, card);
     },
     s25(ctx, pid, card, player, useNo) {
       if (useNo === 4 && !ctx.state.over) {
@@ -2922,7 +2878,7 @@ body.battle-view .app { display: none; }
     const trap = candidate && activeSetups(ctx, other(pid)).find((card2) => card2.id === "pitfall");
     if (trap && canPlay(ctx, pid, candidate)) {
       payAndReveal(ctx, pid, candidate);
-      if (candidate.id === "knife" || candidate.id === "sf" || candidate.generatedExhaust) {
+      if (candidate.id === "knife" || candidate.id === "sf" || candidate.generatedExhaust || candidate.exhaustAfterUse) {
         sendExhaust(ctx, pid, candidate);
       } else {
         sendDiscard(player, candidate);
@@ -2969,7 +2925,6 @@ body.battle-view .app { display: none; }
     if (card.id === "s26" && card.type === "setup" && !Number.isFinite(card.yakouX)) card.yakouX = 0;
     payAndReveal(ctx, pid, card);
     const isShiranui = card.id === "sf" || card.pool === "shiranui";
-    const exhaustBefore = player.exhaust.length;
     let deferred = false;
     if (card.type === "setup") {
       const effect = SETUP_EFFECTS[card.id];
@@ -2983,7 +2938,9 @@ body.battle-view .app { display: none; }
       ATTACK_EFFECTS[card.id]?.(ctx, pid, card, player, useNo);
       if (!isShiranui) afterPlayTriggers(ctx, pid, card);
       if (isShiranui && card.id === "s16") addToHand(ctx, pid, card);
-      else (card.id === "knife" ? player.exhaust : player.discard).push(card);
+      else if (card.exhaustAfterUse) sendExhaust(ctx, pid, card);
+      else if (card.id === "knife") sendExhaust(ctx, pid, card);
+      else player.discard.push(card);
       if (isShiranui) afterPlayTriggers(ctx, pid, card);
     } else {
       const effect = SKILL_EFFECTS[card.id];
@@ -2991,8 +2948,6 @@ body.battle-view .app { display: none; }
       else if (isShiranui) player.discard.push(card);
     }
     if (card.type !== "attack" && !deferred) afterPlayTriggers(ctx, pid, card);
-    const exhausted = player.exhaust.length - exhaustBefore;
-    if (!isShiranui && exhausted > 0) triggerExhaustEffects(ctx, pid, exhausted);
   }
 
   // src/engine/turns.js
@@ -3134,6 +3089,7 @@ body.battle-view .app { display: none; }
   // src/engine/pending-choices.js
   function finishChoice(ctx, pid, pending) {
     ctx.state.pending = null;
+    if (pending.exhaustAfterCard) sendExhaust(ctx, pid, pending.exhaustAfterCard);
     if (pending.afterPlayCard) afterPlayTriggers(ctx, pid, pending.afterPlayCard);
   }
   function exhaustSelected(ctx, pid, player, uids) {
@@ -3143,6 +3099,16 @@ body.battle-view .app { display: none; }
     for (const uid2 of uids) discardFromHandByEffect(ctx, pid, takeByUid(player.hand, uid2));
   }
   var PENDING_EFFECTS = {
+    searchSetup: {
+      exact: 1,
+      resolve(ctx, pid, player, [uid2], pending) {
+        const source = player.drawPile.some((c) => c.uid === uid2) ? "drawPile" : "discard";
+        const card = takeByUid(player[source], uid2);
+        addToHand(ctx, pid, card);
+        addLog(ctx, `${player.name}：《検索窓》で${source === "drawPile" ? "山札" : "捨て札"}の《${card.name}》を手札へ。`);
+        finishChoice(ctx, pid, pending);
+      }
+    },
     reorderShared: {
       zone: "shared",
       resolve(ctx, pid, player, [uid2], pending, targetIndex) {
@@ -3284,7 +3250,7 @@ body.battle-view .app { display: none; }
     const count = effect.exact ?? pending.count;
     if (!effect.variable && uids.length !== count) return;
     const zone = effect.zone || "hand";
-    const cards = zone === "shared" ? ctx.state.shared.map((slot) => slot.card) : player[zone];
+    const cards = pending.type === "searchSetup" ? pendingPoolCards(ctx, pid, pending) : zone === "shared" ? ctx.state.shared.map((slot) => slot.card) : player[zone];
     if (!uids.every((uid2) => cards.some((card) => card.uid === uid2))) return;
     if (!effect.variable && !effect.exact && zone !== "shared") {
       if (uids.some((uid2) => pending.excludeUid === uid2 || pending.cardsOverride && !pending.cardsOverride.includes(uid2))) return;
@@ -3293,6 +3259,9 @@ body.battle-view .app { display: none; }
   }
   function pendingPoolCards(ctx, pid, pending) {
     const player = ctx.state.players[pid];
+    if (pending.type === "searchSetup") {
+      return ["drawPile", "discard"].flatMap((zone2) => player[zone2].filter((card) => card.type === "setup").map((card) => ({ ...card, choiceZone: zone2 })));
+    }
     if (pending.type === "reorderShared") {
       return ctx.state.shared.map((slot) => ({ ...slot.card, sharedOwner: slot.owner, choiceCost: cardCost(ctx, pid, slot.card) }));
     }
@@ -4107,6 +4076,10 @@ body.battle-view .app { display: none; }
     return b;
   }
   function scoreCard(ctx, pid, c) {
+    if (c.id === "search") {
+      const p2 = ctx.state.players[pid], candidates = [...p2.drawPile, ...p2.discard].filter((card) => card.type === "setup");
+      return candidates.length ? 25 + Math.max(...candidates.map(setupThreat)) * 0.3 : -100;
+    }
     const p = ctx.state.players[pid];
     let s = genericScore(ctx, pid, c);
     if (p.character === "giovanni") s += giovanniScore(ctx, pid, c);
@@ -4144,6 +4117,7 @@ body.battle-view .app { display: none; }
     return v;
   }
   function choosePendingOrder(ctx, pid, x, pool) {
+    if (x.type === "searchSetup") return [...pool].sort((a, b) => setupThreat(b) - setupThreat(a));
     if (x.type === "transformDraw") return [...pool].sort((a, b) => {
       if (a.id === "s2") return 1;
       if (b.id === "s2") return -1;
@@ -4243,6 +4217,7 @@ body.battle-view .app { display: none; }
   // src/engine/index.js
   var reactions = Object.freeze({ damage, evictOldest: pushOldest });
   function createMatchEngine(p1, p2, { openingLog = true, ...services } = {}) {
+    if (![p1, p2].every((p) => validCounts(p?.counts, p?.character))) throw new Error("25枚・同名2枚までのデッキが必要です。");
     const ctx = createContext(reactions, services);
     ctx.state = {
       players: { p1: makePlayer(ctx, "p1", p1), p2: makePlayer(ctx, "p2", p2) },
@@ -4406,9 +4381,9 @@ body.battle-view .app { display: none; }
     const allowed = allowedCards(arch.character), allowedIds = new Set(allowed.map((c) => c.id));
     const ids = [];
     for (const id of overrides[arch.id] || arch.cards) if (allowedIds.has(id) && !ids.includes(id)) ids.push(id);
-    for (const c of allowed) if (ids.length < 20 && !ids.includes(c.id)) ids.push(c.id);
+    for (const c of allowed) if (ids.length < Math.ceil(DECK_SIZE / MAX_COPIES) && !ids.includes(c.id)) ids.push(c.id);
     const counts = Object.fromEntries(CARD_DEFS.map((c) => [c.id, 0]));
-    ids.slice(0, 20).forEach((id) => counts[id] = 2);
+    ids.slice(0, Math.ceil(DECK_SIZE / MAX_COPIES)).forEach((id, i) => counts[id] = Math.min(MAX_COPIES, DECK_SIZE - i * MAX_COPIES));
     return { name: arch.name, character: arch.character, counts };
   }
   function simulateMatch(a, b, services) {
@@ -5037,7 +5012,7 @@ body.battle-view .app { display: none; }
       id: uid(),
       name: "ジョバンニ標準デッキ",
       character: "giovanni",
-      counts: validCounts(legacy, "giovanni", catalog) ? normalizeCounts(legacy, catalog) : { ...DEFAULT_DECKS.giovanni }
+      counts: legacy && typeof legacy === "object" && !Array.isArray(legacy) ? normalizeCounts(legacy, catalog) : { ...DEFAULT_DECKS.giovanni }
     };
     const ready = ensureStarterDecks([first], initial);
     persistLocalDecks(ready);
@@ -5057,11 +5032,6 @@ body.battle-view .app { display: none; }
   var workingCharacter = "giovanni";
   if (!decks.some((deck) => deck.character === "shiranui")) {
     decks.push({ id: uid(), name: "シラヌイ標準デッキ", character: "shiranui", counts: { ...DEFAULT_DECKS.shiranui } });
-    persistLocalDecks(decks);
-  }
-  var defaultShiranui = decks.find((deck) => deck.character === "shiranui" && deck.name === "シラヌイ標準デッキ");
-  if (defaultShiranui && deckTotal(defaultShiranui.counts) !== 40) {
-    defaultShiranui.counts = { ...DEFAULT_DECKS.shiranui };
     persistLocalDecks(decks);
   }
   function typeLabel(t) {
@@ -5148,7 +5118,7 @@ body.battle-view .app { display: none; }
       return;
     }
     try {
-      localStorage.setItem(ONLINE_RECOVERY_KEY, JSON.stringify({ version: 1, savedAt: Date.now(), roomCode, guestInfo, ...activeMatch.snapshot() }));
+      localStorage.setItem(ONLINE_RECOVERY_KEY, JSON.stringify({ version: 1, savedAt: Date.now(), rules: window.LUNA_ALTER_APP_META.version, roomCode, guestInfo, ...activeMatch.snapshot() }));
     } catch (e) {
     }
   }
@@ -5157,7 +5127,7 @@ body.battle-view .app { display: none; }
       const raw = localStorage.getItem(ONLINE_RECOVERY_KEY);
       if (!raw) return null;
       const x = JSON.parse(raw);
-      if (!x || x.version !== 1 || !/^\d{4}$/.test(String(x.roomCode || "")) || !x.game?.players?.p1 || !x.game?.players?.p2 || x.game.over || Date.now() - Number(x.savedAt || 0) > ONLINE_RECOVERY_TTL) {
+      if (!x || x.rules !== window.LUNA_ALTER_APP_META.version || x.version !== 1 || !/^\d{4}$/.test(String(x.roomCode || "")) || !x.game?.players?.p1 || !x.game?.players?.p2 || x.game.over || Date.now() - Number(x.savedAt || 0) > ONLINE_RECOVERY_TTL) {
         clearHostRecovery();
         return null;
       }
@@ -5176,7 +5146,7 @@ body.battle-view .app { display: none; }
       info = { name: cleanName("guestName"), deck: { name: deck.name, character: deck.character, counts: deck.counts } };
       guestReconnectInfo = info;
     }
-    conn.send({ type: "hello", name: info.name, deck: info.deck, resume: !!currentView });
+    conn.send({ type: "hello", rules: window.LUNA_ALTER_APP_META.version, name: info.name, deck: info.deck, resume: !!currentView });
   }
   $("joinCode").addEventListener("input", () => {
     $("joinCode").value = $("joinCode").value.replace(/\D/g, "").slice(0, 4);
@@ -5185,6 +5155,11 @@ body.battle-view .app { display: none; }
     if (!m || typeof m !== "object") return;
     if (roomRole === "host") {
       if (m.type === "hello") {
+        if (m.rules !== window.LUNA_ALTER_APP_META.version || !validCounts(m.deck?.counts, m.deck?.character)) {
+          conn?.send({ type: "incompatible" });
+          $("roomStatus").textContent = "バージョンとデッキの構築ルールを確認してください。";
+          return;
+        }
         guestInfo = { name: String(m.name || "ゲスト").slice(0, 16), deck: m.deck };
         $("guestLabel").textContent = guestInfo.name;
         $("guestReady").textContent = guestInfo.deck?.name || "デッキ選択済み";
@@ -5205,6 +5180,10 @@ body.battle-view .app { display: none; }
         }
       } else if (m.type === "action" && !networkPaused) handleAction("p2", m.action);
     } else {
+      if (m.type === "incompatible") {
+        $("roomStatus").textContent = "両者のバージョンとデッキの構築ルールを合わせてください。";
+        return;
+      }
       if (m.type === "hello-request") sendGuestHello();
       else if (m.type === "lobby") {
         $("hostLabel").textContent = m.host.name;
@@ -5237,7 +5216,7 @@ body.battle-view .app { display: none; }
   $("startOnline").onclick = () => {
     if (roomRole !== "host" || !guestInfo) return;
     const h = getDeck($("hostDeck").value);
-    if (!h || !validCounts(h.counts, h.character) || !validCounts(guestInfo.deck?.counts, guestInfo.deck?.character || "giovanni")) return alert("どちらかのデッキが40枚ではありません。");
+    if (!h || !validCounts(h.counts, h.character) || !validCounts(guestInfo.deck?.counts, guestInfo.deck?.character || "giovanni")) return alert(`両者とも${DECK_SIZE}枚・同名${MAX_COPIES}枚までのデッキが必要です。`);
     matchMode = "online";
     startGame({ name: cleanName("hostName"), character: h.character, counts: h.counts }, { name: guestInfo.name, character: guestInfo.deck.character || "giovanni", counts: guestInfo.deck.counts });
   };
@@ -5728,6 +5707,7 @@ body.battle-view .app { display: none; }
       const ref = database.ref(`rooms/${code}`);
       const meta = (await ref.child("meta").once("value")).val();
       if (!meta?.hostUid) throw new Error("ルームが見つかりません。番号を確認してください。");
+      if (meta.version !== window.LUNA_ALTER_APP_META.version) throw new Error("両者のゲームを同じバージョンに更新してください。");
       room = ref;
       setupLobby(code);
     }
@@ -6256,6 +6236,12 @@ body.battle-view .app { display: none; }
         b.dataset.uid = c.uid;
         const cost = Number.isFinite(c.choiceCost) ? c.choiceCost : c.cost;
         b.innerHTML = `${unifiedCardInner(c, { cost, extraHtml: choiceModifierHtml(c) })}<span class="choice-detail-link" role="button" aria-label="カード詳細を見る">詳細</span>`;
+        if (c.choiceZone) {
+          const source = document.createElement("span");
+          source.className = "choice-source";
+          source.textContent = c.choiceZone === "drawPile" ? "山札" : "捨て札";
+          b.appendChild(source);
+        }
         b.onclick = (e) => {
           if (e.target.closest(".choice-detail-link")) {
             e.preventDefault();
@@ -6763,8 +6749,8 @@ body.battle-view .app { display: none; }
       const total = deckTotal(workingCounts);
       $2("deckCount").textContent = total;
       const warn = $2("deckWarning");
-      warn.classList.toggle("hidden", total === 40);
-      warn.textContent = total < 40 ? `あと${40 - total}枚追加してください。` : `${total - 40}枚減らしてください。`;
+      warn.classList.toggle("hidden", validCounts(workingCounts, workingCharacter));
+      warn.textContent = total === DECK_SIZE ? "新しいデッキ構築ルールに合わせて編集してください（同名2枚まで）。" : total < DECK_SIZE ? `あと${DECK_SIZE - total}枚追加してください。` : `${total - DECK_SIZE}枚減らしてください。`;
       grid.innerHTML = "";
       const renderPool = (title, cards) => {
         const h = document.createElement("div");
@@ -6779,7 +6765,7 @@ body.battle-view .app { display: none; }
         };
         [...cards].sort((a, b) => typeOrder[a.type] - typeOrder[b.type] || a.cost - b.cost || a.name.localeCompare(b.name, "ja")).forEach((c) => {
           const n = workingCounts[c.id] || 0, d = document.createElement("div");
-          d.className = `deck-card ${n >= 3 ? "at-cap" : ""}`;
+          d.className = `deck-card ${n >= MAX_COPIES ? "at-cap" : ""}`;
           d.dataset.cardId = c.id;
           d.innerHTML = `<div class="card ${c.type} la-card-face deck-card-face" data-card-id="${escapeHtml(c.id)}">${unifiedCardInner(c)}</div><div class="qty"><button data-a="minus" aria-label="${escapeHtml(c.name)}を減らす">−</button><b>${n}枚</b><button data-a="plus" aria-label="${escapeHtml(c.name)}を増やす">＋</button></div>`;
           grid.appendChild(d);
@@ -7485,13 +7471,13 @@ body.battle-view .app { display: none; }
       const total = deckTotal(workingCounts || {}), count = $2("deckCount"), warn = $2("deckWarning"), pill = $2("deckCountStickyPill");
       if (count) count.textContent = String(total);
       if (warn) {
-        warn.classList.toggle("hidden", total === 40);
-        warn.textContent = total < 40 ? `あと${40 - total}枚追加してください。` : `${total - 40}枚減らしてください。`;
+        warn.classList.toggle("hidden", validCounts(workingCounts, workingCharacter));
+        warn.textContent = total === DECK_SIZE ? "新しいデッキ構築ルールに合わせて編集してください（同名2枚まで）。" : total < DECK_SIZE ? `あと${DECK_SIZE - total}枚追加してください。` : `${total - DECK_SIZE}枚減らしてください。`;
       }
       if (pill) {
-        pill.textContent = `現在 ${total} / 40枚`;
-        pill.classList.toggle("complete", total === 40);
-        pill.classList.toggle("over", total > 40);
+        pill.textContent = `現在 ${total} / ${DECK_SIZE}枚`;
+        pill.classList.toggle("complete", total === DECK_SIZE);
+        pill.classList.toggle("over", total > DECK_SIZE);
       }
     }
     const deckGrid = $2("deckGrid");
@@ -7504,10 +7490,11 @@ body.battle-view .app { display: none; }
         const card = btn.closest(".deck-card"), id = card?.dataset.cardId;
         if (!id) return;
         const action = btn.dataset.a || (/＋|\+/.test(btn.textContent) ? "plus" : "minus"), now = Number(workingCounts[id] || 0);
-        workingCounts[id] = action === "plus" ? Math.min(3, now + 1) : Math.max(0, now - 1);
+        if (action === "plus" && now >= MAX_COPIES) return;
+        workingCounts[id] = action === "plus" ? Math.min(MAX_COPIES, now + 1) : Math.max(0, now - 1);
         const n = card.querySelector(".qty b");
         if (n) n.textContent = `${workingCounts[id]}枚`;
-        card.classList.toggle("at-cap", workingCounts[id] >= 3);
+        card.classList.toggle("at-cap", workingCounts[id] >= MAX_COPIES);
         syncDeckSummary();
       });
     }
@@ -7802,7 +7789,7 @@ body.battle-view .app { display: none; }
       if (!d) return;
       const name = $2("deckName").value.trim();
       if (!name) return alert("デッキ名を入力してください。");
-      if (!validCounts(workingCounts, workingCharacter)) return alert("選択中のキャラクターで使えるカードだけを40枚にしてください。");
+      if (!validCounts(workingCounts, workingCharacter)) return alert(`使用可能なカードで${DECK_SIZE}枚・同名${MAX_COPIES}枚までにしてください。`);
       d.name = name;
       d.character = workingCharacter;
       d.counts = normalizeCounts(workingCounts);
@@ -7817,7 +7804,7 @@ body.battle-view .app { display: none; }
     };
     $2("startCpu").onclick = () => {
       const d = getDeck($2("cpuDeck").value), cpuD = getDeck($2("cpuOpponentDeck")?.value);
-      if (!d || !validCounts(d.counts, d.character) || !cpuD || !validCounts(cpuD.counts, cpuD.character)) return alert("40枚のデッキを選択してください。");
+      if (!d || !validCounts(d.counts, d.character) || !cpuD || !validCounts(cpuD.counts, cpuD.character)) return alert(`${DECK_SIZE}枚・同名${MAX_COPIES}枚までのデッキを選択してください。`);
       leaveRoom(false);
       roomRole = "host";
       matchMode = "cpu";
@@ -8348,6 +8335,7 @@ body.battle-view .app { display: none; }
       openCard: window.LA_SHOW_CARD_DETAIL,
       resetBattle: resetBattlePresentation
     });
+    $2("deckSizeLimit").textContent = String(DECK_SIZE);
     refreshDeckSelects2();
     renderDeckManager();
     resetLobby();
