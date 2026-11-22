@@ -18,8 +18,8 @@
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.36.1",
-  label:"仮想盤面と座標管理"
+  version:"0.36.3",
+  label:"セットアップとHP回復の演出を追加"
 });
 </script>
 
@@ -1616,6 +1616,54 @@ body.battle-view .app { display: none; }
 #modalBody .selection-state { display:none;position:absolute;inset:0;z-index:40;border-radius:inherit;background:rgba(0,0,0,.55);pointer-events:none;place-items:center; }
 #modalBody .choice-card.selected > .selection-state { display:grid; }
 #modalBody .selection-state > span { display:grid;place-items:center;width:40%;aspect-ratio:1;border-radius:50%;background:#238849;border:2px solid #b5f1ca;color:#fff;font:bold 30cqi/1 system-ui;box-shadow:0 2px 5px #0008; }
+
+/* Setup and recovery cues share the transformed battle board. */
+.setup-anchor-probe {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  visibility: hidden;
+  pointer-events: none;
+}
+.la-setup-ripple {
+  position: absolute;
+  box-sizing: border-box;
+  width: var(--ripple-size);
+  height: var(--ripple-size);
+  border: 1.5px solid white;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: laSetupRipple 460ms ease-out both;
+}
+@keyframes laSetupRipple {
+  from { opacity: .88; transform: translate(-50%, -50%) scale(.92); }
+  to { opacity: 0; transform: translate(-50%, -50%) scale(1.85); }
+}
+.la-heal-crosses {
+  position: absolute;
+  pointer-events: none;
+}
+.la-heal-crosses > span {
+  position: absolute;
+  color: #87efaa;
+  font: 800 15px/1 system-ui, sans-serif;
+  text-shadow: 0 0 3px #174d29, 0 1px 1px #0a2413;
+  animation: laHealCross 650ms ease-out both;
+}
+@keyframes laHealCross {
+  from { opacity: 0; transform: translateX(-50%); }
+  16% { opacity: 1; }
+  to { opacity: 0; transform: translate(calc(-50% + var(--heal-drift)), -21px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .la-setup-ripple { transform: translate(-50%, -50%); animation-name: laCueFade; }
+  .la-heal-crosses > span { transform: translateX(-50%); animation-name: laCueFade; }
+}
+@keyframes laCueFade {
+  from { opacity: .9; }
+  to { opacity: 0; }
+}
 </style>
 </head>
 <body>
@@ -2166,8 +2214,11 @@ body.battle-view .app { display: none; }
     const shared = sharedDuringResolution(ctx).filter((slot) => slot.owner === pid).map((slot) => slot.card);
     return personal ? [personal, ...shared] : shared;
   }
+  function findSetup(ctx, pid, id) {
+    return activeSetups(ctx, pid).find((card) => card.id === id);
+  }
   function hasSetup(ctx, pid, id) {
-    return activeSetups(ctx, pid).some((card) => card.id === id);
+    return Boolean(findSetup(ctx, pid, id));
   }
   function syncEnergyCap(ctx, pid) {
     const player = ctx.state.players[pid];
@@ -2243,7 +2294,9 @@ body.battle-view .app { display: none; }
     "specialCutin",
     "foxfireDeckEvents",
     "foxfireDeckSeq",
-    "spectatorCount"
+    "spectatorCount",
+    "presentationFrames",
+    "pendingPresentationAction"
   ];
   function createSeededRandom(seed) {
     let state = seed >>> 0;
@@ -2278,10 +2331,23 @@ body.battle-view .app { display: none; }
   function addLog(ctx, message) {
     const log = ctx.state.log;
     log.push(message);
+    ctx.presentationCapture?.logs.push(message);
     if (log.length > 180) log.shift();
   }
   function reveal(ctx, pid, card, cost) {
     ctx.state.lastAction = { seq: ctx.nextAction++, pid, card: { ...card }, cost, at: ctx.now() };
+  }
+  function setupPosition(ctx, pid, card) {
+    if (!ctx.presentationCapture || !card) return null;
+    if (ctx.state.players[pid].personal?.uid === card.uid) return { pid, uid: card.uid, slot: "personal" };
+    const index = ctx.state.shared.findIndex((entry) => entry.owner === pid && entry.card.uid === card.uid);
+    return index >= 0 && index < 3 ? { pid, uid: card.uid, slot: index } : null;
+  }
+  function noteSetupAt(ctx, position) {
+    if (position) ctx.presentationCapture?.cues.push({ kind: "setup", ...position });
+  }
+  function noteSetup(ctx, pid, card) {
+    noteSetupAt(ctx, setupPosition(ctx, pid, card));
   }
   function noteFoxfireDeck(ctx, pid) {
     const state = ctx.state;
@@ -2340,13 +2406,19 @@ body.battle-view .app { display: none; }
   function heal(ctx, pid, amount, label = "回復") {
     const player = ctx.state.players[pid], before = player.hp;
     player.hp = Math.min(player.maxHp || 100, player.hp + amount);
+    if (player.hp > before) ctx.presentationCapture?.cues.push({ kind: "heal", pid, amount: player.hp - before });
     addLog(ctx, `${player.name}：${label}で${player.hp - before}回復（HP ${player.hp}）`);
   }
   function modifiedDamage(ctx, pid, card, base) {
+    const setups = activeSetups(ctx, pid);
+    const zeroCostBonus = cardCost(ctx, pid, card) === 0 && setups.find((setup) => setup.id === "j11");
+    const heavyBonus = printedCost(card) >= 4 && setups.find((setup) => setup.id === "k13");
+    if (zeroCostBonus) noteSetup(ctx, pid, zeroCostBonus);
+    if (heavyBonus) noteSetup(ctx, pid, heavyBonus);
     return applyAttackModifiers(base, {
       bonus: card.damageBonus || 0,
-      zeroCostBonus: cardCost(ctx, pid, card) === 0 && hasSetup(ctx, pid, "j11"),
-      heavyBonus: printedCost(card) >= 4 && hasSetup(ctx, pid, "k13"),
+      zeroCostBonus,
+      heavyBonus,
       doubled: ctx.state.players[pid].attackDouble
     });
   }
@@ -2462,7 +2534,11 @@ body.battle-view .app { display: none; }
   function triggerExhaustEffects(ctx, pid, count = 1) {
     if (!ctx.state?.players?.[pid]) return;
     for (let i = 0; i < count && !ctx.state.over; i++) {
-      if (hasSetup(ctx, pid, "s21")) ctx.reactions.damage(ctx, pid, 2, "《逢魔時》");
+      const dusk = findSetup(ctx, pid, "s21");
+      if (dusk) {
+        noteSetup(ctx, pid, dusk);
+        ctx.reactions.damage(ctx, pid, 2, "《逢魔時》");
+      }
     }
   }
   function sendExhaust(ctx, pid, card) {
@@ -2482,12 +2558,20 @@ body.battle-view .app { display: none; }
     if (card.id === "s20") card.costMod = 0;
     player.hand.push(card);
     player.drawnThisTurn = (player.drawnThisTurn || 0) + 1;
-    ctx.state.drawEvents.push({ seq: ++ctx.state.drawSeq, pid });
+    const event = { seq: ++ctx.state.drawSeq, pid };
+    ctx.state.drawEvents.push(event);
+    ctx.presentationCapture?.draws.push({ ...event, uid: card.uid });
     if (ctx.state.drawEvents.length > 24) ctx.state.drawEvents.shift();
     if (trigger) {
       player.turnSkillDraws = (player.turnSkillDraws || 0) + 1;
-      if (hasSetup(ctx, pid, "j3")) ctx.reactions.evictOldest(ctx, "《掃除の時間》の効果");
-      if (ctx.state.current === pid && hasSetup(ctx, pid, "j2") && !player.bananaTriggeredThisTurn && player.turnSkillDraws >= 3) {
+      const cleanup = findSetup(ctx, pid, "j3");
+      if (cleanup) {
+        if (sharedDuringResolution(ctx).length) noteSetup(ctx, pid, cleanup);
+        ctx.reactions.evictOldest(ctx, "《掃除の時間》の効果");
+      }
+      const banana = findSetup(ctx, pid, "j2");
+      if (ctx.state.current === pid && banana && !player.bananaTriggeredThisTurn && player.turnSkillDraws >= 3) {
+        noteSetup(ctx, pid, banana);
         player.bananaTriggeredThisTurn = true;
         const bonus = drawCards(ctx, pid, 2, true);
         addLog(ctx, `${player.name}：《バナナ！バナナ！バナナ！》で追加ドロー${bonus}枚。`);
@@ -2521,6 +2605,7 @@ body.battle-view .app { display: none; }
     const player = ctx.state.players[pid], board = sharedDuringResolution(ctx);
     const wasPersonal = player.personal?.uid === card.uid;
     const index = wasPersonal ? -1 : board.findIndex((slot) => slot.owner === pid && slot.card.uid === card.uid);
+    const position = setupPosition(ctx, pid, card);
     if (wasPersonal) player.personal = null;
     else if (index >= 0) board.splice(index, 1);
     if (!wasPersonal && index < 0) return;
@@ -2531,9 +2616,14 @@ body.battle-view .app { display: none; }
       player[to].push(card);
     }
     syncEnergyCap(ctx, pid);
-    if (index >= 0 && !ctx.state.over) SHARED_LEAVE_EFFECTS[card.id]?.(ctx, pid, player);
+    const leave = SHARED_LEAVE_EFFECTS[card.id];
+    if (index >= 0 && !ctx.state.over && leave) {
+      noteSetupAt(ctx, position);
+      leave(ctx, pid, player);
+    }
     if (wasPersonal || index >= 0) {
       if (card.id === "s1" && !ctx.state.over) {
+        noteSetupAt(ctx, position);
         player.drawPile.push(makeCard(ctx, "sf"));
         addLog(ctx, `${player.name}：《宵のはじまり》が場を離れ、狐火1枚を山札に加えた。`);
       }
@@ -2567,23 +2657,33 @@ body.battle-view .app { display: none; }
   // src/engine/combat.js
   function mitigateDamage(ctx, pid, amount) {
     const defender = ctx.state.players[pid], setups = activeSetups(ctx, pid);
-    if (setups.some((card) => card.id === "k8")) {
+    const immunity = setups.find((card) => card.id === "k8");
+    if (immunity) {
+      noteSetup(ctx, pid, immunity);
       addLog(ctx, `${defender.name}：《明鏡止水》でダメージを無効化。`);
       return 0;
     }
     const parry = setups.find((card) => card.id === "j16");
-    const white = setups.some((card) => card.id === "j17");
-    const calm = setups.some((card) => card.id === "k15");
+    const white = setups.find((card) => card.id === "j17");
+    const calm = setups.find((card) => card.id === "k15");
     const shield = setups.find((card) => card.id === "s18" && (card.shieldCharges || 0) > 0);
     const block = setups.find(modifiesBlock);
     const result = reduceHit(amount, { parry, white, calm, moon: shield?.shieldCharges, block: block?.fortressHp });
     if (parry) {
+      noteSetup(ctx, pid, parry);
       removeSetup(ctx, pid, parry);
       addLog(ctx, `${defender.name}：《紳士の受け流し》で半減。`);
     }
-    if (white) addLog(ctx, `${defender.name}：《ホワイトガード》で半減。`);
-    if (calm) addLog(ctx, `${defender.name}：《泰然自若》で2軽減。`);
+    if (white) {
+      noteSetup(ctx, pid, white);
+      addLog(ctx, `${defender.name}：《ホワイトガード》で半減。`);
+    }
+    if (calm) {
+      noteSetup(ctx, pid, calm);
+      addLog(ctx, `${defender.name}：《泰然自若》で2軽減。`);
+    }
     if (result.usedMoon) {
+      noteSetup(ctx, pid, shield);
       shield.shieldCharges--;
       addLog(ctx, `${defender.name}：《十六夜》で5軽減（残り${shield.shieldCharges}回）。`);
       if (!shield.shieldCharges) {
@@ -2592,6 +2692,7 @@ body.battle-view .app { display: none; }
       }
     }
     if (result.absorbed > 0) {
+      noteSetup(ctx, pid, block);
       block.fortressHp -= result.absorbed;
       addLog(ctx, `${defender.name}：《${block.name}》が${result.absorbed}ダメージをブロック（残り${block.fortressHp}）。`);
       if (block.fortressHp <= 0) {
@@ -2624,14 +2725,21 @@ body.battle-view .app { display: none; }
     discountTamamoInHand(ctx, player, card);
     if (card.cost >= 4) {
       player.usedHeavyThisTurn = true;
-      if (hasSetup(ctx, pid, "k12") && !ctx.state.over) generateGuard(ctx, pid);
+      const guard = findSetup(ctx, pid, "k12");
+      if (guard && !ctx.state.over) {
+        noteSetup(ctx, pid, guard);
+        generateGuard(ctx, pid);
+      }
     }
-    if (hasSetup(ctx, pid, "s8") && count % 4 === 0 && !ctx.state.over) {
+    const wildfire = findSetup(ctx, pid, "s8");
+    if (wildfire && count % 4 === 0 && !ctx.state.over) {
+      noteSetup(ctx, pid, wildfire);
       addTokens(ctx, pid, "sf", 1);
       addLog(ctx, `${player.name}：《浮世火》が${count}枚目の使用後に狐火1枚を生成。`);
     }
     const torch = activeSetups(ctx, pid).find((setup) => setup.id === "s24");
     if (torch && count === 5 && !ctx.state.over) {
+      noteSetup(ctx, pid, torch);
       addTokens(ctx, pid, "sf", 1);
       addLog(ctx, `${player.name}：《灯火》が5枚目の使用後に狐火1枚を生成。`);
       removeSetup(ctx, pid, torch);
@@ -2660,7 +2768,10 @@ body.battle-view .app { display: none; }
   }
   function growScrolls(ctx, pid, player) {
     const scrolls = activeSetups(ctx, pid).filter((setup) => setup.id === "s26");
-    for (const scroll of scrolls) scroll.yakouX = (Number.isFinite(scroll.yakouX) ? scroll.yakouX : 0) + 1;
+    for (const scroll of scrolls) {
+      noteSetup(ctx, pid, scroll);
+      scroll.yakouX = (Number.isFinite(scroll.yakouX) ? scroll.yakouX : 0) + 1;
+    }
     if (scrolls.length) {
       const counters = scrolls.map((scroll) => scroll.yakouX).join("、");
       addLog(ctx, `${player.name}：《夜行絵巻》が3枚目の使用で成長（X=${counters}）。`);
@@ -2749,7 +2860,12 @@ body.battle-view .app { display: none; }
     },
     kt2: hit(BASE_DAMAGE.kt2),
     s2(ctx, pid, card) {
-      const bonus = activeSetups(ctx, pid).filter((setup) => setup.id === "s26").reduce((sum, setup) => sum + (Number.isFinite(setup.yakouX) ? setup.yakouX : 0), 0);
+      let bonus = 0;
+      for (const setup of activeSetups(ctx, pid)) {
+        if (setup.id !== "s26" || !Number.isFinite(setup.yakouX) || !setup.yakouX) continue;
+        noteSetup(ctx, pid, setup);
+        bonus += setup.yakouX;
+      }
       repeatHits(ctx, pid, card, 9 + bonus, 4);
     },
     s4: hit(BASE_DAMAGE.s4),
@@ -2941,7 +3057,11 @@ body.battle-view .app { display: none; }
     s11: { beforePlace(ctx, pid, card, player, useNo) {
       card.fortressHp = useNo * 2;
     } },
-    j18: { afterPlace(ctx, pid, card, player) {
+    j18: { afterPlace(ctx, pid, card, player, _useNo, destination) {
+      if (player.hand.length) {
+        if (destination === "personal") noteSetupAt(ctx, { pid, uid: card.uid, slot: "personal" });
+        else noteSetup(ctx, pid, card);
+      }
       discardAllHandByEffect(ctx, pid);
       addLog(ctx, `${player.name}：《本気の一張羅》で残り手札を全て捨てる。`);
     } },
@@ -2971,6 +3091,7 @@ body.battle-view .app { display: none; }
         sendDiscard(player, candidate);
       }
       const owner = other(pid);
+      noteSetup(ctx, owner, trap);
       removeSetup(ctx, owner, trap);
       addLog(ctx, `${player.name}：《${candidate.name}》は${ctx.state.players[owner].name}の《落とし穴》で効果を無効化された。`);
       afterPlayTriggers(ctx, pid, candidate);
@@ -2986,6 +3107,9 @@ body.battle-view .app { display: none; }
   }
   function payAndReveal(ctx, pid, card) {
     const cost = cardCost(ctx, pid, card);
+    const player = ctx.state.players[pid];
+    const discount = findSetup(ctx, pid, "k2");
+    if (discount && cost < effectiveCost(card, player.cardsPlayedThisTurn || 0, false)) noteSetup(ctx, pid, discount);
     removeHand(ctx, pid, card.uid);
     ctx.state.players[pid].energy -= cost;
     reveal(ctx, pid, card, cost);
@@ -3020,7 +3144,7 @@ body.battle-view .app { display: none; }
       addLog(ctx, `${player.name}：《${card.name}》を${destination === "personal" ? "独自" : "共有"}枠へ。`);
       if (sharedDuringResolution(ctx).length > 3) pushOldest(ctx, "共有枠超過");
       syncEnergyCap(ctx, pid);
-      deferred = effect?.afterPlace?.(ctx, pid, card, player, useNo);
+      deferred = effect?.afterPlace?.(ctx, pid, card, player, useNo, destination);
     } else if (card.type === "attack") {
       ATTACK_EFFECTS[card.id]?.(ctx, pid, card, player, useNo);
       if (!isShiranui) afterPlayTriggers(ctx, pid, card);
@@ -3039,10 +3163,12 @@ body.battle-view .app { display: none; }
 
   // src/engine/turns.js
   function discardAtTurnStart(label, zone = "discard") {
-    return (ctx, pid, card, player) => {
+    const expire = (ctx, pid, card, player) => {
       removeSetup(ctx, pid, card, zone);
       addLog(ctx, `${player.name}：${label}`);
     };
+    expire.expiration = true;
+    return expire;
   }
   var START_TURN_EFFECTS = {
     j17: discardAtTurnStart("《ホワイトガード》が捨て札へ。"),
@@ -3083,6 +3209,7 @@ body.battle-view .app { display: none; }
     player.turnNo = (player.turnNo || 0) + 1;
     syncEnergyCap(ctx, pid);
     player.energy = player.maxEnergy;
+    noteSetup(ctx, pid, findSetup(ctx, pid, "k5"));
     player.turnSkillDraws = 0;
     player.attackDouble = false;
     player.keepUid = null;
@@ -3099,7 +3226,10 @@ body.battle-view .app { display: none; }
     let needsExhaustChoice = false;
     for (const card of activeSetups(ctx, pid)) {
       if (!activeSetups(ctx, pid).some((setup) => setup.uid === card.uid)) continue;
-      if (START_TURN_EFFECTS[card.id]?.(ctx, pid, card, player)) needsExhaustChoice = true;
+      const effect = START_TURN_EFFECTS[card.id];
+      if (!effect) continue;
+      if (!effect.expiration) noteSetup(ctx, pid, card);
+      if (effect(ctx, pid, card, player)) needsExhaustChoice = true;
     }
     const drawn = drawCards(ctx, pid, 5, false);
     addLog(ctx, `${player.name}：通常ドロー${drawn}枚。`);
@@ -3111,16 +3241,24 @@ body.battle-view .app { display: none; }
     const player = ctx.state.players[pid];
     if (player.endEffectsDone) return;
     player.endEffectsDone = true;
-    if (hasSetup(ctx, pid, "k18") && player.usedHeavyThisTurn) {
+    const resonance = findSetup(ctx, pid, "k18");
+    if (resonance && player.usedHeavyThisTurn) {
+      noteSetup(ctx, pid, resonance);
       const drawn = drawCards(ctx, pid, 1, true);
       addLog(ctx, `${player.name}：《剣戟の残響》で${drawn}枚ドロー。`);
     }
-    if (hasSetup(ctx, pid, "k24")) {
+    const practice = findSetup(ctx, pid, "k24");
+    if (practice) {
       const attacks = player.hand.filter((card) => card.type === "attack");
       for (const card of attacks) card.damageBonus = (card.damageBonus || 0) + 2;
-      if (attacks.length) addLog(ctx, `${player.name}：《日々の研鑽》で手札のアタック${attacks.length}枚を+2強化。`);
+      if (attacks.length) {
+        noteSetup(ctx, pid, practice);
+        addLog(ctx, `${player.name}：《日々の研鑽》で手札のアタック${attacks.length}枚を+2強化。`);
+      }
     }
-    if (!ctx.state.over && hasSetup(ctx, pid, "s13") && (player.cardsPlayedThisTurn || 0) >= 3) {
+    const summoning = findSetup(ctx, pid, "s13");
+    if (!ctx.state.over && summoning && (player.cardsPlayedThisTurn || 0) >= 3) {
+      noteSetup(ctx, pid, summoning);
       player.drawPile.push(makeCard(ctx, "sf"));
       shuffle(ctx, player.drawPile);
       noteFoxfireDeck(ctx, pid);
@@ -3130,7 +3268,8 @@ body.battle-view .app { display: none; }
   function finalizeEndTurn(ctx, pid) {
     const player = ctx.state.players[pid];
     runEndTurnEffects(ctx, pid);
-    const keepAll = hasSetup(ctx, pid, "k9"), kept = [];
+    const keepAll = findSetup(ctx, pid, "k9"), kept = [];
+    if (keepAll && player.hand.some((card) => !card.retain && card.uid !== player.keepUid)) noteSetup(ctx, pid, keepAll);
     while (player.hand.length) {
       const card = player.hand.pop();
       if (keepAll || card.retain || card.uid === player.keepUid) {
@@ -3157,7 +3296,9 @@ body.battle-view .app { display: none; }
     startTurn(ctx, ctx.state.current);
   }
   function queueEndKeepOrFinish(ctx, pid) {
-    if (hasSetup(ctx, pid, "j15") && ctx.state.players[pid].hand.length) {
+    const reserve = findSetup(ctx, pid, "j15");
+    if (reserve && ctx.state.players[pid].hand.length) {
+      noteSetup(ctx, pid, reserve);
       chooseCard(ctx, pid, "endTurnKeep", 1, "《お取り置き》：次のターンまで残すカードを1枚選択");
       return;
     }
@@ -3166,7 +3307,9 @@ body.battle-view .app { display: none; }
   function endPlayerTurn(ctx, pid) {
     if (ctx.state.current !== pid || ctx.state.over || ctx.state.pending) return;
     runEndTurnEffects(ctx, pid);
-    if (hasSetup(ctx, pid, "j20") && ctx.state.players[pid].hand.length) {
+    const discard = findSetup(ctx, pid, "j20");
+    if (discard && ctx.state.players[pid].hand.length) {
+      noteSetup(ctx, pid, discard);
       chooseCard(ctx, pid, "endTurnDiscardV42", 1, "《断捨離》：捨てるカードを1枚選択");
       return;
     }
@@ -3256,6 +3399,7 @@ body.battle-view .app { display: none; }
       ctx.state.pending = null;
     } },
     foxMaskExhaust: { exact: 1, resolve(ctx, pid, player, uids, pending) {
+      noteSetup(ctx, pid, pending.afterPlayCard);
       exhaustSelected(ctx, pid, player, uids);
       addLog(ctx, `${player.name}：《狐面》で手札1枚を廃棄。`);
       finishChoice(ctx, pid, pending);
@@ -3264,6 +3408,7 @@ body.battle-view .app { display: none; }
       exhaustSelected(ctx, pid, player, uids);
       const setup = activeSetups(ctx, pid).find((card) => card.uid === pending.setupUid);
       if (setup) {
+        if (uids.length) noteSetup(ctx, pid, setup);
         setup.shieldCharges = uids.length;
         if (!setup.shieldCharges) {
           removeSetup(ctx, pid, setup);
@@ -3391,7 +3536,7 @@ body.battle-view .app { display: none; }
       ...showHand ? { exhaust: copyCards(player.exhaust) } : {}
     };
   }
-  function copyPublicBoard(ctx) {
+  function copyPublicBoard(ctx, viewer) {
     return {
       shared: ctx.state.shared.map(({ owner, card }) => ({ owner, card: { ...card } })),
       current: ctx.state.current,
@@ -3402,7 +3547,18 @@ body.battle-view .app { display: none; }
       damageEvents: copyCards(ctx.state.damageEvents || []),
       drawEvents: copyCards(ctx.state.drawEvents || []),
       foxfireDeckEvents: copyCards(ctx.state.foxfireDeckEvents || []),
-      specialCutin: ctx.state.specialCutin ? { ...ctx.state.specialCutin } : null
+      specialCutin: ctx.state.specialCutin ? { ...ctx.state.specialCutin } : null,
+      presentationFrames: (ctx.state.presentationFrames || []).map((frame) => ({
+        ...frame,
+        action: frame.action ? { ...frame.action, card: { ...frame.action.card } } : null,
+        damage: copyCards(frame.damage),
+        foxfire: copyCards(frame.foxfire),
+        special: frame.special ? { ...frame.special } : null,
+        deckMoves: [...frame.deckMoves],
+        growth: [...frame.growth],
+        cues: copyCards(frame.cues || []),
+        draws: frame.draws.map(({ pid, seq, uid: uid2 }) => pid === viewer ? { pid, seq, uid: uid2 } : { pid, seq })
+      }))
     };
   }
   function makeView(ctx, pid) {
@@ -3416,7 +3572,7 @@ body.battle-view .app { display: none; }
     return {
       me: playerPublic(ctx.state.players[pid], true),
       opp: playerPublic(ctx.state.players[opponent], false),
-      ...copyPublicBoard(ctx),
+      ...copyPublicBoard(ctx, pid),
       pending,
       opponentPending: choice?.pid === opponent ? { type: choice.type, title: choice.title || "" } : null
     };
@@ -3436,7 +3592,7 @@ body.battle-view .app { display: none; }
       bottomPid: "p2",
       me: spectatorPlayer(ctx, "p2"),
       opp: spectatorPlayer(ctx, "p1"),
-      ...copyPublicBoard(ctx),
+      ...copyPublicBoard(ctx, "p2"),
       pending: null,
       spectatorPending: choice ? { pid: choice.pid, type: choice.type, title: choice.title || "" } : null,
       spectatorCount: Number(ctx.state.spectatorCount || 0)
@@ -4371,6 +4527,50 @@ body.battle-view .app { display: none; }
     if (uid2 !== void 0) ctx.state.players[pid].keepUid = uid2;
   }
 
+  // src/engine/presentation-events.js
+  var FRAME_LIMIT = 48;
+  function setupGrowthValues(state) {
+    const cards = [...state.shared.map((slot) => slot.card), ...Object.values(state.players).map((player) => player.personal)];
+    return new Map(cards.filter((card) => card?.id === "s26").map((card) => [card.uid, card.yakouX || 0]));
+  }
+  function recordPresentation(ctx, run) {
+    const state = ctx.state;
+    const before = {
+      action: state.lastAction,
+      pending: state.pending ? state.pendingPresentationAction : void 0,
+      damage: state.damageSeq || 0,
+      foxfire: state.foxfireDeckSeq || 0,
+      special: state.specialCutin,
+      growth: setupGrowthValues(state)
+    };
+    const capture = { logs: [], draws: [], cues: [] };
+    ctx.presentationCapture = capture;
+    try {
+      return run();
+    } finally {
+      ctx.presentationCapture = null;
+      const action = state.lastAction !== before.action ? state.lastAction : null;
+      const actionSeq = action?.seq ?? before.pending ?? null;
+      if (state.pending && actionSeq !== null) state.pendingPresentationAction = actionSeq;
+      else delete state.pendingPresentationAction;
+      const damage2 = (state.damageEvents || []).filter((event) => event.seq > before.damage);
+      const foxfire = (state.foxfireDeckEvents || []).filter((event) => event.seq > before.foxfire);
+      const special = state.specialCutin !== before.special ? state.specialCutin : null;
+      const deckMoves = capture.logs.flatMap((line) => {
+        if (!/山札に加え|山札へ戻|山札に戻/.test(line) || line.includes("狐火")) return [];
+        const pid = Object.keys(state.players).find((pid2) => line.startsWith(state.players[pid2].name + "："));
+        return pid ? [pid] : [];
+      });
+      const growth = [...setupGrowthValues(state)].filter(([uid2, value]) => before.growth.has(uid2) && value > before.growth.get(uid2)).map(([uid2]) => uid2);
+      if (action || damage2.length || capture.draws.length || foxfire.length || special || deckMoves.length || growth.length || capture.cues.length) {
+        const frames = state.presentationFrames ||= [];
+        const seq = (frames.at(-1)?.seq || 0) + 1;
+        frames.push({ seq, action, actionSeq, damage: damage2, draws: capture.draws, foxfire, special, deckMoves, growth, cues: capture.cues });
+        if (frames.length > FRAME_LIMIT) frames.shift();
+      }
+    }
+  }
+
   // src/engine/index.js
   var reactions = Object.freeze({ damage, evictOldest: pushOldest });
   function createMatchEngine(p1, p2, { openingLog = true, ...services } = {}) {
@@ -4391,7 +4591,7 @@ body.battle-view .app { display: none; }
       drawSeq: 0
     };
     if (openingLog) addLog(ctx, `=== 対戦開始：${ctx.state.players[ctx.state.current].name}が先攻 ===`);
-    startTurn(ctx, ctx.state.current);
+    recordPresentation(ctx, () => startTurn(ctx, ctx.state.current));
     return bindMatchEngine(ctx);
   }
   function normalizeRestoredCards(state) {
@@ -4498,26 +4698,22 @@ body.battle-view .app { display: none; }
     return Object.freeze({
       status,
       snapshot,
-      animationCursor: () => ({
-        action: ctx.state.lastAction?.seq || 0,
-        damage: ctx.state.damageSeq || 0,
-        draw: ctx.state.drawSeq || 0
-      }),
+      animationCursor: () => ({ presentation: ctx.state.presentationFrames?.at(-1)?.seq || 0 }),
       view: (pid) => makeView(ctx, pid),
       spectatorView: () => makeSpectatorView(ctx),
       setSpectatorCount: (count) => {
         ctx.state.spectatorCount = count;
       },
-      apply: (pid, action) => applyAction(ctx, pid, action),
-      resolveForcedChoices: () => resolveForcedChoices(ctx),
+      apply: (pid, action) => recordPresentation(ctx, () => applyAction(ctx, pid, action)),
+      resolveForcedChoices: () => recordPresentation(ctx, () => resolveForcedChoices(ctx)),
       cpuStatus,
       cpuDecision,
-      resolveCpuPending: (pid) => resolveCpuPending(ctx, pid),
+      resolveCpuPending: (pid) => recordPresentation(ctx, () => resolveCpuPending(ctx, pid)),
       chooseCpuEndKeep: (pid) => chooseEndKeep(ctx, pid),
       clearCpuPending: (pid) => {
         if (ctx.state.pending?.pid === pid) ctx.state.pending = null;
       },
-      forceCpuEnd: (pid) => finalizeEndTurn(ctx, pid),
+      forceCpuEnd: (pid) => recordPresentation(ctx, () => finalizeEndTurn(ctx, pid)),
       diagnostics: Object.freeze({
         scoreCard: (pid, card) => scoreCard(ctx, pid, card),
         effectiveDamage: (pid, card) => effectiveDamage(ctx, pid, card)
@@ -4997,6 +5193,16 @@ body.battle-view .app { display: none; }
       me: mapPlayerCards(view.me, mapCard),
       opp: mapPlayerCards(view.opp, mapCard),
       shared: (view.shared || []).map(({ owner, card }) => ({ owner, card: mapCard(card) })),
+      presentationFrames: (view.presentationFrames || []).map((frame) => ({
+        ...frame,
+        damage: frame.damage || [],
+        draws: frame.draws || [],
+        foxfire: frame.foxfire || [],
+        deckMoves: frame.deckMoves || [],
+        growth: frame.growth || [],
+        cues: frame.cues || [],
+        ...frame.action ? { action: { ...frame.action, card: mapCard(frame.action.card) } } : {}
+      })),
       pending: view.pending ? { ...view.pending, cards: (view.pending.cards || []).map(mapCard) } : null
     };
   }
@@ -5428,7 +5634,7 @@ body.battle-view .app { display: none; }
     battlePresentationKey++;
   }
   function startGame(p1, p2) {
-    ui.syncAnimationCursor({ special: 0 });
+    ui.syncAnimationCursor();
     resetResultOverlay();
     resetDamageCutin();
     replaceMatch(createMatchEngine(p1, p2, matchServices));
@@ -6078,7 +6284,6 @@ body.battle-view .app { display: none; }
     initialize().catch((e) => setStatus(`認証を利用できません：${e.message}`, true));
   })();
   var ui = (() => {
-    let lastShownAction = 0, lastShownDamage = 0, lastShownDraw = 0, lastShownSpecialCutin = 0;
     let modalPendingKey = "", lastResultKey = "", resultTimer = null, damageCutinTimer = null, damageCutinSeq = 0;
     const meta = window.LUNA_ALTER_APP_META;
     const screen = document.getElementById("battleScreen"), stage = screen?.querySelector(".combat-stage");
@@ -6505,7 +6710,6 @@ body.battle-view .app { display: none; }
         el.appendChild(b);
       }
     }
-    let seenLogCount = 0;
     function spawnZoneFly(kind, mine = true, fox = false) {
       const layer = $2("drawFxLayer");
       const pile = center($2(mine ? "laDeckBox" : "oppPileCounts"));
@@ -6522,21 +6726,7 @@ body.battle-view .app { display: none; }
       layer.appendChild(d);
       setTimeout(() => d.remove(), 950);
     }
-    function showDeckMoveFromLogs(v) {
-      const logs = v.log || [];
-      if (seenLogCount > logs.length) seenLogCount = 0;
-      const fresh = logs.slice(seenLogCount);
-      seenLogCount = logs.length;
-      fresh.forEach((line, i) => {
-        const toDeck = /山札に加え|山札へ戻|山札に戻/.test(line);
-        if (!toDeck) return;
-        const mine = line.startsWith(`${v.me.name}：`);
-        const fox = line.includes("狐火");
-        if (fox) return;
-        setTimeout(() => spawnZoneFly("to-deck", mine, fox), i * 90);
-      });
-    }
-    const handDrawPresentation = { entered: [], timers: [], overlay: null, run: 0, layoutTicket: 0 };
+    const handDrawPresentation = { rendered: [], arriving: /* @__PURE__ */ new Set(), overlay: null };
     function drawMotionReduced() {
       return !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     }
@@ -6547,9 +6737,6 @@ body.battle-view .app { display: none; }
         if (uid2 && r.width > 0 && r.height > 0) rects.set(uid2, { left: r.left, top: r.top, width: r.width, height: r.height });
       });
       return rects;
-    }
-    function clearHandDrawTimers() {
-      handDrawPresentation.timers.splice(0).forEach(clearTimeout);
     }
     function revealHandDrawTargets() {
       document.querySelectorAll("#battleScreen #myHand > .card.la-draw-arriving").forEach((el) => el.classList.remove("la-draw-arriving"));
@@ -6566,9 +6753,7 @@ body.battle-view .app { display: none; }
       requestAnimationFrame(() => flyers.forEach((flyer) => flyer.remove()));
     }
     function cancelHandDrawPresentation() {
-      handDrawPresentation.run += 1;
-      handDrawPresentation.layoutTicket += 1;
-      clearHandDrawTimers();
+      handDrawPresentation.arriving.clear();
       revealHandDrawTargets();
       disposeHandDrawFlyers();
       document.querySelectorAll("#battleScreen #myHand > .card.la-hand-reflow").forEach((el) => {
@@ -6580,7 +6765,7 @@ body.battle-view .app { display: none; }
     }
     function resetHandDrawPresentation() {
       cancelHandDrawPresentation();
-      handDrawPresentation.entered = [];
+      handDrawPresentation.rendered = [];
     }
     function ensureDrawOverlay() {
       let overlay = handDrawPresentation.overlay;
@@ -6643,52 +6828,30 @@ body.battle-view .app { display: none; }
       flyer.addEventListener("animationcancel", settle);
       return flyer;
     }
-    function playHandDrawBatch(drawCount) {
-      if (drawMotionReduced() || !$2("battleScreen")?.classList.contains("active")) return;
-      const candidates = handDrawPresentation.entered.filter((entry) => entry.el?.isConnected);
-      const entries = candidates.slice(-Math.min(Math.max(0, drawCount), candidates.length));
-      if (!entries.length) return;
+    function playHandDrawBatch(events) {
+      if (drawMotionReduced()) return;
+      const drawn = new Set(events.map((event) => String(event.uid)));
+      const entries = handDrawPresentation.rendered.filter((entry) => drawn.has(entry.uid) && entry.el.isConnected);
       const finalEntries = captureDrawLandingTargets(entries);
+      for (let i = finalEntries.length; i < events.length; i++) spawnZoneFly("draw");
       if (!finalEntries.length) return;
-      const overlay = ensureDrawOverlay();
+      const overlay = ensureDrawOverlay(), source = drawSourceRect();
       disposeHandDrawFlyers(overlay);
-      const run = ++handDrawPresentation.run, source = drawSourceRect();
+      handDrawPresentation.arriving = new Set(finalEntries.map((entry) => entry.uid));
       finalEntries.forEach((entry) => entry.el.classList.add("la-draw-arriving"));
-      const flyers = finalEntries.map((entry, index) => makeHandDrawFlyer(overlay, entry, source, index, finalEntries.length)).filter(Boolean);
-      handDrawPresentation.timers.push(setTimeout(() => {
-        if (run === handDrawPresentation.run) finalEntries.forEach((entry) => entry.el?.classList.remove("la-draw-arriving"));
-      }, 675));
-      handDrawPresentation.timers.push(setTimeout(() => {
-        if (run !== handDrawPresentation.run) return;
-        disposeHandDrawFlyers(flyers);
-        handDrawPresentation.entered = [];
-      }, 730));
+      const flyers = finalEntries.map((entry, index) => makeHandDrawFlyer(overlay, entry, source, index, finalEntries.length));
+      scheduleBattleFx(() => {
+        handDrawPresentation.arriving.clear();
+        revealHandDrawTargets();
+      }, 675);
+      scheduleBattleFx(() => disposeHandDrawFlyers(flyers), 730);
     }
-    function queueHandDrawBatch(drawCount) {
-      const ticket = ++handDrawPresentation.layoutTicket;
-      requestAnimationFrame(() => {
-        if (ticket !== handDrawPresentation.layoutTicket) return;
-        layoutHand();
-        requestAnimationFrame(() => {
-          if (ticket !== handDrawPresentation.layoutTicket) return;
-          layoutHand();
-          playHandDrawBatch(drawCount);
-        });
-      });
+    function showDrawEvents(v, events) {
+      const mine = events.filter((e) => e.pid === v.me.pid);
+      if (mine.length) playHandDrawBatch(mine);
+      events.filter((e) => e.pid !== v.me.pid).forEach(() => spawnZoneFly("draw", false));
     }
-    function showDrawEvents(v) {
-      const events = (v.drawEvents || []).filter((e) => e.seq > lastShownDraw);
-      if (!events.length) return;
-      lastShownDraw = Math.max(lastShownDraw, ...events.map((e) => e.seq));
-      const mine = events.filter((e) => e.pid === v.me.pid), theirs = events.filter((e) => e.pid !== v.me.pid);
-      if (mine.length) queueHandDrawBatch(mine.length);
-      theirs.forEach(() => spawnZoneFly("draw", false, false));
-    }
-    let lastShownFoxfireDeck = 0;
-    function showFoxfireDeckEvents(v) {
-      const events = (v.foxfireDeckEvents || []).filter((e) => e.seq > lastShownFoxfireDeck);
-      if (!events.length) return;
-      lastShownFoxfireDeck = Math.max(lastShownFoxfireDeck, ...events.map((e) => e.seq));
+    function showFoxfireDeckEvents(v, events) {
       events.forEach((event, index) => {
         const target = $2(event.pid === v.me.pid ? "laDeckBox" : "oppPileCounts");
         if (!target || !DEF.sf) return;
@@ -6706,21 +6869,189 @@ body.battle-view .app { display: none; }
         setTimeout(() => flyer.remove(), 1350 + index * 70);
       });
     }
-    ;
-    let playedHideTimer = null;
-    function showLastPlayed(v) {
-      const a = v.lastAction;
-      if (!a || a.seq === lastShownAction) return;
-      lastShownAction = a.seq;
-      const mine = a.pid === v.me.pid, c = a.card, stage2 = $2("playedStage");
+    function showPlayedCard(v, a) {
+      const mine = a.pid === v.me.pid, c = a.card, panel = $2("playedStage");
       const actorName = v.spectator ? mine ? `P2 ${v.me.name}` : `P1 ${v.opp.name}` : mine ? "あなた" : v.opp.name;
-      stage2.innerHTML = `<div class="played-label">${escapeHtml(actorName)}が使用</div><div class="card ${c.type} la-card-face played" data-card-id="${escapeHtml(c.id)}">${unifiedCardInner(c, { cost: a.cost, textHtml: linkedRulesHtml(c) })}</div>`;
-      decorateCards(stage2);
-      stage2.classList.remove("hidden");
-      if (playedHideTimer) clearTimeout(playedHideTimer);
-      playedHideTimer = setTimeout(() => stage2.classList.add("hidden"), 2400);
+      panel.innerHTML = `<div class="played-label">${escapeHtml(actorName)}が使用</div><div class="card ${c.type} la-card-face played" data-card-id="${escapeHtml(c.id)}">${unifiedCardInner(c, { cost: a.cost, textHtml: linkedRulesHtml(c) })}</div>`;
+      decorateCards(panel);
+      panel.classList.remove("hidden");
     }
-    ;
+    const PLAYED_CARD_MS = 1600;
+    const DAMAGE_CADENCE_MS = 520;
+    const presentationQueue = [];
+    const battleFxTimers = /* @__PURE__ */ new Set();
+    let seenPresentation = 0, resumePresentation = 0, presentationRunning = false;
+    let playedSource = null;
+    function scheduleBattleFx(fn, delay) {
+      const id = setTimeout(() => {
+        battleFxTimers.delete(id);
+        fn();
+      }, delay);
+      battleFxTimers.add(id);
+      return id;
+    }
+    function resetPresentationQueue() {
+      presentationQueue.length = 0;
+      presentationRunning = false;
+      playedSource = null;
+      battleFxTimers.forEach(clearTimeout);
+      battleFxTimers.clear();
+      $2("playedStage")?.classList.add("hidden");
+      fx.replaceChildren();
+      document.querySelectorAll(".la-foxfire-deck-fx, #drawFxLayer .zone-fly, .damage-pop").forEach((el) => el.remove());
+      document.querySelectorAll("#battleBoard, #battleBoard .la-hit").forEach((el) => el.classList.remove("impact-shake", "impact-shake-heavy", "la-hit"));
+      resetDamageCutin2();
+      resetHandDrawPresentation();
+    }
+    function setupSlotElement(v, { pid, slot }) {
+      return slot === "personal" ? $2(pid === v.me.pid ? "myPersonal" : "oppPersonal").querySelector(".slot") : $2("sharedZone").children[slot];
+    }
+    function costAnchor(slot) {
+      const badge = slot?.querySelector(".setup-card-surface > .head > .cost");
+      const rect = rectInBoard(badge);
+      if (!rect?.width || !rect.height) return null;
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, size: rect.width };
+    }
+    const setupAnchorKey = ({ uid: uid2, slot }) => `${uid2}:${slot}`;
+    function snapshotSetupAnchors(v) {
+      const anchors = /* @__PURE__ */ new Map();
+      for (const frame of v.presentationFrames || []) {
+        if (frame.seq <= seenPresentation) continue;
+        for (const cue of frame.cues || []) {
+          if (cue.kind !== "setup") continue;
+          const slot = setupSlotElement(v, cue);
+          if (slot?.dataset.setupUid !== String(cue.uid)) continue;
+          const point = costAnchor(slot);
+          if (point) anchors.set(setupAnchorKey(cue), point);
+        }
+      }
+      return anchors;
+    }
+    function locateSetupAnchor(v, cue, prior) {
+      const saved = prior.get(setupAnchorKey(cue));
+      if (saved) return saved;
+      const slot = setupSlotElement(v, cue);
+      if (!slot) return null;
+      const point = costAnchor(slot);
+      if (point) return point;
+      const probe = document.createElement("span");
+      probe.className = "setup-anchor-probe";
+      probe.style.setProperty("inset", getComputedStyle(slot).padding);
+      probe.innerHTML = `<span class="card setup la-card-face setup-card-surface">${unifiedCardInner(DEF.guard)}</span>`;
+      slot.appendChild(probe);
+      try {
+        return costAnchor(probe);
+      } finally {
+        probe.remove();
+      }
+    }
+    const RIPPLE_MS = 460;
+    const HEAL_MS = 860;
+    function showSetupRipple(point, cue) {
+      if (!point) return;
+      const ring = document.createElement("span");
+      ring.className = "la-setup-ripple";
+      ring.dataset.setupUid = String(cue.uid);
+      ring.style.left = `${point.x}px`;
+      ring.style.top = `${point.y}px`;
+      ring.style.setProperty("--ripple-size", `${point.size}px`);
+      fx.appendChild(ring);
+      scheduleBattleFx(() => ring.remove(), RIPPLE_MS);
+    }
+    function showHealCrosses(v, pid) {
+      const own = pid === v.me.pid;
+      const hp = rectInBoard($2(own ? "myHpText" : "oppHpText"));
+      if (!hp?.width || !hp.height) return;
+      const group = document.createElement("div");
+      group.className = "la-heal-crosses";
+      group.dataset.hpAnchor = own ? "myHpText" : "oppHpText";
+      group.style.left = `${hp.left}px`;
+      group.style.top = `${hp.top}px`;
+      group.style.width = `${hp.width}px`;
+      group.setAttribute("aria-hidden", "true");
+      const particles = [[12, -5, -10], [24, -15, 7], [7, -24, -6], [84, -7, 6], [93, -20, -5], [75, -12, 10]];
+      particles.forEach(([x, y, drift], i) => {
+        const cross = document.createElement("span");
+        cross.textContent = "+";
+        cross.style.left = `${x}%`;
+        cross.style.top = `${y}px`;
+        cross.style.setProperty("--heal-drift", `${drift}px`);
+        cross.style.animationDelay = `${i * 42}ms`;
+        group.appendChild(cross);
+      });
+      fx.appendChild(group);
+      scheduleBattleFx(() => group.remove(), HEAL_MS);
+    }
+    function enqueueBattlePresentation(v, prior) {
+      const actor = ({ pid, name, character }) => ({ pid, name, character });
+      const perspective = { me: actor(v.me), opp: actor(v.opp), spectator: v.spectator };
+      for (const frame of v.presentationFrames || []) {
+        if (frame.seq <= seenPresentation) continue;
+        seenPresentation = frame.seq;
+        const cues = (frame.cues || []).map((cue) => cue.kind === "setup" ? { ...cue, point: locateSetupAnchor(v, cue, prior) } : cue);
+        presentationQueue.push({ perspective, frame, cues });
+      }
+      if (!presentationRunning) advanceBattlePresentation();
+    }
+    function advanceBattlePresentation() {
+      if (introRunning && presentationQueue[0]?.frame.action) {
+        presentationRunning = false;
+        return;
+      }
+      const next = presentationQueue.shift();
+      if (!next) {
+        presentationRunning = false;
+        if (currentView?.over) renderResultOverlay(currentView);
+        return;
+      }
+      presentationRunning = true;
+      const { perspective: v, frame, cues } = next;
+      const effects = () => {
+        let delay = 0, cueEnd = 0;
+        for (const cue of cues) {
+          if (cue.kind === "setup") {
+            scheduleBattleFx(() => showSetupRipple(cue.point, cue), delay);
+            cueEnd = Math.max(cueEnd, delay + RIPPLE_MS);
+            delay += cue.point ? 130 : 0;
+          } else if (cue.kind === "heal") {
+            scheduleBattleFx(() => showHealCrosses(v, cue.pid), delay);
+            cueEnd = Math.max(cueEnd, delay + HEAL_MS);
+            delay += 130;
+          }
+        }
+        scheduleBattleFx(() => otherEffects(Math.max(0, cueEnd - delay)), delay);
+      };
+      const otherEffects = (cueTimeLeft) => {
+        const origin = playedSource?.seq === frame.actionSeq ? playedSource.point : null;
+        showDrawEvents(v, frame.draws);
+        showFoxfireDeckEvents(v, frame.foxfire);
+        frame.deckMoves.forEach((pid, i) => scheduleBattleFx(() => spawnZoneFly("to-deck", pid === v.me.pid), i * 90));
+        showSetupGrowth(frame.growth);
+        if (frame.special) showSpecialCutin(v, frame.special);
+        showDamageEvents(v, frame.damage, origin);
+        const duration = Math.max(
+          cueTimeLeft,
+          frame.draws.length ? 950 : 0,
+          frame.foxfire.length ? 1350 + (frame.foxfire.length - 1) * 70 : 0,
+          frame.deckMoves.length ? 950 + (frame.deckMoves.length - 1) * 90 : 0,
+          frame.growth.length ? 950 : 0,
+          frame.special ? 800 : 0,
+          frame.damage.length ? 650 + (frame.damage.length - 1) * DAMAGE_CADENCE_MS : 0
+        );
+        scheduleBattleFx(advanceBattlePresentation, duration);
+      };
+      if (!frame.action) {
+        effects();
+        return;
+      }
+      showPlayedCard(v, frame.action);
+      scheduleBattleFx(() => {
+        const panel = $2("playedStage");
+        playedSource = { seq: frame.action.seq, point: center(panel.querySelector(".card")) };
+        panel.classList.add("hidden");
+        scheduleBattleFx(effects, 0);
+      }, PLAYED_CARD_MS);
+    }
     let fx = document.getElementById("laBattleFx");
     if (!fx) {
       fx = document.createElement("div");
@@ -6740,11 +7071,6 @@ body.battle-view .app { display: none; }
     function leaderForPid(v, pid) {
       return pid === v.me.pid ? document.querySelector("#battleScreen .leader-unit.self .leader-portrait") : document.querySelector("#battleScreen .leader-unit.opponent .leader-portrait");
     }
-    function sourceFor(v, attackerPid) {
-      const card = document.querySelector("#playedStage .card");
-      if (card && !$2("playedStage").classList.contains("hidden")) return center(card);
-      return center(leaderForPid(v, attackerPid));
-    }
     function impactAt(x, y, ch, target) {
       const ring = document.createElement("div");
       ring.className = `la-impact ${ch}`;
@@ -6756,7 +7082,7 @@ body.battle-view .app { display: none; }
         target.classList.remove("la-hit");
         void target.offsetWidth;
         target.classList.add("la-hit");
-        setTimeout(() => target.classList.remove("la-hit"), 470);
+        scheduleBattleFx(() => target.classList.remove("la-hit"), 470);
       }
     }
     const GIOVANNI_KNIFE_LANES = Object.freeze([-1, 0, 1]);
@@ -6774,7 +7100,7 @@ body.battle-view .app { display: none; }
     }
     function playGiovanniKnifeEffect(v, e, delay = 0) {
       if (!e || Number(e.amount) <= 0) return;
-      setTimeout(() => {
+      scheduleBattleFx(() => {
         const target = leaderForPid(v, e.target), rect = rectInBoard(target);
         if (!target || !rect?.width || !rect?.height) return;
         const g = giovanniKnifeGeometry(rect), angle = Math.atan2(g.dy, g.dx) * 180 / Math.PI;
@@ -6796,15 +7122,16 @@ body.battle-view .app { display: none; }
           impacted = true;
           impactAt(g.targetX, g.targetY, "giovanni", target);
         };
-        const impactTimer = setTimeout(strike, 255);
+        const impactTimer = scheduleBattleFx(strike, 255);
         const cleanup = () => {
+          battleFxTimers.delete(impactTimer);
           clearTimeout(impactTimer);
-          strike();
+          if (knife.isConnected) strike();
           knife.remove();
         };
         if (typeof knife.animate !== "function") {
           knife.style.transform = `translate3d(${g.dx}px,${g.dy}px,0)`;
-          setTimeout(cleanup, 430);
+          scheduleBattleFx(cleanup, 430);
           return;
         }
         const animation = knife.animate([
@@ -6816,26 +7143,27 @@ body.battle-view .app { display: none; }
         ], { duration: 420, easing: "cubic-bezier(.16,.82,.22,1)", fill: "forwards" });
         animation.onfinish = cleanup;
         animation.oncancel = () => {
+          battleFxTimers.delete(impactTimer);
           clearTimeout(impactTimer);
           knife.remove();
         };
       }, delay);
     }
-    function playLeaderDamageEffect(v, e, delay = 0) {
+    function playLeaderDamageEffect(v, e, delay = 0, origin) {
       const attacker = e.target === v.me.pid ? v.opp.pid : v.me.pid;
       const character = charForPid(v, attacker) || "giovanni";
       if (character === "giovanni") {
         playGiovanniKnifeEffect(v, e, delay);
         return;
       }
-      projectile(v, e, delay);
+      projectile(v, e, delay, origin);
     }
-    function projectile(v, e, delay = 0) {
-      setTimeout(() => {
-        const attacker = e.target === v.me.pid ? v.opp.pid : v.me.pid, ch = charForPid(v, attacker) || "giovanni", target = leaderForPid(v, e.target), a = sourceFor(v, attacker), b = center(target);
+    function projectile(v, e, delay = 0, origin) {
+      scheduleBattleFx(() => {
+        const attacker = e.target === v.me.pid ? v.opp.pid : v.me.pid, ch = charForPid(v, attacker) || "giovanni", target = leaderForPid(v, e.target), a = origin || center(leaderForPid(v, attacker)), b = center(target);
         if (!a || !b) return;
         const count = ch === "giovanni" ? 2 : 1;
-        for (let n = 0; n < count; n++) setTimeout(() => {
+        for (let n = 0; n < count; n++) scheduleBattleFx(() => {
           const el = document.createElement("div");
           el.className = `la-bfx ${ch}`;
           fx.appendChild(el);
@@ -6859,20 +7187,19 @@ body.battle-view .app { display: none; }
             fill: "forwards"
           });
           anim.onfinish = () => {
+            if (!el.isConnected) return;
             el.remove();
             impactAt(b.x, b.y, ch, target);
           };
         }, n * 70);
       }, delay);
     }
-    function showDamageEvents(v) {
-      const events = (v.damageEvents || []).filter((e) => e.seq > lastShownDamage);
-      if (!events.length) return;
+    function showDamageEvents(v, events, origin) {
       events.forEach((e, i) => {
-        const cadence = 520, delay = i * cadence, character = charForPid(v, e.target === v.me.pid ? v.opp.pid : v.me.pid), travel = character === "giovanni" ? 300 : character === "shiranui" ? 620 : 430;
-        playLeaderDamageEffect(v, e, delay);
+        const delay = i * DAMAGE_CADENCE_MS, character = charForPid(v, e.target === v.me.pid ? v.opp.pid : v.me.pid), travel = character === "giovanni" ? 300 : character === "shiranui" ? 620 : 430;
+        playLeaderDamageEffect(v, e, delay, origin);
         showDamageCutin(v, e, delay);
-        setTimeout(() => {
+        scheduleBattleFx(() => {
           triggerBattleImpact(e.amount, 0);
           const layer = $2(e.target === v.me.pid ? "myDamageLayer" : "oppDamageLayer");
           if (!layer) return;
@@ -6883,7 +7210,6 @@ body.battle-view .app { display: none; }
           setTimeout(() => d.remove(), 1900);
         }, delay + travel - 40);
       });
-      lastShownDamage = Math.max(lastShownDamage, ...events.map((e) => e.seq));
     }
     ;
     function showScreen2(name) {
@@ -6905,6 +7231,7 @@ body.battle-view .app { display: none; }
       if (name === "home") settings.apply();
       mountBattlePopups(name === "battle");
       if (name !== "battle") {
+        resetPresentationQueue();
         battleDetail.close();
         pointerDrag.cancel();
         closeBattleMenu();
@@ -6955,6 +7282,8 @@ body.battle-view .app { display: none; }
       if (presentedGame !== battlePresentationKey) {
         resetBattlePresentation();
         presentedGame = battlePresentationKey;
+        seenPresentation = resumePresentation;
+        resumePresentation = 0;
       }
       if (pointerDrag.active()) pointerDrag.cancel();
       const me = v.me, op = v.opp, watching = !!v.spectator, myTurn = !watching && v.current === me.pid && !v.over && !v.pending && !networkPaused;
@@ -6968,6 +7297,7 @@ body.battle-view .app { display: none; }
       renderOpponentHand(op.handCount, v);
       const opponentPiles = $2("oppPileCounts");
       if (opponentPiles) opponentPiles.innerHTML = `<span>山札 ${Number(op.drawCount) || 0}</span><span>捨て札 ${Number(op.discardCount) || 0}</span><span>廃棄札 ${Number(op.exhaustCount) || 0}</span>`;
+      const priorSetupAnchors = snapshotSetupAnchors(v);
       $2("myPersonal").innerHTML = me.personal ? setupSlot({
         owner: me.pid,
         card: me.personal
@@ -7007,22 +7337,17 @@ body.battle-view .app { display: none; }
       const log = $2("log");
       log.innerHTML = v.log.map((x) => `<div>${renderLogLine(x)}</div>`).join("");
       log.scrollTop = log.scrollHeight;
-      showLastPlayed(v);
-      showDamageEvents(v);
-      renderResultOverlay(v);
+      if (!v.over) renderResultOverlay(v);
       if (!watching && v.pending) openPending(v.pending);
       else closePending();
       syncHud(v);
       syncLeaderReadout(v);
       decorateConditions(v);
-      decorateSetupGrowth(v);
       syncTurnSplash(v);
       syncEndMenu(v);
       maybeIntro(v);
-      showDeckMoveFromLogs(v);
       fit();
-      showDrawEvents(v);
-      showFoxfireDeckEvents(v);
+      enqueueBattlePresentation(v, priorSetupAnchors);
     }
     function renderLogLine(s) {
       const re = /《([^》]+)》/g;
@@ -7217,21 +7542,21 @@ body.battle-view .app { display: none; }
     }
     function triggerBattleImpact(amount, delay = 0) {
       if (amount < 20) return;
-      setTimeout(() => {
+      scheduleBattleFx(() => {
         const el = $2("battleBoard");
         if (!el) return;
         const cls = amount >= 40 ? "impact-shake-heavy" : "impact-shake";
         el.classList.remove("impact-shake", "impact-shake-heavy");
         void el.offsetWidth;
         el.classList.add(cls);
-        setTimeout(() => el.classList.remove(cls), amount >= 40 ? 600 : 420);
+        scheduleBattleFx(() => el.classList.remove(cls), amount >= 40 ? 600 : 420);
       }, delay);
     }
     function showDamageCutin(v, e, delay = 0) {
       if (e.amount < 40) return;
       const attacker = e.target === v.me.pid ? v.opp : v.me, src = LEADER_SKINS[attacker.character];
       if (!src) return;
-      setTimeout(() => {
+      scheduleBattleFx(() => {
         const el = $2("damageCutin"), img = $2("damageCutinImg"), name = $2("damageCutinName"), num = $2("damageCutinDamage");
         if (!el || !img) return;
         const seq = ++damageCutinSeq;
@@ -7264,10 +7589,7 @@ body.battle-view .app { display: none; }
       if (Number.isFinite(c.yakouX)) mods.push(`X=${c.yakouX}`);
       return mods.length ? `<div class="modifier-list">${mods.map((x) => `<span class="modifier-badge">${escapeHtml(x)}</span>`).join("")}</div>` : "";
     }
-    function showSpecialCutin(v) {
-      const e = v.specialCutin;
-      if (!e || e.seq === lastShownSpecialCutin) return;
-      lastShownSpecialCutin = e.seq;
+    function showSpecialCutin(v, e) {
       const attacker = e.pid === v.me.pid ? v.me : v.opp, el = $2("damageCutin"), img = $2("damageCutinImg"), name = $2("damageCutinName"), num = $2("damageCutinDamage");
       if (!el) return;
       if (damageCutinTimer) clearTimeout(damageCutinTimer);
@@ -7320,7 +7642,6 @@ body.battle-view .app { display: none; }
       }
       ;
       $2("keepHint").textContent = !v.spectator && activeViewHasSetup(v, v.me.pid, "j15") ? "《お取り置き》：ターン終了時に選択" : "";
-      if (typeof showSpecialCutin === "function") showSpecialCutin(v);
     }
     const LunaRules = window.LunaRules = Object.freeze({
       canPlay(v, c) {
@@ -7362,38 +7683,15 @@ body.battle-view .app { display: none; }
         el.classList.toggle("condition-ready", !!(c && isConditionHighlighted(c, v)));
       });
     }
-    const lastYakouX = /* @__PURE__ */ new Map();
-    function decorateSetupGrowth(v) {
-      const all = [];
-      if (v?.me?.personal) all.push({
-        owner: v.me.pid,
-        card: v.me.personal
-      });
-      if (v?.opp?.personal) all.push({
-        owner: v.opp.pid,
-        card: v.opp.personal
-      });
-      (v?.shared || []).forEach((x) => all.push(x));
-      const live = /* @__PURE__ */ new Set();
-      all.forEach((x) => {
-        const c = x?.card;
-        if (c?.id !== "s26") return;
-        const key = String(c.uid), now = Number.isFinite(c.yakouX) ? c.yakouX : 0, prev = lastYakouX.get(key);
-        live.add(key);
-        if (prev !== void 0 && now > prev) {
-          const el = document.querySelector(`.setup-detail-trigger[data-setup-uid="${CSS.escape(key)}"]`);
-          if (el) {
-            el.classList.remove("setup-x-growth");
-            void el.offsetWidth;
-            el.classList.add("setup-x-growth");
-            setTimeout(() => el.classList.remove("setup-x-growth"), 950);
-          }
-        }
-        lastYakouX.set(key, now);
-      });
-      [...lastYakouX.keys()].forEach((k) => {
-        if (!live.has(k)) lastYakouX.delete(k);
-      });
+    function showSetupGrowth(uids) {
+      for (const uid2 of uids) {
+        const el = document.querySelector(`.setup-detail-trigger[data-setup-uid="${CSS.escape(String(uid2))}"]`);
+        if (!el) continue;
+        el.classList.remove("setup-x-growth");
+        void el.offsetWidth;
+        el.classList.add("setup-x-growth");
+        setTimeout(() => el.classList.remove("setup-x-growth"), 950);
+      }
     }
     let splash = $2("laTurnSplash");
     if (!splash) {
@@ -7444,6 +7742,7 @@ body.battle-view .app { display: none; }
       introLater(() => {
         intro.className = "";
         introRunning = false;
+        if (!presentationRunning && presentationQueue.length) advanceBattlePresentation();
       }, 2540);
     }
     function syncEndMenu(v) {
@@ -7824,8 +8123,6 @@ body.battle-view .app { display: none; }
     function renderHand(v, myTurn) {
       const hand = $2("myHand");
       const beforeRects = snapshotHandCards(hand);
-      const beforeUids = new Set(beforeRects.keys());
-      cancelHandDrawPresentation();
       hand.replaceChildren();
       const rendered = [];
       for (const c of v.me.hand) {
@@ -7833,6 +8130,7 @@ body.battle-view .app { display: none; }
         d.className = `card ${c.type} la-card-face hand-card ${playable || v.spectator ? "" : "disabled"} ${v.me.keepUid === c.uid ? "keep" : ""} ${c.retain || activeViewHasSetup(v, v.me.pid, "k9") ? "retain" : ""}`;
         d.dataset.uid = String(c.uid);
         d.dataset.cardId = c.id;
+        if (handDrawPresentation.arriving.has(d.dataset.uid)) d.classList.add("la-draw-arriving");
         const options = { cost: viewCost(v, c), skillDraws: v.me.turnSkillDraws };
         if (v.spectator) options.extraHtml = choiceModifierHtml(c);
         if (c.id === "s11") {
@@ -7853,7 +8151,7 @@ body.battle-view .app { display: none; }
       layoutHand();
       decorateConditions(v);
       const reflow = [];
-      if (!drawMotionReduced()) {
+      if (!drawMotionReduced() && !presentationRunning && !(v.presentationFrames?.at(-1)?.seq > seenPresentation)) {
         rendered.forEach((entry) => {
           const oldRect = beforeRects.get(entry.uid), nextRect = rectInBoard(entry.el);
           if (!oldRect || !nextRect.width || !nextRect.height) return;
@@ -7868,7 +8166,7 @@ body.battle-view .app { display: none; }
       if (reflow.length) {
         void hand.offsetWidth;
         requestAnimationFrame(() => {
-          handDrawPresentation.timers.push(setTimeout(() => {
+          scheduleBattleFx(() => {
             reflow.forEach((el) => {
               if (!el.isConnected) return;
               el.style.removeProperty("transition");
@@ -7876,16 +8174,16 @@ body.battle-view .app { display: none; }
               el.style.setProperty("--la-draw-shift-x", "0px");
               el.style.setProperty("--la-draw-shift-y", "0px");
             });
-            handDrawPresentation.timers.push(setTimeout(() => reflow.forEach((el) => {
+            scheduleBattleFx(() => reflow.forEach((el) => {
               if (!el.isConnected) return;
               el.classList.remove("la-hand-reflow");
               el.style.removeProperty("--la-draw-shift-x");
               el.style.removeProperty("--la-draw-shift-y");
-            }), 420));
-          }, 260));
+            }), 420);
+          }, 260);
         });
       }
-      handDrawPresentation.entered = rendered.filter((entry) => !beforeUids.has(entry.uid));
+      handDrawPresentation.rendered = rendered;
     }
     window.LUNA_DECORATE_CARD_FRAMES = decorateCards;
     document.querySelector(".home-profile-hit")?.addEventListener("click", () => showScreen2("settings"));
@@ -8444,20 +8742,13 @@ body.battle-view .app { display: none; }
     })();
     let presentedGame = null;
     function resetBattlePresentation() {
-      lastShownFoxfireDeck = 0;
-      document.querySelectorAll(".la-foxfire-deck-fx").forEach((x) => x.remove());
+      resetPresentationQueue();
       pointerDrag.cancel();
-      resetHandDrawPresentation();
       lastTurnKey = "";
-      lastYakouX.clear();
-      seenLogCount = 0;
       introArmed = true;
       introTimers.splice(0).forEach(clearTimeout);
       intro.className = "";
       introRunning = false;
-      clearTimeout(playedHideTimer);
-      playedHideTimer = null;
-      $2("playedStage").classList.add("hidden");
       battleDetail.close();
       closePending();
       closeBattleMenu();
@@ -8484,10 +8775,7 @@ body.battle-view .app { display: none; }
       giovanniKnifeGeometry,
       showDamageCutin,
       showSpecialCutin,
-      showDamageEvents,
-      showDrawEvents,
       renderBattleView: renderBattleView2,
-      showLastPlayed,
       openPending,
       closePending,
       choiceModifierHtml,
@@ -8509,11 +8797,8 @@ body.battle-view .app { display: none; }
     document.title = `ルナオルタ ${meta.version}`;
     const vl = $2("appVersionLabel");
     if (vl) vl.textContent = `${meta.version} / ${meta.label}`;
-    function syncAnimationCursor({ action = 0, damage: damage2 = 0, draw = 0, special = lastShownSpecialCutin } = {}) {
-      lastShownAction = action;
-      lastShownDamage = damage2;
-      lastShownDraw = draw;
-      lastShownSpecialCutin = special;
+    function syncAnimationCursor({ presentation = 0 } = {}) {
+      resumePresentation = presentation;
     }
     const exportedUi = {
       showScreen: showScreen2,
