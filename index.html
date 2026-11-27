@@ -18,8 +18,8 @@
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.37.2",
-  label:"ターン切り替えと演出の同期を修正"
+  version:"0.37.3",
+  label:"効果・演出とターン進行を同期"
 });
 </script>
 
@@ -1664,6 +1664,8 @@ body.battle-view .app { display: none; }
   from { opacity: .9; }
   to { opacity: 0; }
 }
+
+#myHand > .la-draw-queued { opacity:0!important; pointer-events:none!important; }
 </style>
 <style id="deck-layout">
 /* Deck coordinates follow the existing rotated application shell. */
@@ -2446,7 +2448,11 @@ body.deck-view #deckScreen .deck-card .qty button {
   function addLog(ctx, message) {
     const log = ctx.state.log;
     log.push(message);
-    ctx.presentationCapture?.logs.push(message);
+    const capture = ctx.presentationCapture;
+    if (capture && /山札に加え|山札へ戻|山札に戻/.test(message) && !message.includes("狐火")) {
+      const pid = Object.keys(ctx.state.players).find((pid2) => message.startsWith(ctx.state.players[pid2].name + "："));
+      if (pid) capture.effects.push({ kind: "deckMove", pid });
+    }
     if (log.length > 180) log.shift();
   }
   function reveal(ctx, pid, card, cost) {
@@ -2459,7 +2465,7 @@ body.deck-view #deckScreen .deck-card .qty button {
     return index >= 0 && index < 3 ? { pid, uid: card.uid, slot: index } : null;
   }
   function noteSetupAt(ctx, position) {
-    if (position) ctx.presentationCapture?.cues.push({ kind: "setup", ...position });
+    if (position) ctx.presentationCapture?.effects.push({ kind: "setup", ...position });
   }
   function noteSetup(ctx, pid, card) {
     noteSetupAt(ctx, setupPosition(ctx, pid, card));
@@ -2469,6 +2475,7 @@ body.deck-view #deckScreen .deck-card .qty button {
     const seq = state.foxfireDeckSeq = (state.foxfireDeckSeq || 0) + 1;
     const events = state.foxfireDeckEvents ||= [];
     events.push({ seq, pid });
+    ctx.presentationCapture?.effects.push({ kind: "foxfire", seq, pid });
     if (events.length > 12) events.shift();
   }
   function readSavedState(saved) {
@@ -2521,7 +2528,7 @@ body.deck-view #deckScreen .deck-card .qty button {
   function heal(ctx, pid, amount, label = "回復") {
     const player = ctx.state.players[pid], before = player.hp;
     player.hp = Math.min(player.maxHp || 100, player.hp + amount);
-    if (player.hp > before) ctx.presentationCapture?.cues.push({ kind: "heal", pid, amount: player.hp - before });
+    if (player.hp > before) ctx.presentationCapture?.effects.push({ kind: "heal", pid, amount: player.hp - before });
     addLog(ctx, `${player.name}：${label}で${player.hp - before}回復（HP ${player.hp}）`);
   }
   function modifiedDamage(ctx, pid, card, base) {
@@ -2675,7 +2682,8 @@ body.deck-view #deckScreen .deck-card .qty button {
     player.drawnThisTurn = (player.drawnThisTurn || 0) + 1;
     const event = { seq: ++ctx.state.drawSeq, pid };
     ctx.state.drawEvents.push(event);
-    ctx.presentationCapture?.draws.push({
+    ctx.presentationCapture?.effects.push({
+      kind: "draw",
       ...event,
       uid: card.uid,
       ...trigger ? {} : { normalTurn: player.turnNo }
@@ -2827,7 +2835,9 @@ body.deck-view #deckScreen .deck-card .qty button {
     const target = other(pid), defender = ctx.state.players[target], attacker = ctx.state.players[pid];
     const dealt = mitigateDamage(ctx, target, amount);
     defender.hp -= dealt;
-    ctx.state.damageEvents.push({ seq: ++ctx.state.damageSeq, target, amount: dealt });
+    const event = { seq: ++ctx.state.damageSeq, target, amount: dealt };
+    ctx.state.damageEvents.push(event);
+    ctx.presentationCapture?.effects.push({ kind: "damage", ...event });
     if (ctx.state.damageEvents.length > 16) ctx.state.damageEvents.shift();
     addLog(ctx, `${attacker.name}：${label} → ${dealt}ダメージ（${defender.name} HP ${Math.max(defender.hp, 0)}）`);
     if (defender.hp <= 0) {
@@ -2891,6 +2901,7 @@ body.deck-view #deckScreen .deck-card .qty button {
     for (const scroll of scrolls) {
       noteSetup(ctx, pid, scroll);
       scroll.yakouX = (Number.isFinite(scroll.yakouX) ? scroll.yakouX : 0) + 1;
+      ctx.presentationCapture?.effects.push({ kind: "growth", uid: scroll.uid });
     }
     if (scrolls.length) {
       const counters = scrolls.map((scroll) => scroll.yakouX).join("、");
@@ -3149,6 +3160,7 @@ body.deck-view #deckScreen .deck-card .qty button {
     s20(ctx, pid, card, player) {
       player.extraTurns = (player.extraTurns || 0) + 1;
       ctx.state.specialCutin = { seq: (ctx.state.specialCutin?.seq || 0) + 1, pid, cardName: "玉藻の顕現" };
+      ctx.presentationCapture?.effects.push({ kind: "special", ...ctx.state.specialCutin });
       addLog(ctx, `${player.name}：《玉藻の顕現》で追加ターンを獲得。`);
       sendExhaust(ctx, pid, card);
     },
@@ -3337,7 +3349,11 @@ body.deck-view #deckScreen .deck-card .qty button {
   function startTurn(ctx, pid) {
     const player = ctx.state.players[pid];
     player.turnNo = (player.turnNo || 0) + 1;
-    if (ctx.presentationCapture) ctx.presentationCapture.turnStart = { pid, turnNo: player.turnNo };
+    const turnStart = { pid, turnNo: player.turnNo };
+    if (ctx.presentationCapture) {
+      ctx.presentationCapture.turnStart = turnStart;
+      ctx.presentationCapture.effects.push({ kind: "turn", ...turnStart });
+    }
     syncEnergyCap(ctx, pid);
     player.energy = player.maxEnergy;
     noteSetup(ctx, pid, findSetup(ctx, pid, "k5"));
@@ -3689,6 +3705,15 @@ body.deck-view #deckScreen .deck-card .qty button {
       ...showHand ? { exhaust: copyCards(player.exhaust) } : {}
     };
   }
+  function projectEffects(effects, viewer, drawsOnly = false) {
+    return effects.map((event) => {
+      if ((drawsOnly || event.kind === "draw") && event.pid !== viewer) {
+        const { uid: uid2, ...publicEvent } = event;
+        return publicEvent;
+      }
+      return { ...event };
+    });
+  }
   function copyPublicBoard(ctx, viewer) {
     return {
       shared: ctx.state.shared.map(({ owner, card }) => ({ owner, card: { ...card } })),
@@ -3704,18 +3729,8 @@ body.deck-view #deckScreen .deck-card .qty button {
       presentationFrames: (ctx.state.presentationFrames || []).map((frame) => ({
         ...frame,
         action: frame.action ? { ...frame.action, card: { ...frame.action.card } } : null,
-        damage: copyCards(frame.damage),
-        foxfire: copyCards(frame.foxfire),
-        special: frame.special ? { ...frame.special } : null,
-        deckMoves: [...frame.deckMoves],
-        growth: [...frame.growth],
-        cues: copyCards(frame.cues || []),
-        draws: frame.draws.map(({ pid, seq, uid: uid2, normalTurn }) => ({
-          pid,
-          seq,
-          ...pid === viewer ? { uid: uid2 } : {},
-          ...normalTurn === void 0 ? {} : { normalTurn }
-        }))
+        ...frame.effects && { effects: projectEffects(frame.effects, viewer) },
+        ...frame.draws && { draws: projectEffects(frame.draws, viewer, true) }
       }))
     };
   }
@@ -4693,21 +4708,13 @@ body.deck-view #deckScreen .deck-card .qty button {
 
   // src/engine/presentation-events.js
   var FRAME_LIMIT = 48;
-  function setupGrowthValues(state) {
-    const cards = [...state.shared.map((slot) => slot.card), ...Object.values(state.players).map((player) => player.personal)];
-    return new Map(cards.filter((card) => card?.id === "s26").map((card) => [card.uid, card.yakouX || 0]));
-  }
   function recordPresentation(ctx, run) {
     const state = ctx.state;
     const before = {
       action: state.lastAction,
-      pending: state.pending ? state.pendingPresentationAction : void 0,
-      damage: state.damageSeq || 0,
-      foxfire: state.foxfireDeckSeq || 0,
-      special: state.specialCutin,
-      growth: setupGrowthValues(state)
+      pending: state.pending ? state.pendingPresentationAction : void 0
     };
-    const capture = { logs: [], draws: [], cues: [] };
+    const capture = { effects: [] };
     ctx.presentationCapture = capture;
     try {
       return run();
@@ -4717,20 +4724,11 @@ body.deck-view #deckScreen .deck-card .qty button {
       const actionSeq = action?.seq ?? before.pending ?? null;
       if (state.pending && actionSeq !== null) state.pendingPresentationAction = actionSeq;
       else delete state.pendingPresentationAction;
-      const damage2 = (state.damageEvents || []).filter((event) => event.seq > before.damage);
-      const foxfire = (state.foxfireDeckEvents || []).filter((event) => event.seq > before.foxfire);
-      const special = state.specialCutin !== before.special ? state.specialCutin : null;
-      const deckMoves = capture.logs.flatMap((line) => {
-        if (!/山札に加え|山札へ戻|山札に戻/.test(line) || line.includes("狐火")) return [];
-        const pid = Object.keys(state.players).find((pid2) => line.startsWith(state.players[pid2].name + "："));
-        return pid ? [pid] : [];
-      });
-      const growth = [...setupGrowthValues(state)].filter(([uid2, value]) => before.growth.has(uid2) && value > before.growth.get(uid2)).map(([uid2]) => uid2);
-      const { turnStart } = capture;
-      if (turnStart || action || damage2.length || capture.draws.length || foxfire.length || special || deckMoves.length || growth.length || capture.cues.length) {
+      const { effects, turnStart } = capture;
+      if (action || effects.length) {
         const frames = state.presentationFrames ||= [];
         const seq = (frames.at(-1)?.seq || 0) + 1;
-        frames.push({ seq, action, actionSeq, damage: damage2, draws: capture.draws, foxfire, special, deckMoves, growth, cues: capture.cues, ...turnStart && { turnStart } });
+        frames.push({ seq, action, actionSeq, effects, ...turnStart && { turnStart } });
         if (frames.length > FRAME_LIMIT) frames.shift();
       }
     }
@@ -5229,85 +5227,54 @@ body.deck-view #deckScreen .deck-card .qty button {
   }
 
   // src/cpu-turn.js
-  function createCpuScheduler({ getMatch, publish, timers = globalThis, logger = console }) {
+  function createCpuScheduler({ getMatch, publish, ready = () => Promise.resolve(), timers = globalThis, logger = console }) {
     const pid = "p2";
     let job = null;
-    const wait = (ms) => new Promise((resolve) => timers.setTimeout(resolve, ms));
-    const isCurrent = (task) => job === task && getMatch() === task.match;
-    const isCpuTurn = (task) => isCurrent(task) && task.match.status().current === pid && !task.match.status().over;
+    const isCpuTurn = (task) => job === task && getMatch() === task.match && task.match.status().current === pid && !task.match.status().over;
     function cancel() {
-      if (!job) return;
-      timers.clearTimeout(job.start);
-      timers.clearInterval(job.watch);
+      if (job) timers.clearTimeout(job.start);
       job = null;
     }
-    function recover(task, reason) {
-      if (!isCpuTurn(task)) return;
-      try {
-        task.match.clearCpuPending(pid);
-        task.match.apply(pid, { type: "end" });
-        publish();
-        logger.warn("[LUNA ALTER CPU failsafe]", reason);
-      } catch (error) {
-        logger.error("[LUNA ALTER CPU failsafe recovery failed]", error);
-      }
-    }
     async function run(task) {
-      if (!isCpuTurn(task)) {
-        if (job === task) cancel();
-        return;
-      }
       const match = task.match;
-      let fingerprint = match.cpuStatus(pid).fingerprint, stale = 0;
-      task.watch = timers.setInterval(() => {
-        if (!isCpuTurn(task)) return timers.clearInterval(task.watch);
-        const next = match.cpuStatus(pid).fingerprint;
-        stale = next === fingerprint ? stale + 1 : 0;
-        fingerprint = next;
-        if (stale >= 8) {
-          recover(task, "8秒間ゲーム状態が進行しなかったためターンを安全終了");
-          if (job === task) cancel();
-          schedule();
-        }
-      }, 1e3);
       try {
-        let stalls = 0;
         for (let actions = 0; actions < 60 && isCpuTurn(task); actions++) {
+          await ready();
+          if (!isCpuTurn(task)) return;
           const before = match.cpuStatus(pid);
           if (before.pendingPid === pid) {
             match.resolveCpuPending(pid);
-            publish();
-            await wait(540);
-            if (!isCurrent(task)) return;
-            stalls = match.cpuStatus(pid).pendingId === before.pendingId ? stalls + 1 : 0;
-            if (stalls >= 2) {
+            if (match.cpuStatus(pid).pendingId === before.pendingId) {
+              logger.warn("[CPU] No progress resolving choice");
               match.clearCpuPending(pid);
-              break;
             }
+            publish();
             continue;
           }
+          if (before.pendingPid) return;
           const pick = match.cpuDecision(pid);
-          if (!pick) break;
-          match.apply(pid, { type: "play", uid: pick.uid, dest: "shared" });
-          publish();
-          await wait(580);
-          if (!isCurrent(task)) return;
-          const after = match.cpuStatus(pid);
-          if (!after.pendingPid && after.progress === before.progress) {
-            logger.warn("[CPU] play made no progress", pick.id);
-            break;
+          if (pick) {
+            match.apply(pid, { type: "play", uid: pick.uid, dest: "shared" });
+            publish();
+            const after = match.cpuStatus(pid);
+            if (after.pendingPid || after.progress !== before.progress) continue;
+            logger.warn("[CPU] Card made no progress", pick.id);
+            await ready();
+            if (!isCpuTurn(task)) return;
           }
-        }
-        if (isCpuTurn(task) && !match.status().pendingPid) {
           match.chooseCpuEndKeep(pid);
-          await wait(300);
-          if (!isCpuTurn(task)) return;
+          match.apply(pid, { type: "end" });
+          publish();
+          return;
+        }
+      } catch (error) {
+        logger.error("[CPU] Turn failed", error);
+        await ready();
+        if (isCpuTurn(task)) {
+          match.clearCpuPending(pid);
           match.apply(pid, { type: "end" });
           publish();
         }
-      } catch (error) {
-        logger.error("[LUNA ALTER CPU error]", error);
-        recover(task, "CPU処理中の例外から復旧");
       } finally {
         if (job === task) {
           cancel();
@@ -5317,15 +5284,9 @@ body.deck-view #deckScreen .deck-card .qty button {
     }
     function schedule() {
       const match = getMatch(), status = match?.status();
-      if (job || !status || status.over || status.current !== pid) return;
+      if (job || !status || status.over || status.current !== pid || status.pendingPid && status.pendingPid !== pid) return;
       const task = job = { match };
-      try {
-        task.start = timers.setTimeout(() => run(task), 620);
-      } catch (error) {
-        logger.error("[LUNA ALTER CPU scheduler error]", error);
-        recover(task, "CPU開始処理の例外から復旧");
-        cancel();
-      }
+      task.start = timers.setTimeout(() => run(task), 0);
     }
     return { schedule, cancel, isBusy: () => !!job };
   }
@@ -5644,7 +5605,7 @@ body.deck-view #deckScreen .deck-card .qty button {
       return;
     }
     try {
-      localStorage.setItem(ONLINE_RECOVERY_KEY, JSON.stringify({ version: 1, savedAt: Date.now(), rules: window.LUNA_ALTER_APP_META.version, roomCode, guestInfo, ...activeMatch.snapshot() }));
+      localStorage.setItem(ONLINE_RECOVERY_KEY, JSON.stringify({ version: 1, savedAt: Date.now(), rules: window.LUNA_ALTER_APP_META.version, roomCode, guestInfo, acknowledgedAction: online.lastAcknowledgedAction(), ...activeMatch.snapshot() }));
     } catch (e) {
     }
   }
@@ -5795,13 +5756,16 @@ body.deck-view #deckScreen .deck-card .qty button {
     }
   });
   var activeMatch = null;
+  var onlineActionPending = null;
   var battlePresentationKey = 0;
   var cpuScheduler = createCpuScheduler({
     getMatch: () => matchMode === "cpu" && roomRole === "host" ? activeMatch : null,
-    publish: broadcastState
+    publish: broadcastState,
+    ready: () => ui.whenPresentationIdle()
   });
   function replaceMatch(match) {
     cpuScheduler.cancel();
+    onlineActionPending = null;
     activeMatch = match;
     battlePresentationKey++;
   }
@@ -5819,7 +5783,7 @@ body.deck-view #deckScreen .deck-card .qty button {
       if (action.type !== "movePersonal" || status.current !== pid || status.over || status.pendingPid) return;
     }
     activeMatch.apply(pid, action);
-    broadcastState();
+    return broadcastState();
   }
   function projectHostView() {
     return { ...activeMatch.view("p1"), spectatorCount: activeMatch.status().spectatorCount };
@@ -5830,21 +5794,24 @@ body.deck-view #deckScreen .deck-card .qty button {
   }
   function broadcastState() {
     if (roomRole !== "host" || !activeMatch) return;
-    activeMatch.resolveForcedChoices();
     currentView = projectHostView();
     showScreen("battle");
     renderBattleView();
     if (matchMode === "online") {
       if (activeMatch.status().over) clearHostRecovery();
       else saveHostRecovery();
-      online.publishState();
+      return online.publishState();
     }
     cpuScheduler.schedule();
   }
   function dispatchAction(action) {
     if (!action || roomRole === "spectator" || currentView?.spectator) return;
+    if (["play", "choose", "end", "movePersonal", "keep"].includes(action.type)) {
+      const v = currentView;
+      if (!v || v.over || v.current !== v.me.pid || networkPaused || ui.presentationBusy(v) || onlineActionPending || Boolean(v.pending) !== (action.type === "choose")) return;
+    }
     if (roomRole === "host") {
-      handleAction("p1", action);
+      handleAction("p1", action)?.catch((error) => console.error(error));
       return;
     }
     if (matchMode === "online" && roomRole === "guest" && online.hasRoom()) {
@@ -6004,6 +5971,7 @@ body.deck-view #deckScreen .deck-card .qty button {
     let auth, database, uid2, readyPromise;
     let room = null, playerPresence = null, spectatorPresence = null;
     let actionSequence = 0, revision = 0;
+    let acknowledgedAction = null;
     const listeners = [], seenActions = /* @__PURE__ */ new Set();
     const timestamp = () => firebase.database.ServerValue.TIMESTAMP;
     function diag(stage, detail = "", kind = "info") {
@@ -6066,6 +6034,8 @@ body.deck-view #deckScreen .deck-card .qty button {
       } catch {
       }
       playerPresence = spectatorPresence = room = null;
+      acknowledgedAction = null;
+      seenActions.clear();
     }
     async function presence(role) {
       playerPresence = room.child(`presence/${role}`);
@@ -6120,22 +6090,24 @@ body.deck-view #deckScreen .deck-card .qty button {
       });
     }
     function listenActions() {
-      listen(room.child("actions"), "child_added", (snap) => {
+      listen(room.child("actions"), "child_added", async (snap) => {
         const entry = snap.val();
         try {
-          if (!entry || entry.sender === uid2) return;
+          if (!entry || entry.sender === uid2 || seenActions.has(entry.id || snap.key)) {
+            await snap.ref.remove();
+            return;
+          }
+          if (roomRole !== "host" || !activeMatch) return;
           const key = entry.id || snap.key;
-          if (seenActions.has(key)) return;
           seenActions.add(key);
           if (seenActions.size > 512) seenActions.delete(seenActions.values().next().value);
-          if (roomRole === "host" && activeMatch && !activeMatch.status().over) {
-            networkPaused = false;
-            handleAction("p2", entry.action);
-          }
+          acknowledgedAction = key;
+          networkPaused = false;
+          if (activeMatch.status().over) await publishState();
+          else await handleAction("p2", entry.action);
+          await snap.ref.remove();
         } catch (error) {
           diag("操作受信エラー", error.message, "bad");
-        } finally {
-          ignoreError(snap.ref.remove());
         }
       });
     }
@@ -6153,6 +6125,7 @@ body.deck-view #deckScreen .deck-card .qty button {
           view.syncRev = Number(entry.rev || 0);
           view.syncUpdatedAt = updatedAt;
           networkPaused = false;
+          if (entry.ack === onlineActionPending || view.over) onlineActionPending = null;
           currentView = view;
           if (!$("battleScreen").classList.contains("active")) showScreen("battle");
           renderBattleView();
@@ -6179,7 +6152,7 @@ body.deck-view #deckScreen .deck-card .qty button {
       playerView.spectatorCount = status.spectatorCount;
       const spectatorView = packView(activeMatch.spectatorView());
       return room.update(clean({
-        state: { view: playerView, ...sharedFields },
+        state: { view: playerView, ...sharedFields, ack: acknowledgedAction },
         spectatorState: { view: spectatorView, ...sharedFields }
       })).catch((error) => {
         diag("状態同期エラー", error.message, "bad");
@@ -6189,9 +6162,14 @@ body.deck-view #deckScreen .deck-card .qty button {
     function sendAction(action) {
       if (!room || roomRole !== "guest" || !action) return Promise.resolve();
       const id = `${uid2}-${Date.now()}-${++actionSequence}`;
+      onlineActionPending = id;
+      if (currentView) ui.refreshBattleInteraction(currentView);
       return room.child("actions").push(clean({ id, sender: uid2, action, ts: Date.now() })).catch((error) => {
+        if (onlineActionPending === id) {
+          onlineActionPending = null;
+          if (currentView) ui.refreshBattleInteraction(currentView);
+        }
         diag("操作送信エラー", error.message, "bad");
-        throw error;
       });
     }
     function hostMetadata() {
@@ -6279,6 +6257,8 @@ body.deck-view #deckScreen .deck-card .qty button {
       roomRole = "host";
       matchMode = "online";
       replaceMatch(restoreMatchEngine(saved, matchServices));
+      acknowledgedAction = saved.acknowledgedAction || null;
+      if (acknowledgedAction) seenActions.add(acknowledgedAction);
       const hostView = projectHostView();
       guestInfo = saved.guestInfo || {
         name: hostView.opp.name,
@@ -6332,7 +6312,7 @@ body.deck-view #deckScreen .deck-card .qty button {
     window.__laOnline = { publishState, sendAction, packView, unpackView, getRoom: () => room, makeSpectatorView: () => activeMatch?.spectatorView() };
     $("peerWarning")?.classList.add("hidden");
     ignoreError(ready());
-    return { leave, publishState, sendAction, hasRoom: () => !!room, restoreHostRecovery };
+    return { leave, publishState, sendAction, lastAcknowledgedAction: () => acknowledgedAction, hasRoom: () => !!room, restoreHostRecovery };
   })();
   (() => {
     const DOMAIN = "id.luna-alter.firebaseapp.com";
@@ -6828,6 +6808,7 @@ body.deck-view #deckScreen .deck-card .qty button {
       }
       $2("modalOk").onclick = () => {
         if (selected.size < min || selected.size > max) return alert(min === max ? `${min}枚選んでください。` : `${min}〜${max}枚選んでください。`);
+        if (presentationBusy() || onlineActionPending) return;
         pendingSelection = null;
         returnBtn.classList.add("hidden");
         dispatchAction({
@@ -6905,7 +6886,7 @@ body.deck-view #deckScreen .deck-card .qty button {
       d.innerHTML = fox ? "<span>狐</span>" : "<span>◆</span>";
       if (normalTurn !== void 0) d.dataset.normalDraw = String(normalTurn);
       layer.appendChild(d);
-      setTimeout(() => d.remove(), 950);
+      scheduleBattleFx(() => d.remove(), 950);
     }
     const handDrawPresentation = { rendered: [], arriving: /* @__PURE__ */ new Set(), overlay: null };
     function drawMotionReduced() {
@@ -7010,13 +6991,29 @@ body.deck-view #deckScreen .deck-card .qty button {
       return flyer;
     }
     let normalDrawPlayback = null;
-    const drawTimers = /* @__PURE__ */ new Set();
+    const drawTimers = /* @__PURE__ */ new Map();
+    const unrevealedDraws = /* @__PURE__ */ new Map();
+    function stageDrawTargets(v) {
+      for (const [uid2, event] of unrevealedDraws) {
+        if (!isCurrentNormalDraw(event, v)) unrevealedDraws.delete(uid2);
+      }
+      if (drawMotionReduced() || v.spectator) return;
+      for (const frame of v.presentationFrames || []) {
+        if (frame.seq <= seenPresentation) continue;
+        for (const event of frameEffects(frame)) {
+          if (event.kind === "draw" && event.pid === v.me.pid && event.uid != null && isCurrentNormalDraw(event, v)) {
+            unrevealedDraws.set(String(event.uid), event);
+          }
+        }
+      }
+    }
     function scheduleDraw(fn, delay) {
+      const step = effectStep;
       const id = scheduleBattleFx(() => {
         drawTimers.delete(id);
         fn();
       }, delay);
-      drawTimers.add(id);
+      drawTimers.set(id, step);
     }
     function isCurrentNormalDraw(event, v = currentView) {
       if (event.normalTurn === void 0) return true;
@@ -7025,13 +7022,15 @@ body.deck-view #deckScreen .deck-card .qty button {
     }
     function cancelExpiredNormalDraws(v) {
       if (normalDrawPlayback && !isCurrentNormalDraw(normalDrawPlayback, v)) {
-        drawTimers.forEach((id) => {
-          clearTimeout(id);
-          battleFxTimers.delete(id);
-        });
+        const obsolete = [...drawTimers];
         drawTimers.clear();
         cancelHandDrawPresentation();
         normalDrawPlayback = null;
+        for (const [id, step] of obsolete) {
+          clearTimeout(id);
+          battleFxTimers.delete(id);
+          scheduleBattleFx(() => releaseEffectStep(step), 0);
+        }
       }
       document.querySelectorAll("#drawFxLayer .zone-fly[data-normal-draw]").forEach((el) => {
         const pid = el.classList.contains("mine") ? v.me.pid : v.opp.pid;
@@ -7061,20 +7060,16 @@ body.deck-view #deckScreen .deck-card .qty button {
       }, 730);
     }
     function showDrawEvents(v, events) {
-      events = events.filter((event) => isCurrentNormalDraw(event));
-      const mine = events.filter((e) => e.pid === v.me.pid);
-      const effectDraws = mine.filter((event) => event.normalTurn === void 0);
-      const normalDraws = mine.filter((event) => event.normalTurn !== void 0);
-      if (effectDraws.length) playHandDrawBatch(effectDraws);
-      if (normalDraws.length) {
-        const start = () => {
-          const valid = normalDraws.filter((event) => isCurrentNormalDraw(event));
-          if (valid.length) playHandDrawBatch(valid);
-        };
-        if (effectDraws.length) scheduleBattleFx(start, 950);
-        else start();
+      for (const event of events) {
+        if (event.pid === v.me.pid && event.uid != null) unrevealedDraws.delete(String(event.uid));
       }
-      events.filter((e) => e.pid !== v.me.pid).forEach((event) => spawnZoneFly("draw", false, false, event.normalTurn));
+      const valid = events.filter((event) => isCurrentNormalDraw(event));
+      const mine = valid.filter((event) => event.pid === v.me.pid);
+      if (mine.length && !v.spectator) playHandDrawBatch(mine);
+      for (const { el, uid: uid2 } of handDrawPresentation.rendered) {
+        el.classList.toggle("la-draw-queued", unrevealedDraws.has(uid2));
+      }
+      valid.filter((event) => event.pid !== v.me.pid).forEach((event) => spawnZoneFly("draw", false, false, event.normalTurn));
     }
     function showFoxfireDeckEvents(v, events) {
       events.forEach((event, index) => {
@@ -7091,7 +7086,7 @@ body.deck-view #deckScreen .deck-card .qty button {
         flyer.innerHTML = `<div class="card skill la-card-face" data-card-id="sf">${unifiedCardInner(DEF.sf)}</div>`;
         stage.appendChild(flyer);
         flyer.addEventListener("animationend", () => flyer.remove(), { once: true });
-        setTimeout(() => flyer.remove(), 1350 + index * 70);
+        scheduleBattleFx(() => flyer.remove(), 1350 + index * 70);
       });
     }
     function showPlayedCard(v, a) {
@@ -7106,29 +7101,69 @@ body.deck-view #deckScreen .deck-card .qty button {
     const presentationQueue = [];
     const battleFxTimers = /* @__PURE__ */ new Set();
     let seenPresentation = 0, resumePresentation = 0, presentationRunning = false;
-    let announcedTurnSeq = 0, completedTurnSeq = 0;
-    let playedSource = null;
-    function currentTurnStartSeq(v) {
-      if (!v || v.over) return 0;
-      const active = v.current === v.me.pid ? v.me : v.opp;
-      return v.presentationFrames?.find(({ turnStart }) => turnStart?.pid === active.pid && turnStart.turnNo === active.turnNo)?.seq || 0;
+    let playedSource = null, presentedTurn = null, effectStep = null;
+    const idleWaiters = /* @__PURE__ */ new Set();
+    function presentationBusy(v = currentView) {
+      return introRunning || presentationRunning || presentationQueue.length > 0 || (v?.presentationFrames?.at(-1)?.seq || 0) > seenPresentation;
     }
-    function isTurnPresentationPending(v) {
-      return currentTurnStartSeq(v) > completedTurnSeq;
+    function whenPresentationIdle() {
+      if (!presentationBusy()) return Promise.resolve();
+      return new Promise((resolve) => idleWaiters.add(resolve));
+    }
+    function signalPresentationIdle() {
+      for (const resolve of idleWaiters) resolve();
+      idleWaiters.clear();
+    }
+    function runInEffectStep(step, fn) {
+      const previous = effectStep;
+      effectStep = step;
+      try {
+        fn();
+      } finally {
+        effectStep = previous;
+      }
+    }
+    function releaseEffectStep(step) {
+      if (!step || step.cancelled || --step.pending !== 0) return;
+      step.complete();
+    }
+    function trackEffectAnimation(animation, cleanup) {
+      const step = effectStep;
+      if (step) step.pending++;
+      const finish = () => {
+        if (step?.cancelled) return;
+        try {
+          runInEffectStep(step, cleanup);
+        } finally {
+          releaseEffectStep(step);
+        }
+      };
+      animation.finished.then(finish, finish);
     }
     function scheduleBattleFx(fn, delay) {
+      const step = effectStep;
+      if (step) step.pending++;
       const id = setTimeout(() => {
         battleFxTimers.delete(id);
-        fn();
+        try {
+          runInEffectStep(step, fn);
+        } finally {
+          releaseEffectStep(step);
+        }
       }, delay);
       battleFxTimers.add(id);
       return id;
     }
     function resetPresentationQueue() {
       presentationQueue.length = 0;
-      announcedTurnSeq = completedTurnSeq = seenPresentation;
+      if (activeEffectStep) activeEffectStep.cancelled = true;
+      activeEffectStep = null;
+      presentedTurn = null;
+      signalPresentationIdle();
       normalDrawPlayback = null;
       drawTimers.clear();
+      unrevealedDraws.clear();
+      for (const { el } of handDrawPresentation.rendered) el.classList.remove("la-draw-queued");
       presentationRunning = false;
       playedSource = null;
       battleFxTimers.forEach(clearTimeout);
@@ -7150,11 +7185,24 @@ body.deck-view #deckScreen .deck-card .qty button {
       return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, size: rect.width };
     }
     const setupAnchorKey = ({ uid: uid2, slot }) => `${uid2}:${slot}`;
+    function frameEffects(frame) {
+      if (frame.effects) return frame.effects;
+      return [
+        ...frame.turnStart ? [{ kind: "turn", ...frame.turnStart }] : [],
+        ...frame.cues || [],
+        ...(frame.draws || []).map((event) => ({ kind: "draw", ...event })),
+        ...(frame.foxfire || []).map((event) => ({ kind: "foxfire", ...event })),
+        ...(frame.deckMoves || []).map((pid) => ({ kind: "deckMove", pid })),
+        ...(frame.growth || []).map((uid2) => ({ kind: "growth", uid: uid2 })),
+        ...frame.special ? [{ kind: "special", ...frame.special }] : [],
+        ...(frame.damage || []).map((event) => ({ kind: "damage", ...event }))
+      ];
+    }
     function snapshotSetupAnchors(v) {
       const anchors = /* @__PURE__ */ new Map();
       for (const frame of v.presentationFrames || []) {
         if (frame.seq <= seenPresentation) continue;
-        for (const cue of frame.cues || []) {
+        for (const cue of frameEffects(frame)) {
           if (cue.kind !== "setup") continue;
           const slot = setupSlotElement(v, cue);
           if (slot?.dataset.setupUid !== String(cue.uid)) continue;
@@ -7225,77 +7273,85 @@ body.deck-view #deckScreen .deck-card .qty button {
       for (const frame of v.presentationFrames || []) {
         if (frame.seq <= seenPresentation) continue;
         seenPresentation = frame.seq;
-        const cues = (frame.cues || []).map((cue) => cue.kind === "setup" ? { ...cue, point: locateSetupAnchor(v, cue, prior) } : cue);
-        presentationQueue.push({ perspective, frame, cues });
+        const effects = frameEffects(frame).map((cue) => cue.kind === "setup" ? { ...cue, point: locateSetupAnchor(v, cue, prior) } : cue);
+        presentationQueue.push({ perspective, frame, effects });
       }
       if (!presentationRunning) advanceBattlePresentation();
     }
+    let activeEffectStep = null;
+    function playEffectBatches(v, effects, origin, complete) {
+      let index = 0;
+      const advance = () => {
+        if (index >= effects.length) {
+          complete();
+          return;
+        }
+        const first = effects[index++], batch = [first];
+        const sameBatch = (event) => event.kind === first.kind && (event.kind !== "draw" || event.pid === first.pid && event.normalTurn === first.normalTurn);
+        if (["damage", "draw", "foxfire", "growth"].includes(first.kind)) {
+          while (index < effects.length && sameBatch(effects[index])) batch.push(effects[index++]);
+        }
+        const step = activeEffectStep = { pending: 1, cancelled: false, complete: advance };
+        try {
+          runInEffectStep(step, () => {
+            switch (first.kind) {
+              case "turn":
+                presentedTurn = first;
+                syncVisibleTurn(currentView);
+                break;
+              case "setup":
+                showSetupRipple(first.point, first);
+                break;
+              case "heal":
+                showHealCrosses(v, first.pid);
+                break;
+              case "draw":
+                showDrawEvents(v, batch);
+                break;
+              case "foxfire":
+                showFoxfireDeckEvents(v, batch);
+                break;
+              case "deckMove":
+                spawnZoneFly("to-deck", first.pid === v.me.pid);
+                break;
+              case "growth":
+                showSetupGrowth(batch.map((event) => event.uid));
+                break;
+              case "special":
+                showSpecialCutin(v, first);
+                break;
+              case "damage":
+                showDamageEvents(v, batch, origin);
+                break;
+            }
+          });
+        } finally {
+          releaseEffectStep(step);
+        }
+      };
+      advance();
+    }
     function advanceBattlePresentation() {
-      if (introRunning && (presentationQueue[0]?.frame.action || presentationQueue[0]?.frame.turnStart)) {
-        presentationRunning = false;
-        return;
-      }
+      if (introRunning) return;
       const next = presentationQueue.shift();
       if (!next) {
+        activeEffectStep = null;
         presentationRunning = false;
         if (currentView?.over) renderResultOverlay(currentView);
+        if (currentView) refreshBattleInteraction(currentView);
+        signalPresentationIdle();
         return;
       }
       presentationRunning = true;
-      const { perspective: v, frame, cues } = next;
-      const effects = () => {
-        let delay = 0, cueEnd = 0;
-        for (const cue of cues) {
-          if (cue.kind === "setup") {
-            scheduleBattleFx(() => showSetupRipple(cue.point, cue), delay);
-            cueEnd = Math.max(cueEnd, delay + RIPPLE_MS);
-            delay += cue.point ? 130 : 0;
-          } else if (cue.kind === "heal") {
-            scheduleBattleFx(() => showHealCrosses(v, cue.pid), delay);
-            cueEnd = Math.max(cueEnd, delay + HEAL_MS);
-            delay += 130;
-          }
-        }
-        scheduleBattleFx(() => otherEffects(Math.max(0, cueEnd - delay)), delay);
-      };
-      const otherEffects = (cueTimeLeft) => {
-        if (frame.turnStart) {
-          announcedTurnSeq = frame.seq;
-          if (frame.seq === currentTurnStartSeq(currentView)) syncTurnDisplay(currentView);
-        }
-        const origin = playedSource?.seq === frame.actionSeq ? playedSource.point : null;
-        const draws = frame.draws.filter((event) => isCurrentNormalDraw(event));
-        showDrawEvents(v, draws);
-        showFoxfireDeckEvents(v, frame.foxfire);
-        frame.deckMoves.forEach((pid, i) => scheduleBattleFx(() => spawnZoneFly("to-deck", pid === v.me.pid), i * 90));
-        showSetupGrowth(frame.growth);
-        if (frame.special) showSpecialCutin(v, frame.special);
-        showDamageEvents(v, frame.damage, origin);
-        const duration = Math.max(
-          cueTimeLeft,
-          draws.length ? draws.some((e) => e.pid === v.me.pid && e.normalTurn === void 0) && draws.some((e) => e.pid === v.me.pid && e.normalTurn !== void 0) ? 1900 : 950 : 0,
-          frame.foxfire.length ? 1350 + (frame.foxfire.length - 1) * 70 : 0,
-          frame.deckMoves.length ? 950 + (frame.deckMoves.length - 1) * 90 : 0,
-          frame.growth.length ? 950 : 0,
-          frame.special ? 800 : 0,
-          frame.damage.length ? 650 + (frame.damage.length - 1) * DAMAGE_CADENCE_MS : 0
-        );
-        scheduleBattleFx(() => {
-          if (frame.turnStart) {
-            completedTurnSeq = frame.seq;
-            if (frame.seq === currentTurnStartSeq(currentView)) {
-              for (const { el, card } of handDrawPresentation.rendered) {
-                el.classList.toggle("disabled", !currentView.spectator && (!canActInCurrentTurn(currentView) || !canPlayView(currentView, card)));
-              }
-              syncTurnControls(currentView);
-              decorateConditions(currentView);
-            }
-          }
-          advanceBattlePresentation();
-        }, duration);
-      };
+      const { perspective: v, frame, effects } = next;
+      const playEffects = () => playEffectBatches(
+        v,
+        effects,
+        playedSource?.seq === frame.actionSeq ? playedSource.point : null,
+        advanceBattlePresentation
+      );
       if (!frame.action) {
-        effects();
+        playEffects();
         return;
       }
       showPlayedCard(v, frame.action);
@@ -7303,7 +7359,7 @@ body.deck-view #deckScreen .deck-card .qty button {
         const panel = $2("playedStage");
         playedSource = { seq: frame.action.seq, point: center(panel.querySelector(".card")) };
         panel.classList.add("hidden");
-        scheduleBattleFx(effects, 0);
+        scheduleBattleFx(playEffects, 0);
       }, PLAYED_CARD_MS);
     }
     let fx = document.getElementById("laBattleFx");
@@ -7331,7 +7387,7 @@ body.deck-view #deckScreen .deck-card .qty button {
       ring.style.left = x + "px";
       ring.style.top = y + "px";
       fx.appendChild(ring);
-      setTimeout(() => ring.remove(), 620);
+      scheduleBattleFx(() => ring.remove(), 620);
       if (target) {
         target.classList.remove("la-hit");
         void target.offsetWidth;
@@ -7376,10 +7432,8 @@ body.deck-view #deckScreen .deck-card .qty button {
           impacted = true;
           impactAt(g.targetX, g.targetY, "giovanni", target);
         };
-        const impactTimer = scheduleBattleFx(strike, 255);
+        scheduleBattleFx(strike, 255);
         const cleanup = () => {
-          battleFxTimers.delete(impactTimer);
-          clearTimeout(impactTimer);
           if (knife.isConnected) strike();
           knife.remove();
         };
@@ -7395,12 +7449,7 @@ body.deck-view #deckScreen .deck-card .qty button {
           { transform: `translate3d(${g.dx}px,${g.dy}px,0) scale(1)`, opacity: 1, offset: 0.8 },
           { transform: `translate3d(${g.dx}px,${g.dy}px,0) scale(.96)`, opacity: 0, offset: 1 }
         ], { duration: 420, easing: "cubic-bezier(.16,.82,.22,1)", fill: "forwards" });
-        animation.onfinish = cleanup;
-        animation.oncancel = () => {
-          battleFxTimers.delete(impactTimer);
-          clearTimeout(impactTimer);
-          knife.remove();
-        };
+        trackEffectAnimation(animation, cleanup);
       }, delay);
     }
     function playLeaderDamageEffect(v, e, delay = 0, origin) {
@@ -7440,11 +7489,11 @@ body.deck-view #deckScreen .deck-card .qty button {
             easing: "cubic-bezier(.18,.78,.2,1)",
             fill: "forwards"
           });
-          anim.onfinish = () => {
+          trackEffectAnimation(anim, () => {
             if (!el.isConnected) return;
             el.remove();
             impactAt(b.x, b.y, ch, target);
-          };
+          });
         }, n * 70);
       }, delay);
     }
@@ -7461,7 +7510,7 @@ body.deck-view #deckScreen .deck-card .qty button {
           d.className = `damage-pop ${e.amount === 0 ? "zero" : ""}`;
           d.textContent = e.amount === 0 ? "0" : `-${e.amount}`;
           layer.appendChild(d);
-          setTimeout(() => d.remove(), 1900);
+          scheduleBattleFx(() => d.remove(), 1900);
         }, delay + travel - 40);
       });
     }
@@ -7540,12 +7589,11 @@ body.deck-view #deckScreen .deck-card .qty button {
         presentedGame = battlePresentationKey;
         const resumed = (Number(v.me.turnNo) || 0) + (Number(v.opp.turnNo) || 0) > 1 || v.over;
         seenPresentation = resumePresentation || (resumed ? v.presentationFrames?.at(-1)?.seq || 0 : 0);
-        announcedTurnSeq = completedTurnSeq = seenPresentation;
         resumePresentation = 0;
       }
       if (pointerDrag.active()) pointerDrag.cancel();
       cancelExpiredNormalDraws(v);
-      const me = v.me, op = v.opp, watching = !!v.spectator;
+      const me = v.me, op = v.opp, watching = !!v.spectator, myTurn = canActInCurrentTurn(v);
       const personalPlaceholder = "空き<br><small>手札から設置可能</small>";
       document.body.classList.toggle("spectator-mode", watching);
       [["myName", `${watching ? "P2 " : ""}${me.name}［${CHARACTER_LABELS[me.character] || "ジョバンニ"}］`], ["oppName", `${watching ? "P1 " : ""}${op.name}［${CHARACTER_LABELS[op.character] || "ジョバンニ"}］`], ["myHpText", `HP ${Math.max(0, me.hp)} / ${me.maxHp || 100}`], ["oppHpText", `HP ${Math.max(0, op.hp)} / ${op.maxHp || 100}`], ["myEnergy", me.energy], ["myMaxEnergy", me.maxEnergy], ["oppEnergy", op.energy], ["oppMaxEnergy", op.maxEnergy], ["myDeckN", me.drawCount], ["oppDeckN", op.drawCount], ["myDiscardN", me.discardCount], ["oppDiscardN", op.discardCount], ["myExhaustN", me.exhaustCount], ["oppHandN", `${op.handCount}/10`], ["myHandN", `${me.handCount}/10`]].forEach(([id, val]) => $2(id).textContent = val);
@@ -7585,7 +7633,8 @@ body.deck-view #deckScreen .deck-card .qty button {
         spectatorBadge.textContent = watching ? "観戦モード" : `観戦者 ${spectatorCount}`;
         spectatorBadge.classList.toggle("hidden", !watching && spectatorCount < 1);
       }
-      renderHand(v, canActInCurrentTurn(v));
+      stageDrawTargets(v);
+      renderHand(v, myTurn);
       battleDetail.refresh();
       requestAnimationFrame(layoutHand);
       const log = $2("log");
@@ -7596,7 +7645,7 @@ body.deck-view #deckScreen .deck-card .qty button {
       decorateConditions(v);
       syncEndMenu(v);
       maybeIntro(v);
-      syncTurnControls(v);
+      refreshBattleInteraction(v);
       fit();
       enqueueBattlePresentation(v, priorSetupAnchors);
     }
@@ -7811,7 +7860,6 @@ body.deck-view #deckScreen .deck-card .qty button {
         const el = $2("damageCutin"), img = $2("damageCutinImg"), name = $2("damageCutinName"), num = $2("damageCutinDamage");
         if (!el || !img) return;
         const seq = ++damageCutinSeq;
-        if (damageCutinTimer) clearTimeout(damageCutinTimer);
         img.classList.remove("hidden");
         img.src = src;
         img.alt = `${attacker.name}のカットイン`;
@@ -7821,7 +7869,7 @@ body.deck-view #deckScreen .deck-card .qty button {
         el.setAttribute("aria-hidden", "false");
         void el.offsetWidth;
         el.classList.add("show");
-        damageCutinTimer = setTimeout(() => {
+        damageCutinTimer = scheduleBattleFx(() => {
           if (seq !== damageCutinSeq) return;
           el.className = "damage-cutin hidden";
           el.setAttribute("aria-hidden", "true");
@@ -7843,7 +7891,7 @@ body.deck-view #deckScreen .deck-card .qty button {
     function showSpecialCutin(v, e) {
       const attacker = e.pid === v.me.pid ? v.me : v.opp, el = $2("damageCutin"), img = $2("damageCutinImg"), name = $2("damageCutinName"), num = $2("damageCutinDamage");
       if (!el) return;
-      if (damageCutinTimer) clearTimeout(damageCutinTimer);
+      const seq = ++damageCutinSeq;
       const src = LEADER_SKINS[attacker.character];
       if (src) {
         img.classList.remove("hidden");
@@ -7858,7 +7906,8 @@ body.deck-view #deckScreen .deck-card .qty button {
       el.setAttribute("aria-hidden", "false");
       void el.offsetWidth;
       el.classList.add("show");
-      damageCutinTimer = setTimeout(() => {
+      damageCutinTimer = scheduleBattleFx(() => {
+        if (seq !== damageCutinSeq) return;
         el.className = "damage-cutin hidden";
         el.setAttribute("aria-hidden", "true");
         damageCutinTimer = null;
@@ -7935,7 +7984,7 @@ body.deck-view #deckScreen .deck-card .qty button {
         el.classList.remove("setup-x-growth");
         void el.offsetWidth;
         el.classList.add("setup-x-growth");
-        setTimeout(() => el.classList.remove("setup-x-growth"), 950);
+        scheduleBattleFx(() => el.classList.remove("setup-x-growth"), 950);
       }
     }
     let splash = $2("laTurnSplash");
@@ -7947,51 +7996,79 @@ body.deck-view #deckScreen .deck-card .qty button {
     }
     let lastTurnKey = "";
     function canActInCurrentTurn(v) {
-      return !v.spectator && v.current === v.me.pid && !v.over && !v.pending && !paused() && !isTurnPresentationPending(v);
+      return !!v && !v.spectator && !v.over && !v.pending && v.current === v.me.pid && !paused() && !presentationBusy(v) && !onlineActionPending;
     }
-    function syncTurnControls(v) {
-      const mine = canActInCurrentTurn(v);
-      const pendingPresentation = isTurnPresentationPending(v);
-      $2("movePersonal").disabled = !mine || !v.me.personal;
-      $2("endTurn").disabled = !mine;
-      const notice = $2("battleNotice");
-      notice.className = paused() && !v.over ? "notice bad" : "notice";
-      if (v.spectator) notice.textContent = v.over ? "観戦していた対戦が終了しました。" : "観戦中（読み取り専用）";
-      else if (v.over) notice.textContent = "対戦終了。ホームから次の対戦を選べます。";
-      else if (paused()) notice.textContent = "通信が切れました。再接続中…（対戦は一時停止しています）";
-      else if (pendingPresentation) notice.textContent = "ターン切り替え中…";
-      else if (v.pending) notice.textContent = "カードを選択してください。";
-      else notice.textContent = mine ? "あなたのターンです。" : `${v.opp.name}が考えています…`;
-      if (!v.spectator && v.pending && !pendingPresentation) openPending(v.pending);
-      else closePending();
-      syncTurnDisplay(v);
-    }
-    function syncTurnDisplay(v) {
-      const turnLabel = $2("turnLabel");
-      const announced = currentTurnStartSeq(v) <= announcedTurnSeq;
-      const mine = v.current === v.me.pid;
-      const player = mine ? v.me : v.opp;
-      const no = Number(player.turnNo || 0);
-      if (v.over) turnLabel.innerHTML = "<b>対戦終了</b>";
-      else if (!announced) turnLabel.innerHTML = "<b>ターン切り替え中</b>";
-      else {
-        const name = v.spectator ? `${mine ? "P2" : "P1"} ${escapeHtml(player.name)}` : mine ? "あなた" : "相手";
-        turnLabel.innerHTML = `<b>${no > 0 ? `第${no}ターン` : "BATTLE START"}</b><small>${name}のターン</small>`;
-      }
-      syncLeaderReadout(v);
-      const key = `${v.current}:${no}`;
-      if (!announced || !mine || v.over || v.spectator || no < 1) {
-        splash.classList.remove("show");
-        lastTurnKey = "";
+    let scheduledChoice = null;
+    function offerPendingChoice(pending) {
+      const [card] = pending.cards;
+      const forced = pending.type !== "reorderShared" && (pending.minCount ?? pending.count) === 1 && (pending.maxCount ?? pending.count) === 1 && pending.cards.length === 1;
+      if (!forced) {
+        openPending(pending);
         return;
       }
-      if (key !== lastTurnKey) {
+      closePending();
+      const key = `${battlePresentationKey}:${currentView.me.turnNo}:${seenPresentation}:${pending.type}:${card.uid}`;
+      if (scheduledChoice === key) return;
+      scheduledChoice = key;
+      setTimeout(() => {
+        if (scheduledChoice !== key) return;
+        scheduledChoice = null;
+        const choice = currentView?.pending;
+        if (choice?.type === pending.type && choice.cards.length === 1 && choice.cards[0].uid === card.uid) {
+          dispatchAction({ type: "choose", uids: [card.uid] });
+        }
+      }, 0);
+    }
+    function refreshBattleInteraction(v) {
+      const ready = canActInCurrentTurn(v);
+      $2("endTurn").disabled = !ready;
+      $2("movePersonal").disabled = !ready || !v.me.personal;
+      for (const { el, card } of handDrawPresentation.rendered) {
+        el.classList.toggle("disabled", !v.spectator && (!ready || !canPlayView(v, card)));
+      }
+      decorateConditions(v);
+      const notice = $2("battleNotice");
+      notice.className = paused() && !v.over ? "notice bad" : "notice";
+      if (v.over) notice.textContent = "対戦終了。";
+      else if (paused()) notice.textContent = "通信が切れました。再接続中…";
+      else if (v.spectator) notice.textContent = "観戦中（読み取り専用）";
+      else if (presentationBusy(v) || onlineActionPending) notice.textContent = "効果処理中…";
+      else if (v.pending) notice.textContent = "カードを選択してください。";
+      else notice.textContent = ready ? "あなたのターンです。" : `${v.opp.name}が考えています…`;
+      if (!v.spectator && !v.over && !paused() && v.pending && !presentationBusy(v) && !onlineActionPending) {
+        offerPendingChoice(v.pending);
+      } else {
+        scheduledChoice = null;
+        closePending();
+      }
+      syncVisibleTurn(v);
+    }
+    function syncVisibleTurn(v) {
+      if (!v) return;
+      const active = v.current === v.me.pid ? v.me : v.opp;
+      const display = presentationBusy(v) ? presentedTurn : active;
+      if (v.over && !presentationBusy(v)) $2("turnLabel").innerHTML = "<b>対戦終了</b>";
+      else if (display) {
+        const mine = display.pid === v.me.pid;
+        const player = mine ? v.me : v.opp;
+        const name = v.spectator ? `${mine ? "P2" : "P1"} ${escapeHtml(player.name)}` : mine ? "あなた" : "相手";
+        $2("turnLabel").innerHTML = `<b>第${display.turnNo}ターン</b><small>${name}のターン</small>`;
+      } else $2("turnLabel").innerHTML = "<b>ターン切り替え中</b>";
+      const announced = display?.pid === active.pid && display.turnNo === active.turnNo;
+      syncLeaderReadout(v, announced);
+      const key = display ? `${display.pid}:${display.turnNo}` : "";
+      if (!display || v.spectator || v.over || display.pid !== v.me.pid || display.turnNo < 1) {
+        splash.classList.remove("show");
         lastTurnKey = key;
-        splash.querySelector(".turn").textContent = `TURN ${no}`;
+      } else if (key !== lastTurnKey) {
+        lastTurnKey = key;
+        const number = splash.querySelector(".turn");
+        if (number) number.textContent = `TURN ${display.turnNo}`;
         splash.classList.remove("show");
         void splash.offsetWidth;
         splash.classList.add("show");
       }
+      if (!presentationBusy(v)) presentedTurn = { pid: active.pid, turnNo: active.turnNo };
     }
     const introTimers = [];
     const introLater = (fn, ms) => introTimers.push(setTimeout(fn, ms));
@@ -8023,7 +8100,7 @@ body.deck-view #deckScreen .deck-card .qty button {
       introLater(() => {
         intro.className = "";
         introRunning = false;
-        if (!presentationRunning && presentationQueue.length) advanceBattlePresentation();
+        if (!presentationRunning) advanceBattlePresentation();
       }, 2540);
     }
     function syncEndMenu(v) {
@@ -8042,13 +8119,13 @@ body.deck-view #deckScreen .deck-card .qty button {
         op.appendChild(x);
       }
     }
-    function syncLeaderReadout(v) {
+    function syncLeaderReadout(v, announced = true) {
       ensureLeaderReadout();
       if (!v?.me) return;
       const op = v.opp || v.op || {};
       const a = document.getElementById("opponentActivity");
       if (!a) return;
-      const oppTurn = !v.over && v.current !== v.me.pid && currentTurnStartSeq(v) <= announcedTurnSeq;
+      const oppTurn = announced && !v.over && v.current !== v.me.pid;
       if (!oppTurn) {
         a.classList.add("hidden");
         return;
@@ -8098,7 +8175,7 @@ body.deck-view #deckScreen .deck-card .qty button {
     const battleActions = createBattleActions({
       getView: view,
       isSpectator: () => roomRole === "spectator",
-      isPaused: () => paused() || isTurnPresentationPending(view()),
+      isPaused: () => paused() || presentationBusy() || !!onlineActionPending,
       send: dispatchAction
     });
     const act = battleActions.submit;
@@ -8428,6 +8505,7 @@ body.deck-view #deckScreen .deck-card .qty button {
         d.className = `card ${c.type} la-card-face hand-card ${playable || v.spectator ? "" : "disabled"} ${v.me.keepUid === c.uid ? "keep" : ""} ${c.retain || activeViewHasSetup(v, v.me.pid, "k9") ? "retain" : ""}`;
         d.dataset.uid = String(c.uid);
         d.dataset.cardId = c.id;
+        if (unrevealedDraws.has(d.dataset.uid)) d.classList.add("la-draw-queued");
         if (handDrawPresentation.arriving.has(d.dataset.uid)) d.classList.add("la-draw-arriving");
         const options = { cost: viewCost(v, c), skillDraws: v.me.turnSkillDraws };
         if (v.spectator) options.extraHtml = choiceModifierHtml(c);
@@ -8449,7 +8527,7 @@ body.deck-view #deckScreen .deck-card .qty button {
       layoutHand();
       decorateConditions(v);
       const reflow = [];
-      if (!drawMotionReduced() && !presentationRunning && !(v.presentationFrames?.at(-1)?.seq > seenPresentation)) {
+      if (!drawMotionReduced() && !presentationBusy(v)) {
         rendered.forEach((entry) => {
           const oldRect = beforeRects.get(entry.uid), nextRect = rectInBoard(entry.el);
           if (!oldRect || !nextRect.width || !nextRect.height) return;
@@ -9043,6 +9121,7 @@ body.deck-view #deckScreen .deck-card .qty button {
       resetPresentationQueue();
       pointerDrag.cancel();
       lastTurnKey = "";
+      scheduledChoice = null;
       splash.classList.remove("show");
       introArmed = true;
       introTimers.splice(0).forEach(clearTimeout);
@@ -9105,7 +9184,10 @@ body.deck-view #deckScreen .deck-card .qty button {
       resetResultOverlay: resetResultOverlay2,
       resetDamageCutin: resetDamageCutin2,
       refreshDeckSelects: refreshDeckSelects2,
-      syncAnimationCursor
+      syncAnimationCursor,
+      presentationBusy,
+      whenPresentationIdle,
+      refreshBattleInteraction
     };
     return exportedUi;
   })();
