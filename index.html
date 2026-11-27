@@ -18,8 +18,8 @@
 <script id="luna-alter-build-meta">
 // Single source of truth for build/version metadata.
 window.LUNA_ALTER_APP_META = Object.freeze({
-  version:"0.37.1",
-  label:"デッキ編成の一覧と詳細表示を改善"
+  version:"0.37.2",
+  label:"ターン切り替えと演出の同期を修正"
 });
 </script>
 
@@ -3337,6 +3337,7 @@ body.deck-view #deckScreen .deck-card .qty button {
   function startTurn(ctx, pid) {
     const player = ctx.state.players[pid];
     player.turnNo = (player.turnNo || 0) + 1;
+    if (ctx.presentationCapture) ctx.presentationCapture.turnStart = { pid, turnNo: player.turnNo };
     syncEnergyCap(ctx, pid);
     player.energy = player.maxEnergy;
     noteSetup(ctx, pid, findSetup(ctx, pid, "k5"));
@@ -4725,10 +4726,11 @@ body.deck-view #deckScreen .deck-card .qty button {
         return pid ? [pid] : [];
       });
       const growth = [...setupGrowthValues(state)].filter(([uid2, value]) => before.growth.has(uid2) && value > before.growth.get(uid2)).map(([uid2]) => uid2);
-      if (action || damage2.length || capture.draws.length || foxfire.length || special || deckMoves.length || growth.length || capture.cues.length) {
+      const { turnStart } = capture;
+      if (turnStart || action || damage2.length || capture.draws.length || foxfire.length || special || deckMoves.length || growth.length || capture.cues.length) {
         const frames = state.presentationFrames ||= [];
         const seq = (frames.at(-1)?.seq || 0) + 1;
-        frames.push({ seq, action, actionSeq, damage: damage2, draws: capture.draws, foxfire, special, deckMoves, growth, cues: capture.cues });
+        frames.push({ seq, action, actionSeq, damage: damage2, draws: capture.draws, foxfire, special, deckMoves, growth, cues: capture.cues, ...turnStart && { turnStart } });
         if (frames.length > FRAME_LIMIT) frames.shift();
       }
     }
@@ -7104,7 +7106,16 @@ body.deck-view #deckScreen .deck-card .qty button {
     const presentationQueue = [];
     const battleFxTimers = /* @__PURE__ */ new Set();
     let seenPresentation = 0, resumePresentation = 0, presentationRunning = false;
+    let announcedTurnSeq = 0, completedTurnSeq = 0;
     let playedSource = null;
+    function currentTurnStartSeq(v) {
+      if (!v || v.over) return 0;
+      const active = v.current === v.me.pid ? v.me : v.opp;
+      return v.presentationFrames?.find(({ turnStart }) => turnStart?.pid === active.pid && turnStart.turnNo === active.turnNo)?.seq || 0;
+    }
+    function isTurnPresentationPending(v) {
+      return currentTurnStartSeq(v) > completedTurnSeq;
+    }
     function scheduleBattleFx(fn, delay) {
       const id = setTimeout(() => {
         battleFxTimers.delete(id);
@@ -7115,6 +7126,7 @@ body.deck-view #deckScreen .deck-card .qty button {
     }
     function resetPresentationQueue() {
       presentationQueue.length = 0;
+      announcedTurnSeq = completedTurnSeq = seenPresentation;
       normalDrawPlayback = null;
       drawTimers.clear();
       presentationRunning = false;
@@ -7219,7 +7231,7 @@ body.deck-view #deckScreen .deck-card .qty button {
       if (!presentationRunning) advanceBattlePresentation();
     }
     function advanceBattlePresentation() {
-      if (introRunning && presentationQueue[0]?.frame.action) {
+      if (introRunning && (presentationQueue[0]?.frame.action || presentationQueue[0]?.frame.turnStart)) {
         presentationRunning = false;
         return;
       }
@@ -7247,6 +7259,10 @@ body.deck-view #deckScreen .deck-card .qty button {
         scheduleBattleFx(() => otherEffects(Math.max(0, cueEnd - delay)), delay);
       };
       const otherEffects = (cueTimeLeft) => {
+        if (frame.turnStart) {
+          announcedTurnSeq = frame.seq;
+          if (frame.seq === currentTurnStartSeq(currentView)) syncTurnDisplay(currentView);
+        }
         const origin = playedSource?.seq === frame.actionSeq ? playedSource.point : null;
         const draws = frame.draws.filter((event) => isCurrentNormalDraw(event));
         showDrawEvents(v, draws);
@@ -7264,7 +7280,19 @@ body.deck-view #deckScreen .deck-card .qty button {
           frame.special ? 800 : 0,
           frame.damage.length ? 650 + (frame.damage.length - 1) * DAMAGE_CADENCE_MS : 0
         );
-        scheduleBattleFx(advanceBattlePresentation, duration);
+        scheduleBattleFx(() => {
+          if (frame.turnStart) {
+            completedTurnSeq = frame.seq;
+            if (frame.seq === currentTurnStartSeq(currentView)) {
+              for (const { el, card } of handDrawPresentation.rendered) {
+                el.classList.toggle("disabled", !currentView.spectator && (!canActInCurrentTurn(currentView) || !canPlayView(currentView, card)));
+              }
+              syncTurnControls(currentView);
+              decorateConditions(currentView);
+            }
+          }
+          advanceBattlePresentation();
+        }, duration);
       };
       if (!frame.action) {
         effects();
@@ -7510,12 +7538,14 @@ body.deck-view #deckScreen .deck-card .qty button {
       if (presentedGame !== battlePresentationKey) {
         resetBattlePresentation();
         presentedGame = battlePresentationKey;
-        seenPresentation = resumePresentation;
+        const resumed = (Number(v.me.turnNo) || 0) + (Number(v.opp.turnNo) || 0) > 1 || v.over;
+        seenPresentation = resumePresentation || (resumed ? v.presentationFrames?.at(-1)?.seq || 0 : 0);
+        announcedTurnSeq = completedTurnSeq = seenPresentation;
         resumePresentation = 0;
       }
       if (pointerDrag.active()) pointerDrag.cancel();
       cancelExpiredNormalDraws(v);
-      const me = v.me, op = v.opp, watching = !!v.spectator, myTurn = !watching && v.current === me.pid && !v.over && !v.pending && !networkPaused;
+      const me = v.me, op = v.opp, watching = !!v.spectator;
       const personalPlaceholder = "空き<br><small>手札から設置可能</small>";
       document.body.classList.toggle("spectator-mode", watching);
       [["myName", `${watching ? "P2 " : ""}${me.name}［${CHARACTER_LABELS[me.character] || "ジョバンニ"}］`], ["oppName", `${watching ? "P1 " : ""}${op.name}［${CHARACTER_LABELS[op.character] || "ジョバンニ"}］`], ["myHpText", `HP ${Math.max(0, me.hp)} / ${me.maxHp || 100}`], ["oppHpText", `HP ${Math.max(0, op.hp)} / ${op.maxHp || 100}`], ["myEnergy", me.energy], ["myMaxEnergy", me.maxEnergy], ["oppEnergy", op.energy], ["oppMaxEnergy", op.maxEnergy], ["myDeckN", me.drawCount], ["oppDeckN", op.drawCount], ["myDiscardN", me.discardCount], ["oppDiscardN", op.discardCount], ["myExhaustN", me.exhaustCount], ["oppHandN", `${op.handCount}/10`], ["myHandN", `${me.handCount}/10`]].forEach(([id, val]) => $2(id).textContent = val);
@@ -7544,12 +7574,7 @@ body.deck-view #deckScreen .deck-card .qty button {
       decorateCards($2("myPersonal"));
       decorateCards($2("oppPersonal"));
       decorateCards($2("sharedZone"));
-      $2("turnLabel").textContent = v.over ? "対戦終了" : `${v.current === me.pid ? watching ? me.name : "あなた" : op.name}のターン / 最大コスト ${v.current === me.pid ? me.maxEnergy : op.maxEnergy}`;
       $2("winner").textContent = v.over ? `${v.winner === me.pid ? me.name : op.name}の勝利` : "";
-      $2("battleNotice").className = networkPaused && !v.over ? "notice bad" : "notice";
-      $2("battleNotice").textContent = watching ? v.over ? "観戦していた対戦が終了しました。" : `${v.current === me.pid ? me.name : op.name}のターンを観戦中（読み取り専用）` : v.over ? "対戦終了。ホームから次の対戦を選べます。" : networkPaused ? "通信が切れました。再接続中…（対戦は一時停止しています）" : v.pending ? "カードを選択してください。" : myTurn ? "あなたのターンです。" : `${op.name}が考えています…`;
-      $2("movePersonal").disabled = !myTurn || !me.personal;
-      $2("endTurn").disabled = !myTurn;
       $2("movePersonal").classList.toggle("hidden", watching);
       $2("endTurn").classList.toggle("hidden", watching);
       $2("keepHint").textContent = !watching && activeViewHasSetup(v, me.pid, "j15") ? "《お取り置き》有効：保持カードを選択可" : "";
@@ -7560,21 +7585,18 @@ body.deck-view #deckScreen .deck-card .qty button {
         spectatorBadge.textContent = watching ? "観戦モード" : `観戦者 ${spectatorCount}`;
         spectatorBadge.classList.toggle("hidden", !watching && spectatorCount < 1);
       }
-      renderHand(v, myTurn);
+      renderHand(v, canActInCurrentTurn(v));
       battleDetail.refresh();
       requestAnimationFrame(layoutHand);
       const log = $2("log");
       log.innerHTML = v.log.map((x) => `<div>${renderLogLine(x)}</div>`).join("");
       log.scrollTop = log.scrollHeight;
       if (!v.over) renderResultOverlay(v);
-      if (!watching && v.pending) openPending(v.pending);
-      else closePending();
       syncHud(v);
-      syncLeaderReadout(v);
       decorateConditions(v);
-      syncTurnSplash(v);
       syncEndMenu(v);
       maybeIntro(v);
+      syncTurnControls(v);
       fit();
       enqueueBattlePresentation(v, priorSetupAnchors);
     }
@@ -7856,12 +7878,6 @@ body.deck-view #deckScreen .deck-card .qty button {
       const mh = $2("myHpText"), oh = $2("oppHpText");
       if (mh) mh.textContent = `${Math.max(0, v.me.hp ?? 0)} / ${v.me.maxHp || 100}`;
       if (oh) oh.textContent = `${Math.max(0, op.hp ?? 0)} / ${op.maxHp || 100}`;
-      const tl = $2("turnLabel");
-      if (tl) {
-        const no = Number(v.me.turnNo || 0);
-        const turnName = v.current === v.me.pid ? v.spectator ? `P2 ${v.me.name}` : "あなた" : v.spectator ? `P1 ${op.name}` : "相手";
-        tl.innerHTML = v.over ? "<b>対戦終了</b>" : `<b>${no > 0 ? `第${no}ターン` : "BATTLE START"}</b><small>${turnName}のターン</small>`;
-      }
       const uc = $2("shiranuiUseCount");
       if (uc) {
         if (v.me.character === "shiranui") {
@@ -7874,7 +7890,7 @@ body.deck-view #deckScreen .deck-card .qty button {
     }
     const LunaRules = window.LunaRules = Object.freeze({
       canPlay(v, c) {
-        return !!(v?.me && c && !v.over && !v.pending && v.current === v.me.pid && canPlayView(v, c));
+        return !!(v?.me && c && canActInCurrentTurn(v) && canPlayView(v, c));
       },
       used(v) {
         return Number(v?.me?.cardsPlayedThisTurn || 0);
@@ -7930,16 +7946,52 @@ body.deck-view #deckScreen .deck-card .qty button {
       stage.appendChild(splash);
     }
     let lastTurnKey = "";
-    function syncTurnSplash(v) {
-      if (!v?.me) return;
-      const no = Number(v.me.turnNo || 0), mine = v.current === v.me.pid && !v.over, key = `${v.current}:${no}`;
-      if (mine && no > 0 && key !== lastTurnKey) {
+    function canActInCurrentTurn(v) {
+      return !v.spectator && v.current === v.me.pid && !v.over && !v.pending && !paused() && !isTurnPresentationPending(v);
+    }
+    function syncTurnControls(v) {
+      const mine = canActInCurrentTurn(v);
+      const pendingPresentation = isTurnPresentationPending(v);
+      $2("movePersonal").disabled = !mine || !v.me.personal;
+      $2("endTurn").disabled = !mine;
+      const notice = $2("battleNotice");
+      notice.className = paused() && !v.over ? "notice bad" : "notice";
+      if (v.spectator) notice.textContent = v.over ? "観戦していた対戦が終了しました。" : "観戦中（読み取り専用）";
+      else if (v.over) notice.textContent = "対戦終了。ホームから次の対戦を選べます。";
+      else if (paused()) notice.textContent = "通信が切れました。再接続中…（対戦は一時停止しています）";
+      else if (pendingPresentation) notice.textContent = "ターン切り替え中…";
+      else if (v.pending) notice.textContent = "カードを選択してください。";
+      else notice.textContent = mine ? "あなたのターンです。" : `${v.opp.name}が考えています…`;
+      if (!v.spectator && v.pending && !pendingPresentation) openPending(v.pending);
+      else closePending();
+      syncTurnDisplay(v);
+    }
+    function syncTurnDisplay(v) {
+      const turnLabel = $2("turnLabel");
+      const announced = currentTurnStartSeq(v) <= announcedTurnSeq;
+      const mine = v.current === v.me.pid;
+      const player = mine ? v.me : v.opp;
+      const no = Number(player.turnNo || 0);
+      if (v.over) turnLabel.innerHTML = "<b>対戦終了</b>";
+      else if (!announced) turnLabel.innerHTML = "<b>ターン切り替え中</b>";
+      else {
+        const name = v.spectator ? `${mine ? "P2" : "P1"} ${escapeHtml(player.name)}` : mine ? "あなた" : "相手";
+        turnLabel.innerHTML = `<b>${no > 0 ? `第${no}ターン` : "BATTLE START"}</b><small>${name}のターン</small>`;
+      }
+      syncLeaderReadout(v);
+      const key = `${v.current}:${no}`;
+      if (!announced || !mine || v.over || v.spectator || no < 1) {
+        splash.classList.remove("show");
+        lastTurnKey = "";
+        return;
+      }
+      if (key !== lastTurnKey) {
         lastTurnKey = key;
         splash.querySelector(".turn").textContent = `TURN ${no}`;
         splash.classList.remove("show");
         void splash.offsetWidth;
         splash.classList.add("show");
-      } else if (!mine) lastTurnKey = key;
+      }
     }
     const introTimers = [];
     const introLater = (fn, ms) => introTimers.push(setTimeout(fn, ms));
@@ -7996,7 +8048,7 @@ body.deck-view #deckScreen .deck-card .qty button {
       const op = v.opp || v.op || {};
       const a = document.getElementById("opponentActivity");
       if (!a) return;
-      const oppTurn = !v.over && v.current !== v.me.pid;
+      const oppTurn = !v.over && v.current !== v.me.pid && currentTurnStartSeq(v) <= announcedTurnSeq;
       if (!oppTurn) {
         a.classList.add("hidden");
         return;
@@ -8046,7 +8098,7 @@ body.deck-view #deckScreen .deck-card .qty button {
     const battleActions = createBattleActions({
       getView: view,
       isSpectator: () => roomRole === "spectator",
-      isPaused: paused,
+      isPaused: () => paused() || isTurnPresentationPending(view()),
       send: dispatchAction
     });
     const act = battleActions.submit;
@@ -8991,6 +9043,7 @@ body.deck-view #deckScreen .deck-card .qty button {
       resetPresentationQueue();
       pointerDrag.cancel();
       lastTurnKey = "";
+      splash.classList.remove("show");
       introArmed = true;
       introTimers.splice(0).forEach(clearTimeout);
       intro.className = "";
